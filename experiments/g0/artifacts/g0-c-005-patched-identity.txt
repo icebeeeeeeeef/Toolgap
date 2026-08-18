@@ -1,0 +1,16 @@
+run_id: g0-c-atomic-seam-005
+checkout: /private/tmp/toolgap-kv-g0-sglang-atomic-prototype-005
+base_commit: 92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2
+base_tree: 25e9bf86d04c27fe380024d9c8c421c3b5b51f3c
+modified_files: 4
+insertions: 216
+patch_sha256: e69776678909b4ee49b1c0fa4a8e208666893b659c0508387c83fcdf11e82a9a
+oracle_sha256: f3ec1863a58d7e8cde1f68945cbaee7fb8d220dc88a4f0eadc5673528edf3cec
+patch_byte_matches_worktree_diff: yes
+git_apply_check_against_stock: pass
+python_py_compile: pass
+git_diff_check: pass
+new_physical_algorithm_or_data_plane: no
+real_physical_path_imported_or_invoked_by_g0: no
+second_ownership_index_added: no
+scope: one cache caller surface; generation-preserving tracker sub-step; concrete fail-closed maintained interface; Python backend final-check-plus-existing-demote wrapper; actual typed outcomes; cache-owned observation and free drain

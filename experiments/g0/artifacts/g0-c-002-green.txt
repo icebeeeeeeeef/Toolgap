@@ -1,0 +1,8 @@
+run_id: g0-c-checked-admission-002
+command: /opt/homebrew/bin/python3 toolgap/experiments/g0/artifacts/test_checked_admission_contract.py --checkout /private/tmp/toolgap-kv-g0-sglang-admission-prototype
+base_commit: 92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2
+exit_code: 0
+result: GREEN
+summary: Ran 14 tests in 0.054s; all passed.
+cases: cache surface; settled Full-only target; write-through pending; load-back pending; non-target session coverage; device-child mutation; device lock; resumable insert; eviction walk; auxiliary component scope; stale generation; generation-preserving tracker release; cleanup success; cleanup failure.
+interpretation: The retained source prototype satisfies the frozen extracted-method oracle. It does not execute real demotion, CUDA, allocator reclamation, resume, or performance work.

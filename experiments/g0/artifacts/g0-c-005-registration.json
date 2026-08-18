@@ -1,0 +1,29 @@
+{
+  "registration": {
+    "run_id": "g0-c-atomic-seam-005",
+    "attempt_id": "g0-c-atomic-seam-005-attempt-01",
+    "registered_at_utc": "2026-08-17T16:29:20Z",
+    "state": "sealed before 005 test and prototype creation"
+  },
+  "frozen_spec": {
+    "path": "toolgap/experiments/g0/SPEC.g0-c-005.md",
+    "size_bytes": 10895,
+    "sha256": "81745d5c6db4eca102989c9d0d18aaddd6229158a8618362a53f51992b359734"
+  },
+  "preregistration_manifest": {
+    "path": "toolgap/experiments/g0/manifest.g0-c-005.json",
+    "size_bytes": 8562,
+    "sha256": "b3d18999a17fe66639cb4acc0e8acfae811c00ea674b81a3afe76ab051e60b81"
+  },
+  "source": {
+    "commit": "92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2",
+    "tree": "25e9bf86d04c27fe380024d9c8c421c3b5b51f3c",
+    "stock_checkout": "/private/tmp/toolgap-kv-g0-sglang-92b1d382",
+    "patched_checkout": "/private/tmp/toolgap-kv-g0-sglang-atomic-prototype-005"
+  },
+  "prohibited_at_registration": [
+    "test_atomic_checked_demote_contract_v5.py did not exist",
+    "sglang-session-atomic-checked-demote-v5.patch did not exist",
+    "no 005 RED or GREEN execution had started"
+  ]
+}

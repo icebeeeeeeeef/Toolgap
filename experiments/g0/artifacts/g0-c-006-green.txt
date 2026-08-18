@@ -1,0 +1,8 @@
+run_id: g0-c-atomic-seam-006
+command: /opt/homebrew/bin/python3 toolgap/experiments/g0/artifacts/test_atomic_checked_demote_contract_v6.py --checkout /private/tmp/toolgap-kv-g0-sglang-atomic-prototype-006
+base_commit: 92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2
+exit_code: 0
+result: GREEN
+summary: Ran 27 tests in 0.216s; all passed without unraisable cleanup warnings.
+coverage: all 22 v5 obligations plus frozen dependency hashes, target-only multi-session release and coverage, exact caller identity/typed fields, permanent-first traversal, Host-lock negative constraint, exact per-node attribution, legacy vertical one-way release, and multi-index freed-ID observation.
+interpretation: The source prototype satisfies the frozen registered-fake-backend oracle. The real upstream physical TreeCore demote implementation was neither imported nor invoked; no CUDA, allocator, lifecycle, correctness, or performance result is claimed.

@@ -1,0 +1,4 @@
+# Frozen patch artifacts retain their original bytes and hashes, including
+# upstream patch-context whitespace. Do not make repository diff checks rewrite
+# that evidence.
+experiments/g0/artifacts/*.patch whitespace=-trailing-space,-blank-at-eof

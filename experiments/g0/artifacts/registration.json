@@ -1,0 +1,223 @@
+{
+  "identity": {
+    "experiment_id": "toolgap-g0",
+    "cohort_id": "g0-source-only",
+    "gate": "G0",
+    "spec_revision": "G0-SOURCE-001",
+    "spec_path": "toolgap/experiments/g0/SPEC.md",
+    "spec_sha256": "f25f8899ff59b7eaf06efe338c7558861734bd5718b1554896e56d932d80a654",
+    "run_id": "g0-source-audit-001",
+    "attempt_id": "g0-source-audit-001-attempt-01",
+    "repeat_id": "N/A: source-only audit has no statistical repeats",
+    "arm": "fixed-pin source capability and counterexample audit",
+    "run_status": "registered: decisive source audit not yet executed",
+    "registered_at_utc": "2026-08-17T15:01:06Z"
+  },
+  "source": {
+    "engine": "SGLang",
+    "remote": "https://github.com/sgl-project/sglang.git",
+    "commit": "92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2",
+    "tree": "25e9bf86d04c27fe380024d9c8c421c3b5b51f3c",
+    "parent": "b6d7602914d1d54253e79b1cc5b8f9017152b6e0",
+    "local_checkout": "/private/tmp/toolgap-kv-g0-sglang-92b1d382",
+    "checkout_mode": "detached sparse checkout",
+    "sparse_paths": [
+      "benchmark/hicache",
+      "docs/backend/hicache",
+      "python/sglang/srt/managers",
+      "python/sglang/srt/mem_cache",
+      "test/registered/unit/mem_cache"
+    ],
+    "upstream_patch_identity": "N/A: no upstream patch is authorized for source audit",
+    "candidate_repository": "/Users/bytedance/toolgap-kv",
+    "candidate_repository_head": "db0b4fa8c8b530fb78e2242328b48bc292b83255",
+    "candidate_branch": "codex/ai-infra-interview-map",
+    "candidate_worktree_identity": "dirty before G0; unrelated changes preserved; toolgap directory already untracked",
+    "dependency_revisions": "N/A: source-only audit does not install or import upstream dependencies",
+    "model_revision": "N/A: source-only audit",
+    "tokenizer_revision": "N/A: source-only audit",
+    "resolved_flags": "N/A: G0-C must freeze flags after one Host mode is selected",
+    "source_hash_scope": "exact commit and tree plus SHA-256-indexed retained G0 artifacts"
+  },
+  "configuration": {
+    "test_scope": "single-node SGLang HiCache unified radix source path with device and Host tiers",
+    "host_write_mode": "N/A: source-only; selecting exactly one mode is a G0-B output",
+    "storage_backend": "N/A: source-only; Mooncake and L3 are excluded",
+    "dtype": "N/A: source-only",
+    "page_size": "N/A: source-only",
+    "context_limit": "N/A: source-only",
+    "memory_fraction": "N/A: source-only",
+    "public_pause_or_hint_api": "N/A: explicitly excluded from G0"
+  },
+  "environment": {
+    "testbed": "local macOS source-audit host",
+    "host_identity": "M65RXKPFCP",
+    "host_architecture": "arm64",
+    "os": "macOS 15.7.4 build 24G517",
+    "kernel": "Darwin 24.6.0",
+    "python": "Python 3.8.10; metadata only, upstream code is not imported",
+    "device_identity": "N/A: source-only; no GPU is used",
+    "runtime_driver_versions": "N/A: source-only",
+    "process_role_mapping": "N/A: source-only; no engine process starts",
+    "capacity_configuration": "N/A: source-only"
+  },
+  "workload": {
+    "source_release": "N/A: source-only; no workload",
+    "preprocessing": "N/A: source-only",
+    "seed": "N/A: source-only",
+    "content_hash": "N/A: source-only",
+    "arrival_process": "N/A: source-only",
+    "session_gap_shape": "N/A: source-only",
+    "pressure_inputs": "N/A: source-only",
+    "tuning_evaluation_split": "N/A: source-only"
+  },
+  "protocol": {
+    "basis": [
+      "toolgap/docs/PROJECT.md",
+      "toolgap/docs/ARCHITECTURE.md section 8",
+      "toolgap/docs/DEMOTION_CONTRACT.md section 4",
+      "toolgap/docs/ROADMAP.md G0",
+      "toolgap/docs/EVALUATION.md",
+      "toolgap/docs/governance/EXPERIMENT_AND_EVIDENCE_SOP.md",
+      "toolgap/experiments/g0/SPEC.md"
+    ],
+    "baseline_action": "source-backed target-only priority release preserving pause/resume identity, or precise failing counterexample",
+    "assignment_order": "N/A: source-only; no treatment assignment",
+    "warmup_measurement_drain": "N/A: source-only",
+    "clock_domains": "UTC wall clock for artifact registration; no runtime event clock",
+    "repetition_unit": "N/A: source-only",
+    "slos": "N/A: source-only",
+    "thresholds": "G0 PASS/RESHAPE/STOP branches in ROADMAP.md; missing evidence is not PASS",
+    "denominator_rules": "N/A: source-only; no rate, ratio, or quantile",
+    "failure_classification": "source inaccessible or required claim unsupported remains blocked/unresolved; one narrow missing contract may produce RESHAPE; broad replacement need produces STOP",
+    "censoring": "N/A: source-only",
+    "invalid_attempt_rule": "retain failed acquisition/audit commands; do not substitute unpinned main or a nearby revision"
+  },
+  "metrics": {
+    "primary": "N/A: source-only; decision is based on required source capabilities",
+    "causal": "N/A: source-only; no physical or request-level measurement",
+    "guardrails": "all claims link to the exact commit and are typed fact, inference, or unresolved",
+    "required_terminal_events": "N/A: source-only; completion-event availability is audited, not observed at runtime",
+    "analysis_revision": "G0-SOURCE-001"
+  },
+  "execution": {
+    "command_references": [
+      "toolgap/experiments/g0/commands/00-acquire-source.sh",
+      "toolgap/experiments/g0/commands/01-source-identity.sh",
+      "toolgap/experiments/g0/commands/02-source-audit.sh",
+      "toolgap/experiments/g0/commands/03-verify-bundle.sh"
+    ],
+    "start_time_utc": "N/A: registered before decisive source audit",
+    "end_time_utc": "N/A: registered before decisive source audit",
+    "exit_information": "N/A: registered before decisive source audit",
+    "environment_readbacks": "preflight source commit, tree, sparse paths, OS, and Python metadata captured",
+    "runtime_readbacks": "N/A: source-only",
+    "raw_artifact_rule": "command outputs and source excerpts are retained under toolgap/experiments/g0/artifacts with SHA-256 at sealing"
+  },
+  "artifact_index": [
+    {
+      "path": "toolgap/experiments/g0/SPEC.md",
+      "status": "frozen",
+      "size_bytes": 10270,
+      "sha256": "f25f8899ff59b7eaf06efe338c7558861734bd5718b1554896e56d932d80a654"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/preflight.md",
+      "status": "retained preflight evidence",
+      "size_bytes": 2425,
+      "sha256": "233dd37673e7c42565ad914d378e297f783ac6dfb0f9385ebfcb960fccb43985"
+    },
+    {
+      "path": "toolgap/experiments/g0/commands/00-acquire-source.sh",
+      "status": "registered command",
+      "size_bytes": 1031,
+      "sha256": "dac92a6d1bc2656b8fc728ed958a0e4bcf48c9e630cbd6a693837f15cfc6e812"
+    },
+    {
+      "path": "toolgap/experiments/g0/commands/01-source-identity.sh",
+      "status": "registered command",
+      "size_bytes": 518,
+      "sha256": "722fdadc77b5b360392d980df9f481852191583706e412dd71c8078c6ef27f9a"
+    },
+    {
+      "path": "toolgap/experiments/g0/commands/02-source-audit.sh",
+      "status": "registered command",
+      "size_bytes": 1311,
+      "sha256": "1ce2ad2f1b2d30114480c37860e3b1284ccd2f3cebf8d709b6bc89943330c931"
+    },
+    {
+      "path": "toolgap/experiments/g0/commands/03-verify-bundle.sh",
+      "status": "registered command",
+      "size_bytes": 694,
+      "sha256": "14e913b403fc91ed743585fe556c527c85ff4b2b2eea6b985447582d21c19419"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/source-identity.txt",
+      "status": "planned: source audit not yet executed",
+      "size_bytes": "N/A: artifact not yet created",
+      "sha256": "N/A: artifact not yet created"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/source-audit.txt",
+      "status": "planned: source audit not yet executed",
+      "size_bytes": "N/A: artifact not yet created",
+      "sha256": "N/A: artifact not yet created"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/source-index.md",
+      "status": "planned: source audit not yet executed",
+      "size_bytes": "N/A: artifact not yet created",
+      "sha256": "N/A: artifact not yet created"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/capability-matrix.md",
+      "status": "planned: source audit not yet executed",
+      "size_bytes": "N/A: artifact not yet created",
+      "sha256": "N/A: artifact not yet created"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/counterexample-matrix.md",
+      "status": "planned: source audit not yet executed",
+      "size_bytes": "N/A: artifact not yet created",
+      "sha256": "N/A: artifact not yet created"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/priority-release.md",
+      "status": "planned: source audit not yet executed",
+      "size_bytes": "N/A: artifact not yet created",
+      "sha256": "N/A: artifact not yet created"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/session-to-leaf.md",
+      "status": "planned: source audit not yet executed",
+      "size_bytes": "N/A: artifact not yet created",
+      "sha256": "N/A: artifact not yet created"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/checked-demote-interface.md",
+      "status": "planned: source audit not yet executed",
+      "size_bytes": "N/A: artifact not yet created",
+      "sha256": "N/A: artifact not yet created"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g1-removal-test.md",
+      "status": "planned: source audit not yet executed",
+      "size_bytes": "N/A: artifact not yet created",
+      "sha256": "N/A: artifact not yet created"
+    },
+    {
+      "path": "toolgap/experiments/g0/RESULTS.md",
+      "status": "planned: source audit not yet executed",
+      "size_bytes": "N/A: artifact not yet created",
+      "sha256": "N/A: artifact not yet created"
+    }
+  ],
+  "outcome": {
+    "attempt_status": "registered, not yet executed",
+    "gate_decision": "N/A: G0-B evidence has not been collected",
+    "claim_state": "roadmap",
+    "promoted_claims": "N/A: source-only audit cannot promote runtime claims",
+    "blocked_reason": "N/A: exact source acquisition succeeded",
+    "next_authorized_action": "run the frozen version-matched source audit"
+  }
+}

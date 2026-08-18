@@ -1,0 +1,11 @@
+run_id: g0-c-seam-contract-001
+checkout: /private/tmp/toolgap-kv-g0-sglang-seam-prototype
+head: 92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2
+head_tree: 25e9bf86d04c27fe380024d9c8c421c3b5b51f3c
+status: M python/sglang/srt/mem_cache/unified_cache/session_ref_tracker.py
+diff_scope: python/sglang/srt/mem_cache/unified_cache/session_ref_tracker.py only
+stock_checkout: /private/tmp/toolgap-kv-g0-sglang-92b1d382
+stock_checkout_status: clean
+
+The worktree remains detached at the frozen commit. The only dirty change is
+the retained patch `sglang-session-priority-release.patch`.

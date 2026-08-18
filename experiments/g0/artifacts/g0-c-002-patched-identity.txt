@@ -1,0 +1,15 @@
+run_id: g0-c-checked-admission-002
+checkout: /private/tmp/toolgap-kv-g0-sglang-admission-prototype
+base_commit: 92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2
+base_tree: 25e9bf86d04c27fe380024d9c8c421c3b5b51f3c
+modified_files: 4
+insertions: 138
+patch_sha256: b6cd278a137dd50dd52b6857db9414fd2d286d11a8367ae20214eac7e8070423
+oracle_sha256: 4b979a2708ed1499b106c4c6618e28f03e572d445f6901705f79f9426174b773
+patch_byte_matches_worktree_diff: yes
+git_apply_check_against_stock: pass
+python_py_compile: pass
+git_diff_check: pass
+physical_demote_invocation_added: no
+second_ownership_index_added: no
+scope: one cache-level checked-admission surface, implemented vertically across tracker, maintained TreeCore interface, Python TreeCore, and UnifiedRadixCache

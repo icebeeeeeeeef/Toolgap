@@ -1,0 +1,167 @@
+{
+  "identity": {
+    "experiment_id": "toolgap-g0",
+    "cohort_id": "g0-c-atomic-seam",
+    "gate": "G0",
+    "spec_revision": "G0-C-ATOMIC-004",
+    "spec_path": "toolgap/experiments/g0/SPEC.g0-c-004.md",
+    "spec_sha256": "80ea9438019f24a7a1e50cc08e7f6f575178f9a93f752e18245201e4fdfeac33",
+    "run_id": "g0-c-atomic-seam-004",
+    "attempt_id": "g0-c-atomic-seam-004-attempt-01",
+    "repeat_id": "N/A: deterministic source-contract test",
+    "arm": "fixed-pin atomic session checked-demote seam",
+    "run_status": "invalidated after registration and before test/prototype execution",
+    "registered_at_utc": "2026-08-17T16:24:50Z"
+  },
+  "source": {
+    "engine": "SGLang",
+    "remote": "https://github.com/sgl-project/sglang.git",
+    "commit": "92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2",
+    "tree": "25e9bf86d04c27fe380024d9c8c421c3b5b51f3c",
+    "stock_checkout": "/private/tmp/toolgap-kv-g0-sglang-92b1d382",
+    "patched_checkout": "/private/tmp/toolgap-kv-g0-sglang-atomic-prototype-004",
+    "patch_path": "toolgap/experiments/g0/artifacts/sglang-session-atomic-checked-demote-v4.patch",
+    "candidate_repository_head": "db0b4fa8c8b530fb78e2242328b48bc292b83255",
+    "model": "Qwen/Qwen2.5-0.5B-Instruct",
+    "model_revision": "c89bee90d9f811437d9735454613c35b4a3c4dc8",
+    "tokenizer": "Qwen/Qwen2.5-0.5B-Instruct",
+    "tokenizer_revision": "c89bee90d9f811437d9735454613c35b4a3c4dc8",
+    "dependency_metadata": "python/pyproject.toml SHA-256 c4d204a1d24f7ba87a150e0d563d8b946fd94c989c4e92985d488e088d424446",
+    "critical_declared_dependencies": "Python 3.12.11; torch 2.13.0; transformers 5.12.1; CUDA family 13.x",
+    "dependency_lock_status": "blocked: no complete resolved lock is retained; stock runtime cannot start locally"
+  },
+  "configuration": {
+    "tree_core_backend": "python",
+    "host_write_mode": "write_through",
+    "dtype": "bfloat16",
+    "kv_cache_dtype": "bfloat16",
+    "page_size_tokens": 16,
+    "context_limit_tokens": 4096,
+    "max_total_tokens": 4096,
+    "memory_fraction_static": 0.7,
+    "hicache_ratio": 2.0,
+    "hicache_io_backend": "kernel",
+    "hicache_mem_layout": "page_first",
+    "tp_size": 1,
+    "dp_size": 1,
+    "schedule_policy": "fcfs",
+    "random_seed": 20260817,
+    "session_radix_cache": "enabled",
+    "streaming_session": "disabled",
+    "storage_backend": "N/A: L3 explicitly disabled"
+  },
+  "environment": {
+    "declared_stock_host_os": "Ubuntu 24.04.3 LTS x86_64",
+    "declared_stock_gpu": "NVIDIA A10 24 GB at CUDA device 0",
+    "declared_stock_driver_cuda": "NVIDIA 580.65.06; CUDA 13.0",
+    "observed_local_os": "macOS 15.7.4 build 24G517 arm64",
+    "observed_local_host": "M65RXKPFCP",
+    "observed_local_gpu": "N/A: nvidia-smi absent",
+    "observed_python": "/opt/homebrew/bin/python3 3.14.2; python3.12 absent",
+    "observed_runtime_packages": "sglang, torch, and transformers absent",
+    "process_role_mapping": "stock target one launch_server process; contract arm one local Python test process",
+    "capacity_configuration": "stock target 24 GB GPU, 4096 device KV tokens, Host ratio 2.0; not instantiated"
+  },
+  "workload": {
+    "source_release": "deterministic fake registered-backend contract fixtures; stock command launch-only smoke",
+    "preprocessing": "N/A: no request payload",
+    "seed": 20260817,
+    "content_hash": "N/A: no request content",
+    "arrival_process": "N/A: deterministic source-contract test",
+    "session_gap_shape": "one current non-streaming generation with zero, one, or two frontier IDs",
+    "pressure_inputs": "N/A: pressure/performance experiments prohibited",
+    "tuning_evaluation_split": "N/A: deterministic contract test"
+  },
+  "protocol": {
+    "parent_specs": "G0-SOURCE-001 plus invalid preserved G0-C-SEAM-001, G0-C-ADMISSION-002, and G0-C-ATOMIC-003",
+    "baseline_action": "untouched exact pin",
+    "treatment_action": "same pin plus one atomic vertical checked-demote seam patch",
+    "assignment_order": "independent review of 003 completed after 004 registration and invalidated 004 before execution",
+    "warmup_measurement_drain": "N/A: no timing/runtime measurement",
+    "clock_domains": "UTC bookkeeping only",
+    "repetition_unit": "one deterministic contract invocation per arm",
+    "slos": "N/A: no serving comparison",
+    "thresholds": "stock RED names absent atomic surface; every registered case GREEN; independent review has no blocker",
+    "denominator_rules": "all registered test cases; no silent exclusion",
+    "failure_classification": "import/path/syntax/fixture failure invalidates; local stock runtime preflight is blocked before execution",
+    "censoring": "N/A",
+    "invalid_attempt_rule": "retain the attempt and create a new immutable revision"
+  },
+  "metrics": {
+    "primary": "one atomic cache surface absent on stock; registered fake backend proves maintained interface, final-check binding, release mutation, aggregate priority, and unique cleanup owner",
+    "causal": "N/A: real upstream physical primitive is never invoked",
+    "guardrails": "no external eligible capability; no second index/data plane; legacy backend has zero demote side effects; stale generation has zero release side effects; observation failure still drains returned resources",
+    "required_terminal_events": "Python exit and per-test terminal; stock runtime has no started event",
+    "analysis_revision": "G0-C-ATOMIC-004"
+  },
+  "execution": {
+    "stock_command_reference": "toolgap/experiments/g0/commands/10-stock-hicache-smoke.sh",
+    "red_command": "/opt/homebrew/bin/python3 toolgap/experiments/g0/artifacts/test_atomic_checked_demote_contract_v4.py --checkout /private/tmp/toolgap-kv-g0-sglang-92b1d382",
+    "green_command": "/opt/homebrew/bin/python3 toolgap/experiments/g0/artifacts/test_atomic_checked_demote_contract_v4.py --checkout /private/tmp/toolgap-kv-g0-sglang-atomic-prototype-004",
+    "start_time_utc": "N/A: invalidated before execution",
+    "end_time_utc": "N/A: invalidated before execution",
+    "exit_information": "N/A: no 004 process started",
+    "environment_readbacks": "N/A: inherited preregistration facts only",
+    "runtime_readbacks": "N/A: 004 invalidated before stock preflight",
+    "raw_artifact_rule": "retain registration receipt, stock blocker, RED, GREEN, patch, identity, review, and final checksums"
+  },
+  "artifact_index": [
+    {
+      "path": "toolgap/experiments/g0/SPEC.g0-c-004.md",
+      "status": "frozen",
+      "size_bytes": 10863,
+      "sha256": "80ea9438019f24a7a1e50cc08e7f6f575178f9a93f752e18245201e4fdfeac33"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-004-registration.json",
+      "status": "immutable preregistration receipt",
+      "size_bytes": 1116,
+      "sha256": "a1e1f59e7f72c4256210d55d8de4b067423b6444a5c0cd280cb2122f3ec1d1da"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-004-runtime-readbacks.txt",
+      "status": "not created: attempt invalidated before execution",
+      "size_bytes": "N/A",
+      "sha256": "N/A"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/test_atomic_checked_demote_contract_v4.py",
+      "status": "not created: actual cache outcome types were absent from the frozen oracle",
+      "size_bytes": "N/A",
+      "sha256": "N/A"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/sglang-session-atomic-checked-demote-v4.patch",
+      "status": "not created: attempt invalidated before RED",
+      "size_bytes": "N/A",
+      "sha256": "N/A"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-004-red.txt",
+      "status": "not created: attempt invalidated before RED",
+      "size_bytes": "N/A",
+      "sha256": "N/A"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-004-green.txt",
+      "status": "not created: attempt invalidated before GREEN",
+      "size_bytes": "N/A",
+      "sha256": "N/A"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-004-patched-identity.txt",
+      "status": "not created: no patched checkout was made",
+      "size_bytes": "N/A",
+      "sha256": "N/A"
+    }
+  ],
+  "outcome": {
+    "attempt_status": "invalid protocol attempt retained; no test or prototype executed",
+    "stock_smoke_status": "N/A: invalidated before 004 preflight",
+    "gate_decision": "N/A: 004 is not decisive Gate evidence",
+    "claim_state": "roadmap",
+    "promoted_claims": "N/A: source-contract evidence cannot promote runtime claims",
+    "blocked_reason": "frozen oracle did not require execution of the actual cache outcome classes, so field/order integration errors could escape",
+    "next_authorized_action": "create a new frozen 005 revision that executes actual cache outcome classes before writing its test or patch"
+  }
+}

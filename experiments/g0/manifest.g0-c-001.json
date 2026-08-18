@@ -1,0 +1,140 @@
+{
+  "identity": {
+    "experiment_id": "toolgap-g0",
+    "cohort_id": "g0-c-seam-contract",
+    "gate": "G0",
+    "spec_revision": "G0-C-SEAM-001",
+    "spec_path": "toolgap/experiments/g0/SPEC.g0-c-001.md",
+    "spec_sha256": "34521798c35d5bc996c27e9e9ff2ae38a2215b1b2020612fedcb78f320c43301",
+    "run_id": "g0-c-seam-contract-001",
+    "attempt_id": "g0-c-seam-contract-001-attempt-01",
+    "repeat_id": "N/A: deterministic source-contract test",
+    "arm": "fixed-pin session-priority-release seam prototype",
+    "run_status": "executed then invalidated by independent protocol review; retained as informative only",
+    "registered_at_utc": "2026-08-17T15:17:32Z"
+  },
+  "source": {
+    "engine": "SGLang",
+    "remote": "https://github.com/sgl-project/sglang.git",
+    "commit": "92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2",
+    "tree": "25e9bf86d04c27fe380024d9c8c421c3b5b51f3c",
+    "stock_checkout": "/private/tmp/toolgap-kv-g0-sglang-92b1d382",
+    "patched_checkout": "/private/tmp/toolgap-kv-g0-sglang-seam-prototype",
+    "patch_surface": "python/sglang/srt/mem_cache/unified_cache/session_ref_tracker.py only",
+    "patch_path": "toolgap/experiments/g0/artifacts/sglang-session-priority-release.patch",
+    "candidate_repository_head": "db0b4fa8c8b530fb78e2242328b48bc292b83255",
+    "model_revision": "N/A: no stock runtime is admitted",
+    "tokenizer_revision": "N/A: no stock runtime is admitted",
+    "dependency_revisions": "Python standard library only; upstream module loaded from exact file path"
+  },
+  "configuration": {
+    "host_write_mode": "write_through",
+    "mode_oracle": "D2H ack synchronized and write_through_pending_id plus load_back_pending_id both clear",
+    "dtype": "N/A: no KV tensors",
+    "page_size": "N/A: no allocator",
+    "context_limit": "N/A: no request",
+    "cache_flags": "N/A: no server process",
+    "memory_fraction": "N/A: no device pool",
+    "public_pause_or_hint_api": "N/A: explicitly excluded from G0"
+  },
+  "environment": {
+    "testbed": "local macOS source-contract host",
+    "host_identity": "M65RXKPFCP",
+    "host_architecture": "arm64",
+    "os": "macOS 15.7.4 build 24G517",
+    "python_command": "/opt/homebrew/bin/python3",
+    "python_version": "Python 3.14.2",
+    "device_identity": "N/A: no CUDA-compatible device and no engine runtime",
+    "runtime_driver_versions": "N/A: no CUDA or ROCm runtime",
+    "process_role_mapping": "single local Python contract-test process",
+    "capacity_configuration": "N/A: no physical cache pool"
+  },
+  "workload": {
+    "source_release": "N/A: deterministic in-memory contract fixture",
+    "preprocessing": "N/A",
+    "seed": "N/A: deterministic fixture",
+    "content_hash": "N/A: no request content",
+    "arrival_process": "N/A",
+    "session_gap_shape": "one open session with fixed generation and component frontier IDs",
+    "pressure_inputs": "N/A",
+    "tuning_evaluation_split": "N/A"
+  },
+  "protocol": {
+    "parent_spec": "toolgap/experiments/g0/SPEC.md",
+    "baseline_action": "stock tracker at exact pin",
+    "treatment_action": "same tracker with one-file internal session-priority-release contract patch",
+    "assignment_order": "red on untouched stock, then green on separate patched checkout",
+    "warmup_measurement_drain": "N/A: no timing or runtime measurement",
+    "clock_domains": "UTC wall clock for artifact bookkeeping only",
+    "repetition_unit": "one deterministic unittest invocation per arm",
+    "slos": "N/A",
+    "thresholds": "red must fail only because contract is absent; green must pass every behavior oracle",
+    "denominator_rules": "N/A",
+    "failure_classification": "import/path/syntax/fixture failure invalidates the attempt; missing-method assertions are expected red",
+    "censoring": "N/A",
+    "invalid_attempt_rule": "retain raw output and start a new attempt identity; never edit the frozen SPEC"
+  },
+  "metrics": {
+    "primary": "contract red on stock and green after exact retained patch",
+    "causal": "N/A: no physical execution",
+    "guardrails": "generation preserved; no tombstone; stale generation no-op; exact existing frontier index reused",
+    "required_terminal_events": "Python process exit and unittest summary",
+    "analysis_revision": "G0-C-SEAM-001"
+  },
+  "execution": {
+    "red_command": "/opt/homebrew/bin/python3 toolgap/experiments/g0/artifacts/test_priority_release_contract.py --checkout /private/tmp/toolgap-kv-g0-sglang-92b1d382",
+    "green_command": "/opt/homebrew/bin/python3 toolgap/experiments/g0/artifacts/test_priority_release_contract.py --checkout /private/tmp/toolgap-kv-g0-sglang-seam-prototype",
+    "start_time_utc": "N/A: exact execution timestamp was not captured in the invalid attempt",
+    "end_time_utc": "N/A: exact execution timestamp was not captured in the invalid attempt",
+    "exit_information": "stock RED exit 1 with 5 expected missing-method failures; patched GREEN exit 0 with 5 tests passed",
+    "environment_readbacks": "macOS, arm64, Python, stock commit and tree recorded",
+    "runtime_readbacks": "N/A: no engine runtime",
+    "raw_artifact_rule": "retain red, green, patch, patched identity, and final SHA-256 index"
+  },
+  "artifact_index": [
+    {
+      "path": "toolgap/experiments/g0/SPEC.g0-c-001.md",
+      "status": "frozen",
+      "size_bytes": 6610,
+      "sha256": "34521798c35d5bc996c27e9e9ff2ae38a2215b1b2020612fedcb78f320c43301"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/test_priority_release_contract.py",
+      "status": "retained invalid-attempt oracle",
+      "size_bytes": 5891,
+      "sha256": "05cc75fd4c440e3ba355c9d35dff2d6b7b4448b277aa709845951a45ae637f3e"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/sglang-session-priority-release.patch",
+      "status": "retained invalid-attempt one-file patch",
+      "size_bytes": 2224,
+      "sha256": "ae8ffcbf31eb28c31107f027781536147e234063d4c5ea780ea1af4f523fd22e"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-red.txt",
+      "status": "retained expected RED summary",
+      "size_bytes": 980,
+      "sha256": "af8e37d3c3cdeb6e06449903df9cc4eab1e140649f4371c0788ef1675689afd6"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-green.txt",
+      "status": "retained GREEN summary",
+      "size_bytes": 734,
+      "sha256": "959558a111e5f6e45837519c45a5cf9653d041cfa8e665f1fc29a7fc95b365f2"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-patched-identity.txt",
+      "status": "retained patched identity",
+      "size_bytes": 572,
+      "sha256": "30f0bd008d9b3244264b6a2c7f48b5211870f4e5d9074fbe162ada32be646d36"
+    }
+  ],
+  "outcome": {
+    "attempt_status": "invalid protocol attempt: exact successor runtime fields were omitted and tracker-only patch did not cover maintained TreeCore admission",
+    "gate_decision": "N/A: invalid attempt is not decisive Gate evidence",
+    "claim_state": "roadmap",
+    "promoted_claims": "N/A: this run cannot promote runtime claims",
+    "blocked_reason": "protocol invalidated after independent review despite informative RED/GREEN tracker behavior",
+    "next_authorized_action": "superseded by immutable G0-C-ADMISSION-002"
+  }
+}

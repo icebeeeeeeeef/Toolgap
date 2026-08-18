@@ -1,0 +1,58 @@
+diff --git a/python/sglang/srt/mem_cache/unified_cache/session_ref_tracker.py b/python/sglang/srt/mem_cache/unified_cache/session_ref_tracker.py
+index 07cc37248..97d775c3f 100644
+--- a/python/sglang/srt/mem_cache/unified_cache/session_ref_tracker.py
++++ b/python/sglang/srt/mem_cache/unified_cache/session_ref_tracker.py
+@@ -25,6 +25,14 @@ logger = logging.getLogger(__name__)
+ _CLOSED_SESSION_TOMBSTONE_LIMIT = 8192
+ 
+ 
++@dataclass(frozen=True)
++class SessionPriorityRelease:
++    session_id: str
++    generation: int
++    frontier_node_ids: tuple[tuple[str, tuple[int, ...]], ...]
++    released_component_leaves: int
++
++
+ @dataclass(kw_only=True)
+ class UnifiedSessionRefTracker:
+     """Tags radix KV by session id; ``release_radix_session`` (close) releases a
+@@ -96,6 +104,38 @@ class UnifiedSessionRefTracker:
+             generation = self.open_radix_session(session_id)
+         return generation
+ 
++    def release_session_priority(
++        self, session_id: str, generation: int
++    ) -> Optional[SessionPriorityRelease]:
++        """Release only this generation's priority refs without closing it."""
++        if not self.enable_session_radix_cache or session_id is None:
++            return None
++
++        if self._session_generations.get(session_id) != generation:
++            return None
++
++        frontier_node_ids = tuple(
++            (
++                component.component_type.name,
++                tuple(
++                    sorted(
++                        node.id
++                        for node in component._session_leaves.get(session_id, ())
++                    )
++                ),
++            )
++            for component in self.components
++        )
++        released_component_leaves = sum(
++            component.release_session(session_id) for component in self.components
++        )
++        return SessionPriorityRelease(
++            session_id=session_id,
++            generation=generation,
++            frontier_node_ids=frontier_node_ids,
++            released_component_leaves=released_component_leaves,
++        )
++
+     def release_radix_session(self, session_id: str) -> int:
+         if not self.enable_session_radix_cache or session_id is None:
+             return 0

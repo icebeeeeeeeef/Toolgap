@@ -1,0 +1,14 @@
+{
+  "receipt_type": "immutable preregistration receipt",
+  "run_id": "g0-c-atomic-seam-003",
+  "attempt_id": "g0-c-atomic-seam-003-attempt-01",
+  "registered_at_utc": "2026-08-17T16:01:18Z",
+  "spec_path": "toolgap/experiments/g0/SPEC.g0-c-003.md",
+  "spec_size_bytes": 9159,
+  "spec_sha256": "bef09a1918f20000fa8ed1cdb2aa74b0103091a4320129323472c0e903510ea5",
+  "preregistration_manifest_path": "toolgap/experiments/g0/manifest.g0-c-003.json",
+  "preregistration_manifest_size_bytes": 8434,
+  "preregistration_manifest_sha256": "a8939eefe5a7df1d238495be1537c112cab9caa4ee1780a1e3a13ae2569b30ae",
+  "status_at_receipt": "no 003 stock preflight, test, prototype patch, RED, or GREEN had been created or executed",
+  "next_authorized_action": "rerun the frozen stock preflight, then write the registered oracle and observe stock RED before any production patch"
+}

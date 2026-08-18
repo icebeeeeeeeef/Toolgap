@@ -1,0 +1,173 @@
+{
+  "identity": {
+    "experiment_id": "toolgap-g0",
+    "cohort_id": "g0-c-atomic-seam",
+    "gate": "G0",
+    "spec_revision": "G0-C-ATOMIC-005",
+    "spec_path": "toolgap/experiments/g0/SPEC.g0-c-005.md",
+    "spec_sha256": "81745d5c6db4eca102989c9d0d18aaddd6229158a8618362a53f51992b359734",
+    "run_id": "g0-c-atomic-seam-005",
+    "attempt_id": "g0-c-atomic-seam-005-attempt-01",
+    "repeat_id": "N/A: deterministic source-contract test",
+    "arm": "fixed-pin atomic session checked-demote seam",
+    "run_status": "executed then invalidated by fresh independent counterexample review",
+    "registered_at_utc": "2026-08-17T16:29:20Z"
+  },
+  "source": {
+    "engine": "SGLang",
+    "remote": "https://github.com/sgl-project/sglang.git",
+    "commit": "92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2",
+    "tree": "25e9bf86d04c27fe380024d9c8c421c3b5b51f3c",
+    "stock_checkout": "/private/tmp/toolgap-kv-g0-sglang-92b1d382",
+    "patched_checkout": "/private/tmp/toolgap-kv-g0-sglang-atomic-prototype-005",
+    "patch_path": "toolgap/experiments/g0/artifacts/sglang-session-atomic-checked-demote-v5.patch",
+    "candidate_repository_head": "db0b4fa8c8b530fb78e2242328b48bc292b83255",
+    "model": "Qwen/Qwen2.5-0.5B-Instruct",
+    "model_revision": "c89bee90d9f811437d9735454613c35b4a3c4dc8",
+    "tokenizer": "Qwen/Qwen2.5-0.5B-Instruct",
+    "tokenizer_revision": "c89bee90d9f811437d9735454613c35b4a3c4dc8",
+    "dependency_metadata": "python/pyproject.toml SHA-256 c4d204a1d24f7ba87a150e0d563d8b946fd94c989c4e92985d488e088d424446",
+    "critical_declared_dependencies": "Python 3.12.11; torch 2.13.0; transformers 5.12.1; CUDA family 13.x",
+    "dependency_lock_status": "blocked: no complete resolved lock is retained; stock runtime cannot start locally"
+  },
+  "configuration": {
+    "tree_core_backend": "python",
+    "host_write_mode": "write_through",
+    "dtype": "bfloat16",
+    "kv_cache_dtype": "bfloat16",
+    "page_size_tokens": 16,
+    "context_limit_tokens": 4096,
+    "max_total_tokens": 4096,
+    "memory_fraction_static": 0.7,
+    "hicache_ratio": 2.0,
+    "hicache_io_backend": "kernel",
+    "hicache_mem_layout": "page_first",
+    "tp_size": 1,
+    "dp_size": 1,
+    "schedule_policy": "fcfs",
+    "random_seed": 20260817,
+    "session_radix_cache": "enabled",
+    "streaming_session": "disabled",
+    "storage_backend": "N/A: L3 explicitly disabled"
+  },
+  "environment": {
+    "declared_stock_host_os": "Ubuntu 24.04.3 LTS x86_64",
+    "declared_stock_gpu": "NVIDIA A10 24 GB at CUDA device 0",
+    "declared_stock_driver_cuda": "NVIDIA 580.65.06; CUDA 13.0",
+    "observed_local_os": "macOS 15.7.4 build 24G517 arm64",
+    "observed_local_host": "M65RXKPFCP",
+    "observed_local_gpu": "N/A: nvidia-smi absent",
+    "observed_python": "/opt/homebrew/bin/python3 3.14.2; python3.12 absent",
+    "observed_runtime_packages": "sglang, torch, and transformers absent",
+    "process_role_mapping": "stock target one launch_server process; contract arm one local Python test process",
+    "capacity_configuration": "stock target 24 GB GPU, 4096 device KV tokens, Host ratio 2.0; not instantiated"
+  },
+  "workload": {
+    "source_release": "deterministic fake registered-backend contract fixtures; stock command launch-only smoke",
+    "preprocessing": "N/A: no request payload",
+    "seed": 20260817,
+    "content_hash": "N/A: no request content",
+    "arrival_process": "N/A: deterministic source-contract test",
+    "session_gap_shape": "one current non-streaming generation with zero, one, or two frontier IDs",
+    "pressure_inputs": "N/A: pressure/performance experiments prohibited",
+    "tuning_evaluation_split": "N/A: deterministic contract test"
+  },
+  "protocol": {
+    "parent_specs": "G0-SOURCE-001 plus invalid preserved revisions G0-C-SEAM-001 through G0-C-ATOMIC-004",
+    "baseline_action": "untouched exact pin",
+    "treatment_action": "same pin plus one atomic vertical checked-demote seam patch",
+    "assignment_order": "005 stock preflight, stock RED, patched GREEN, fresh independent review",
+    "warmup_measurement_drain": "N/A: no timing/runtime measurement",
+    "clock_domains": "UTC bookkeeping only",
+    "repetition_unit": "one deterministic contract invocation per arm",
+    "slos": "N/A: no serving comparison",
+    "thresholds": "stock RED names absent surfaces; all 22 registered cases GREEN; fresh independent review has no blocker",
+    "denominator_rules": "all 22 registered unittest cases; no silent exclusion",
+    "failure_classification": "import/path/syntax/fixture failure invalidates; local stock runtime preflight is blocked before execution",
+    "censoring": "N/A",
+    "invalid_attempt_rule": "retain the attempt and create a new immutable revision"
+  },
+  "metrics": {
+    "primary": "one atomic cache surface absent on stock; registered fake backend plus actual types prove final-check binding, release mutation, aggregate priority, and unique cleanup owner",
+    "causal": "N/A: real upstream physical primitive is never imported or invoked",
+    "guardrails": "no external eligible capability; no second index/data plane; legacy/stale have zero side effects; observation failure still drains resources; actual typed outcomes",
+    "required_terminal_events": "Python exit and 22 per-test terminals; stock runtime has no started event",
+    "analysis_revision": "G0-C-ATOMIC-005"
+  },
+  "execution": {
+    "stock_command_reference": "toolgap/experiments/g0/commands/10-stock-hicache-smoke.sh",
+    "red_command": "/opt/homebrew/bin/python3 toolgap/experiments/g0/artifacts/test_atomic_checked_demote_contract_v5.py --checkout /private/tmp/toolgap-kv-g0-sglang-92b1d382",
+    "green_command": "/opt/homebrew/bin/python3 toolgap/experiments/g0/artifacts/test_atomic_checked_demote_contract_v5.py --checkout /private/tmp/toolgap-kv-g0-sglang-atomic-prototype-005",
+    "start_time_utc": "N/A: exact contract-test start timestamp was not retained",
+    "end_time_utc": "N/A: exact contract-test end timestamp was not retained",
+    "exit_information": "stock smoke 78 blocked before execution; contract stock RED exit 1 with 22 failures; patched GREEN exit 0 with 22 passes",
+    "environment_readbacks": "toolgap/experiments/g0/artifacts/g0-c-005-runtime-readbacks.txt",
+    "runtime_readbacks": "stock preflight blocked before execution on local non-CUDA host",
+    "raw_artifact_rule": "retain registration receipt, stock blocker, RED, GREEN, patch, identity, review, and final checksums"
+  },
+  "artifact_index": [
+    {
+      "path": "toolgap/experiments/g0/SPEC.g0-c-005.md",
+      "status": "frozen",
+      "size_bytes": 10895,
+      "sha256": "81745d5c6db4eca102989c9d0d18aaddd6229158a8618362a53f51992b359734"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-005-registration.json",
+      "status": "immutable preregistration receipt",
+      "size_bytes": 1116,
+      "sha256": "61494640ca9568c17bd2c8381576d6393805bfb3d9e81b705e3406f3bc5c0032"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-005-runtime-readbacks.txt",
+      "status": "executed stock preflight blocker readback",
+      "size_bytes": 1064,
+      "sha256": "4fb74467fe407cff29d81cdeed8811c384b7fd54b1774592d0356561269f772e"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/test_atomic_checked_demote_contract_v5.py",
+      "status": "executed but invalid oracle retained",
+      "size_bytes": 12654,
+      "sha256": "f3ec1863a58d7e8cde1f68945cbaee7fb8d220dc88a4f0eadc5673528edf3cec"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/test_atomic_checked_demote_contract.py",
+      "status": "retained inherited executable dependency omitted from the preregistered 005 artifact index",
+      "size_bytes": 23455,
+      "sha256": "90a3aeb69f8ca9a23b8f77f0dafa8d04e2698116d79947fe4dac91dd9906fd95"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/sglang-session-atomic-checked-demote-v5.patch",
+      "status": "retained source prototype; not Gate evidence",
+      "size_bytes": 11857,
+      "sha256": "e69776678909b4ee49b1c0fa4a8e208666893b659c0508387c83fcdf11e82a9a"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-005-red.txt",
+      "status": "retained expected RED summary",
+      "size_bytes": 665,
+      "sha256": "1992e529a535eb7d7aaee3a6a26944c7a72763a57f2d9758c769702ad25fb6be"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-005-green.txt",
+      "status": "GREEN retained but non-decisive after review",
+      "size_bytes": 993,
+      "sha256": "4c201e73018639b53bd96c9c5e0f54d2318ea60b5fe7510c93b650bece1a4e73"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-005-patched-identity.txt",
+      "status": "retained patched identity and scope checks",
+      "size_bytes": 870,
+      "sha256": "917ba205666c7f10322bad67240e02e0fbb22fc33f10a70a83d60ea82f1945a1"
+    }
+  ],
+  "outcome": {
+    "attempt_status": "invalid executed protocol attempt retained",
+    "stock_smoke_status": "blocked before execution, exit 78",
+    "gate_decision": "N/A: fresh independent review found seven oracle blockers",
+    "claim_state": "roadmap",
+    "promoted_claims": "N/A: source-contract evidence cannot promote runtime claims",
+    "blocked_reason": "target-only preservation, vertical identity, permanent-first order, Host-lock negative constraint, per-node attribution, legacy vertical release, and complete freed-ID copying were not all distinguished; inherited test dependency was initially unindexed",
+    "next_authorized_action": "superseded by a new immutable G0-C-ATOMIC-006 revision"
+  }
+}

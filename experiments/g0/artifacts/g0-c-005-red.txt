@@ -1,0 +1,8 @@
+run_id: g0-c-atomic-seam-005
+command: /opt/homebrew/bin/python3 toolgap/experiments/g0/artifacts/test_atomic_checked_demote_contract_v5.py --checkout /private/tmp/toolgap-kv-g0-sglang-92b1d382
+checkout_commit: 92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2
+exit_code: 1
+result: EXPECTED_RED
+summary: Ran 22 tests in 0.074s; 22 failed because the fixed source lacks the registered atomic cache/interface/tracker/outcome surfaces.
+first_failure: AssertionError: unexpectedly None : fixed source lacks atomic checked_demote_session
+interpretation: Stock lacks the preregistered vertical atomic seam. This is contract absence, not a real physical-demotion or runtime result.

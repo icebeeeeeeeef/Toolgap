@@ -1,0 +1,18 @@
+run_id: g0-c-seam-contract-001
+attempt_id: g0-c-seam-contract-001-attempt-01
+phase: GREEN
+command: /opt/homebrew/bin/python3 toolgap/experiments/g0/artifacts/test_priority_release_contract.py --checkout /private/tmp/toolgap-kv-g0-sglang-seam-prototype
+exit_code: 0
+
+test_contract_exists_on_tracker ... ok
+test_disabled_tracking_is_a_noop ... ok
+test_release_result_is_immutable ... ok
+test_release_snapshots_frontiers_and_keeps_generation_open ... ok
+test_stale_generation_fails_closed_without_mutation ... ok
+
+Ran 5 tests in 0.014s
+OK
+
+Classification: valid GREEN for the narrow session-priority-release contract.
+This does not exercise physical demotion, allocator release, Host transfer,
+resume recovery, or a stock SGLang server.

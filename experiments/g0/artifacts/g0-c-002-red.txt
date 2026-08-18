@@ -1,0 +1,8 @@
+run_id: g0-c-checked-admission-002
+command: /opt/homebrew/bin/python3 toolgap/experiments/g0/artifacts/test_checked_admission_contract.py --checkout /private/tmp/toolgap-kv-g0-sglang-92b1d382
+checkout_commit: 92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2
+exit_code: 1
+result: EXPECTED_RED
+summary: Ran 14 tests; 14 failed because the fixed source lacks prepare_session_checked_demote.
+first_failure: AssertionError: unexpectedly None : fixed source lacks prepare_session_checked_demote
+interpretation: The stock pin does not expose the preregistered cache-level checked-admission contract. This is contract absence only, not a runtime or physical-demotion result.

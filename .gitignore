@@ -1,0 +1,18 @@
+# Local operating-system files
+.DS_Store
+
+# Python tooling and environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+dist/
+build/
+*.egg-info/
+
+# Local-only experiment state. Frozen evidence under experiments/ remains tracked.
+experiments/*/raw/*
+!experiments/*/raw/.gitkeep
+experiments/*/environment.local.json

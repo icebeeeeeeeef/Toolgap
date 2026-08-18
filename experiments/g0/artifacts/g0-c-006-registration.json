@@ -1,0 +1,46 @@
+{
+  "registration": {
+    "run_id": "g0-c-atomic-seam-006",
+    "attempt_id": "g0-c-atomic-seam-006-attempt-01",
+    "registered_at_utc": "2026-08-17T16:50:27Z",
+    "state": "sealed before 006 test and prototype creation"
+  },
+  "frozen_spec": {
+    "path": "toolgap/experiments/g0/SPEC.g0-c-006.md",
+    "size_bytes": 9853,
+    "sha256": "683ad9e0329f5288d2b5287d45fcaaed0df3c2370a2aaeb3e71fa3349d4b41bf"
+  },
+  "preregistration_manifest": {
+    "path": "toolgap/experiments/g0/manifest.g0-c-006.json",
+    "size_bytes": 9302,
+    "sha256": "bb8e8bc7bcc779639dd5587fc4ac8c71cf73289d1346303f255b5d892d865e49"
+  },
+  "executable_dependencies": [
+    {
+      "path": "toolgap/experiments/g0/artifacts/test_atomic_checked_demote_contract.py",
+      "size_bytes": 23455,
+      "sha256": "90a3aeb69f8ca9a23b8f77f0dafa8d04e2698116d79947fe4dac91dd9906fd95"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/test_atomic_checked_demote_contract_v5.py",
+      "size_bytes": 12654,
+      "sha256": "f3ec1863a58d7e8cde1f68945cbaee7fb8d220dc88a4f0eadc5673528edf3cec"
+    }
+  ],
+  "treatment_patch": {
+    "path": "toolgap/experiments/g0/artifacts/sglang-session-atomic-checked-demote-v5.patch",
+    "size_bytes": 11857,
+    "sha256": "e69776678909b4ee49b1c0fa4a8e208666893b659c0508387c83fcdf11e82a9a"
+  },
+  "source": {
+    "commit": "92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2",
+    "tree": "25e9bf86d04c27fe380024d9c8c421c3b5b51f3c",
+    "stock_checkout": "/private/tmp/toolgap-kv-g0-sglang-92b1d382",
+    "patched_checkout": "/private/tmp/toolgap-kv-g0-sglang-atomic-prototype-006"
+  },
+  "prohibited_at_registration": [
+    "test_atomic_checked_demote_contract_v6.py did not exist",
+    "006 patched worktree did not exist",
+    "no 006 RED or GREEN execution had started"
+  ]
+}

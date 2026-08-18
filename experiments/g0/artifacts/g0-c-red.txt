@@ -1,0 +1,23 @@
+run_id: g0-c-seam-contract-001
+attempt_id: g0-c-seam-contract-001-attempt-01
+phase: RED
+command: /opt/homebrew/bin/python3 toolgap/experiments/g0/artifacts/test_priority_release_contract.py --checkout /private/tmp/toolgap-kv-g0-sglang-92b1d382
+exit_code: 1
+oracle: expected failure because fixed source lacks release_session_priority
+
+test_contract_exists_on_tracker ... FAIL
+test_disabled_tracking_is_a_noop ... FAIL
+test_release_result_is_immutable ... FAIL
+test_release_snapshots_frontiers_and_keeps_generation_open ... FAIL
+test_stale_generation_fails_closed_without_mutation ... FAIL
+
+All five failures were AssertionError with the same decision-relevant message:
+
+    fixed source lacks release_session_priority
+
+Ran 5 tests in 0.017s
+FAILED (failures=5)
+
+Classification: valid RED. The module imported successfully, the checkout path
+resolved, fixtures constructed, and every failure was caused by the absent
+contract rather than an import, syntax, path, or fixture error.

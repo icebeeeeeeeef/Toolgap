@@ -1,0 +1,27 @@
+run_id: g0-c-checked-admission-002
+attempt_id: g0-c-checked-admission-002-attempt-01
+phase: stock single-node HiCache preflight
+command: bash toolgap/experiments/g0/commands/10-stock-hicache-smoke.sh
+exit_code: 78
+classification: BLOCKED_BEFORE_EXECUTION
+
+Observed local host:
+
+Darwin M65RXKPFCP 24.6.0 Darwin Kernel Version 24.6.0: Mon Jan 19 22:01:58 PST 2026; root:xnu-11417.140.69.708.3~1/RELEASE_ARM64_T6041 arm64
+ProductName: macOS
+ProductVersion: 15.7.4
+BuildVersion: 24G517
+nvidia-smi: command absent
+python3.12: command absent
+/opt/homebrew/bin/python3: Python 3.14.2
+sglang: not installed (ModuleNotFoundError)
+torch: not installed (ModuleNotFoundError)
+transformers: not installed (ModuleNotFoundError)
+
+Script terminal:
+
+BLOCKED_BEFORE_EXECUTION: requires frozen Ubuntu x86_64 CUDA testbed
+
+No model download, server process, request, Host transfer, physical demotion,
+allocator action, or runtime observation started. This is retained environment
+failure accounting, not a smoke success and not a performance result.

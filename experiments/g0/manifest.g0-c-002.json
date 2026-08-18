@@ -1,0 +1,169 @@
+{
+  "identity": {
+    "experiment_id": "toolgap-g0",
+    "cohort_id": "g0-c-checked-admission",
+    "gate": "G0",
+    "spec_revision": "G0-C-ADMISSION-002",
+    "spec_path": "toolgap/experiments/g0/SPEC.g0-c-002.md",
+    "spec_sha256": "0f4f9af10ae231a7f98bbd7613212760406cecbd8be15e12385ed6776913fb83",
+    "run_id": "g0-c-checked-admission-002",
+    "attempt_id": "g0-c-checked-admission-002-attempt-01",
+    "repeat_id": "N/A: deterministic source-contract test",
+    "arm": "fixed-pin vertical session checked-admission contract",
+    "run_status": "executed then invalidated by independent review; retained as informative only",
+    "registered_at_utc": "2026-08-17T15:35:25Z"
+  },
+  "source": {
+    "engine": "SGLang",
+    "remote": "https://github.com/sgl-project/sglang.git",
+    "commit": "92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2",
+    "tree": "25e9bf86d04c27fe380024d9c8c421c3b5b51f3c",
+    "stock_checkout": "/private/tmp/toolgap-kv-g0-sglang-92b1d382",
+    "patched_checkout": "/private/tmp/toolgap-kv-g0-sglang-admission-prototype",
+    "patch_surface": "one cache-level contract across session_ref_tracker.py, unified_tree_core_interface.py, unified_tree_core.py, and unified_radix_cache.py",
+    "patch_path": "toolgap/experiments/g0/artifacts/sglang-session-checked-admission.patch",
+    "candidate_repository_head": "db0b4fa8c8b530fb78e2242328b48bc292b83255",
+    "model": "Qwen/Qwen2.5-0.5B-Instruct",
+    "model_revision": "c89bee90d9f811437d9735454613c35b4a3c4dc8",
+    "tokenizer": "Qwen/Qwen2.5-0.5B-Instruct",
+    "tokenizer_revision": "c89bee90d9f811437d9735454613c35b4a3c4dc8",
+    "dependency_metadata": "python/pyproject.toml SHA-256 c4d204a1d24f7ba87a150e0d563d8b946fd94c989c4e92985d488e088d424446",
+    "critical_declared_dependencies": "Python 3.12.11; torch 2.13.0; transformers 5.12.1; CUDA family 13.x",
+    "dependency_lock_status": "blocked: fixed source does not provide a complete resolved lock in the retained sparse checkout; no runtime attempt is admitted"
+  },
+  "configuration": {
+    "tree_core_backend": "python",
+    "host_write_mode": "write_through",
+    "dtype": "bfloat16",
+    "kv_cache_dtype": "bfloat16",
+    "page_size_tokens": 16,
+    "context_limit_tokens": 4096,
+    "max_total_tokens": 4096,
+    "memory_fraction_static": 0.7,
+    "hicache_ratio": 2.0,
+    "hicache_io_backend": "kernel",
+    "hicache_mem_layout": "page_first",
+    "tp_size": 1,
+    "dp_size": 1,
+    "schedule_policy": "fcfs",
+    "random_seed": 20260817,
+    "session_radix_cache": "enabled",
+    "streaming_session": "disabled",
+    "storage_backend": "N/A: L3 explicitly disabled"
+  },
+  "environment": {
+    "declared_stock_host_os": "Ubuntu 24.04.3 LTS x86_64",
+    "declared_stock_gpu": "NVIDIA A10 24 GB at CUDA device 0",
+    "declared_stock_driver": "580.65.06",
+    "declared_stock_cuda": "13.0",
+    "observed_local_os": "macOS 15.7.4 build 24G517 arm64",
+    "observed_local_host": "M65RXKPFCP",
+    "observed_local_gpu": "N/A: nvidia-smi command absent",
+    "observed_python": "/opt/homebrew/bin/python3 3.14.2; python3.12 command absent",
+    "observed_runtime_packages": "sglang, torch, and transformers not installed",
+    "process_role_mapping": "stock target is one launch_server process; executable contract uses one local Python process",
+    "capacity_configuration": "stock target 24 GB GPU, 4096 device KV tokens, Host ratio 2.0; not instantiated"
+  },
+  "workload": {
+    "source_release": "fixed deterministic contract fixtures; stock command launch-only smoke",
+    "preprocessing": "N/A: no stock request is sent before successful launch/readback",
+    "seed": 20260817,
+    "content_hash": "N/A: launch-only smoke is blocked before a request",
+    "arrival_process": "N/A: launch-only smoke",
+    "session_gap_shape": "one non-streaming session generation in contract fixtures",
+    "pressure_inputs": "N/A: G0 forbids pressure/performance experiment",
+    "tuning_evaluation_split": "N/A: deterministic contract test"
+  },
+  "protocol": {
+    "parent_specs": "G0-SOURCE-001 and invalid preserved G0-C-SEAM-001",
+    "baseline_action": "untouched exact pin",
+    "treatment_action": "same pin plus one vertical checked-admission patch",
+    "assignment_order": "stock RED, then patched GREEN; stock launch preflight remains separately blocked",
+    "warmup_measurement_drain": "N/A: no timing or runtime measurement",
+    "clock_domains": "UTC wall clock for artifact bookkeeping only",
+    "repetition_unit": "one deterministic contract invocation per arm",
+    "slos": "N/A: no serving comparison",
+    "thresholds": "stock RED must name absent cache-level contract; patched GREEN must pass every registered counterexample",
+    "denominator_rules": "all registered contract tests; no test may be silently excluded",
+    "failure_classification": "import/path/syntax/fixture failures invalidate; local stock runtime preflight is blocked before execution",
+    "censoring": "N/A",
+    "invalid_attempt_rule": "retain attempt and create a new immutable revision; never edit frozen SPEC"
+  },
+  "metrics": {
+    "primary": "one cache-level checked-admission surface absent on stock and all registered admission counterexamples green after patch",
+    "causal": "N/A: no physical executor or allocator",
+    "guardrails": "no second index; no real demote; target generation preserved; maintained TreeCore interface owns live checks",
+    "required_terminal_events": "Python exit and per-test unittest terminal; stock runtime has no started event",
+    "analysis_revision": "G0-C-ADMISSION-002"
+  },
+  "execution": {
+    "stock_command_reference": "toolgap/experiments/g0/commands/10-stock-hicache-smoke.sh",
+    "red_command": "/opt/homebrew/bin/python3 toolgap/experiments/g0/artifacts/test_checked_admission_contract.py --checkout /private/tmp/toolgap-kv-g0-sglang-92b1d382",
+    "green_command": "/opt/homebrew/bin/python3 toolgap/experiments/g0/artifacts/test_checked_admission_contract.py --checkout /private/tmp/toolgap-kv-g0-sglang-admission-prototype",
+    "start_time_utc": "N/A: exact contract-run timestamp was not captured",
+    "end_time_utc": "N/A: exact contract-run timestamp was not captured",
+    "exit_information": "stock smoke preflight exit 78 before launch; stock contract exit 1 with 14 expected missing-surface failures; patched contract exit 0 with 14 tests passed",
+    "environment_readbacks": "local OS/arch, missing nvidia-smi/python3.12, and missing runtime packages captured before registration",
+    "runtime_readbacks": "retained local blocker readbacks; no server process started",
+    "raw_artifact_rule": "retain stock preflight, RED, GREEN, patch, identity, review, and final checksums"
+  },
+  "artifact_index": [
+    {
+      "path": "toolgap/experiments/g0/SPEC.g0-c-002.md",
+      "status": "frozen",
+      "size_bytes": 9002,
+      "sha256": "0f4f9af10ae231a7f98bbd7613212760406cecbd8be15e12385ed6776913fb83"
+    },
+    {
+      "path": "toolgap/experiments/g0/commands/10-stock-hicache-smoke.sh",
+      "status": "retained exact stock command with fail-closed preflight",
+      "size_bytes": 1877,
+      "sha256": "0baeb13c86bc606e3221a49cae71107da2427f45db9e97ceec9a65dfe3c23942"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-002-runtime-readbacks.txt",
+      "status": "retained blocked-before-execution readbacks",
+      "size_bytes": 1030,
+      "sha256": "5f38e3df39674b73d487f928e309a47d253972b0fcc5f780f8585a388f229a87"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/test_checked_admission_contract.py",
+      "status": "retained frozen-oracle test written before prototype patch",
+      "size_bytes": 13768,
+      "sha256": "4b979a2708ed1499b106c4c6618e28f03e572d445f6901705f79f9426174b773"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/sglang-session-checked-admission.patch",
+      "status": "retained four-file prototype written after expected RED",
+      "size_bytes": 9212,
+      "sha256": "b6cd278a137dd50dd52b6857db9414fd2d286d11a8367ae20214eac7e8070423"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-002-red.txt",
+      "status": "retained expected RED summary",
+      "size_bytes": 659,
+      "sha256": "24c2fca61b350f1c0426af0275ae3b9eb26becd885487ce3e819d1f926783948"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-002-green.txt",
+      "status": "retained GREEN summary",
+      "size_bytes": 820,
+      "sha256": "428030cecaa677897d35e4df771a0ec7d2c300141778fc9a10a39123a142315f"
+    },
+    {
+      "path": "toolgap/experiments/g0/artifacts/g0-c-002-patched-identity.txt",
+      "status": "retained patched identity and scope checks",
+      "size_bytes": 746,
+      "sha256": "54acd94ac05f1a886a1db9648f16b935de3a251309b0b173332b65c7270543cb"
+    }
+  ],
+  "outcome": {
+    "attempt_status": "invalid protocol attempt: admission escaped before physical execution, maintained interface was not tested, and aggregate release semantics were incomplete",
+    "stock_smoke_status": "blocked before execution by local host/environment mismatch",
+    "gate_decision": "N/A: invalid attempt is not decisive Gate evidence",
+    "claim_state": "roadmap",
+    "promoted_claims": "N/A: source-contract evidence cannot promote runtime claims",
+    "blocked_reason": "independent review found TOCTOU, untested interface compatibility, and incomplete all/partial/zero aggregate semantics",
+    "next_authorized_action": "superseded by immutable G0-C-ATOMIC-003"
+  }
+}

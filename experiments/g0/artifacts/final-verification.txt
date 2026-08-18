@@ -1,0 +1,44 @@
+Gate G0 final verification
+==========================
+
+Final verification time (UTC): 2026-08-17T17:39:12Z
+Decision candidate: RESHAPE
+Claim state: roadmap
+
+Frozen identity
+---------------
+- SGLang commit: 92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2
+- SGLang tree: 25e9bf86d04c27fe380024d9c8c421c3b5b51f3c
+- G0-C-006 SPEC SHA-256: 683ad9e0329f5288d2b5287d45fcaaed0df3c2370a2aaeb3e71fa3349d4b41bf
+- Treatment patch SHA-256: e69776678909b4ee49b1c0fa4a8e208666893b659c0508387c83fcdf11e82a9a
+
+Final checks
+------------
+1. Stock HiCache smoke:
+   command: bash toolgap/experiments/g0/commands/10-stock-hicache-smoke.sh
+   result: exit 78, BLOCKED_BEFORE_EXECUTION because the frozen Ubuntu x86_64 CUDA testbed is unavailable locally.
+
+2. Frozen G0-C-006 oracle on untouched stock:
+   command: /opt/homebrew/bin/python3 toolgap/experiments/g0/artifacts/test_atomic_checked_demote_contract_v6.py --checkout /private/tmp/toolgap-kv-g0-sglang-92b1d382
+   result: expected RED, exit 1, 27/27 tests failed because the registered atomic vertical surface is absent.
+
+3. Frozen G0-C-006 oracle on the patched exact pin:
+   command: /opt/homebrew/bin/python3 toolgap/experiments/g0/artifacts/test_atomic_checked_demote_contract_v6.py --checkout /private/tmp/toolgap-kv-g0-sglang-atomic-prototype-006
+   result: GREEN, exit 0, 27/27 tests passed in 0.186 s.
+
+4. Independent review:
+   result: PASS. The reviewer freshly reproduced 27/27 RED and 27/27 GREEN, verified the fixed pin/tree/dependency hashes, checked the retained patch byte-for-byte, and found no remaining Gate blocker.
+
+5. Treatment identity and syntax:
+   result: PASS. Stock git apply --check, patched git diff --check, byte comparison against the retained patch, and Python compilation of all four modified source files succeeded.
+
+6. Candidate repository regression:
+   command: make check
+   result: exit 0. All 138 tests passed (34 + 20 + 34 + 50), followed by repository check: ok.
+
+7. Evidence-bundle integrity:
+   result: PASS. Bundle verification, JSON parsing, frozen SPEC SHA-256 checks, and candidate-scope git diff --check succeeded. Canonical final documents contain no stale G0-C-003/004/005 decisive result or pending-review claim.
+
+Evidence boundary
+-----------------
+This verifies a frozen source-contract seam against registered fake backends. It does not execute SGLang's real physical demotion path, CUDA, GPU allocation, D2H/H2D movement, eviction, or serving. It therefore cannot promote the project beyond roadmap or authorize G1. The next admissible action is upstream review/integration, exact repinning, frozen CUDA testbed provisioning, and a fresh G0 run.

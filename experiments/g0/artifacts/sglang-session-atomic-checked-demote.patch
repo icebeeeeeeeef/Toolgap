@@ -1,0 +1,293 @@
+diff --git a/python/sglang/srt/mem_cache/unified_cache/session_ref_tracker.py b/python/sglang/srt/mem_cache/unified_cache/session_ref_tracker.py
+index 07cc37248..52b91a209 100644
+--- a/python/sglang/srt/mem_cache/unified_cache/session_ref_tracker.py
++++ b/python/sglang/srt/mem_cache/unified_cache/session_ref_tracker.py
+@@ -25,6 +25,14 @@ logger = logging.getLogger(__name__)
+ _CLOSED_SESSION_TOMBSTONE_LIMIT = 8192
+ 
+ 
++@dataclass(frozen=True)
++class SessionPriorityRelease:
++    session_id: str
++    generation: int
++    frontier_node_ids: tuple[tuple[str, tuple[int, ...]], ...]
++    released_component_leaves: int
++
++
+ @dataclass(kw_only=True)
+ class UnifiedSessionRefTracker:
+     """Tags radix KV by session id; ``release_radix_session`` (close) releases a
+@@ -96,6 +104,37 @@ class UnifiedSessionRefTracker:
+             generation = self.open_radix_session(session_id)
+         return generation
+ 
++    def release_session_priority(
++        self, session_id: str, generation: int
++    ) -> Optional[SessionPriorityRelease]:
++        """Snapshot and release this generation's refs without closing it."""
++        if not self.enable_session_radix_cache or session_id is None:
++            return None
++        if self._session_generations.get(session_id) != generation:
++            return None
++
++        frontier_node_ids = tuple(
++            (
++                component.component_type.name,
++                tuple(
++                    sorted(
++                        node.id
++                        for node in component._session_leaves.get(session_id, ())
++                    )
++                ),
++            )
++            for component in self.components
++        )
++        released_component_leaves = sum(
++            component.release_session(session_id) for component in self.components
++        )
++        return SessionPriorityRelease(
++            session_id=session_id,
++            generation=generation,
++            frontier_node_ids=frontier_node_ids,
++            released_component_leaves=released_component_leaves,
++        )
++
+     def release_radix_session(self, session_id: str) -> int:
+         if not self.enable_session_radix_cache or session_id is None:
+             return 0
+diff --git a/python/sglang/srt/mem_cache/unified_cache/unified_tree_core.py b/python/sglang/srt/mem_cache/unified_cache/unified_tree_core.py
+index 0646734f3..d08d93cc3 100644
+--- a/python/sglang/srt/mem_cache/unified_cache/unified_tree_core.py
++++ b/python/sglang/srt/mem_cache/unified_cache/unified_tree_core.py
+@@ -70,6 +70,7 @@ from sglang.srt.mem_cache.unified_cache.unified_tree_core_interface import (
+     InsertStepResult,
+     NodeId,
+     RadixCacheWalkResult,
++    SessionDemoteExecution,
+     UnifiedTreeCoreInterface,
+ )
+ from sglang.srt.mem_cache.utils import (
+@@ -1462,6 +1463,59 @@ class UnifiedTreeCore(UnifiedTreeCoreInterface):
+         self._remove_leaf_from_parent(node)
+         self._iteratively_delete_tombstone_leaf(node, tracker, device_frees, host_frees)
+ 
++    def demote_session_checked(self, node_id: NodeId) -> SessionDemoteExecution:
++        """Perform the final live checks and existing demote in one backend call."""
++        if self.component_types != (BASE_COMPONENT_TYPE,):
++            return SessionDemoteExecution(
++                node_id, "REJECTED", "UNSUPPORTED_COMPONENT_SET"
++            )
++        if self.has_ongoing_insert() or any(
++            component.is_evict_device_ongoing
++            for component in self.components_by_type.values()
++        ):
++            return SessionDemoteExecution(
++                node_id, "DEFERRED", "STRUCTURAL_OWNER_ACTIVE"
++            )
++        try:
++            node = self.node_by_id(node_id)
++        except KeyError:
++            return SessionDemoteExecution(node_id, "REJECTED", "NODE_NOT_LIVE")
++
++        full_data = node.component_data[BASE_COMPONENT_TYPE]
++        if full_data.value is None:
++            return SessionDemoteExecution(
++                node_id, "REJECTED", "DEVICE_VALUE_ABSENT"
++            )
++        if node.write_through_pending_id is not None:
++            return SessionDemoteExecution(
++                node_id, "DEFERRED", "WRITE_THROUGH_PENDING"
++            )
++        if node.load_back_pending_id is not None:
++            return SessionDemoteExecution(
++                node_id, "DEFERRED", "LOAD_BACK_PENDING"
++            )
++        if any(data.lock_ref > 0 for data in node.component_data):
++            return SessionDemoteExecution(node_id, "DEFERRED", "DEVICE_LOCKED")
++        if full_data.session_ref > 0:
++            return SessionDemoteExecution(
++                node_id, "DEFERRED", "NON_TARGET_SESSION_COVERAGE"
++            )
++        if not self._is_settled_full_host_duplicate(node):
++            return SessionDemoteExecution(
++                node_id, "DEFERRED", "HOST_COPY_NOT_COMMITTED"
++            )
++        if not self._is_device_leaf(node):
++            return SessionDemoteExecution(
++                node_id, "REJECTED", "NOT_CURRENT_DEVICE_LEAF"
++            )
++
++        return SessionDemoteExecution(
++            node_id=node_id,
++            disposition="COMPLETED",
++            reason="DEMOTED",
++            demote_result=self.demote(node_id),
++        )
++
+     def demote(self, node_id: NodeId) -> DemoteResult:
+         """Release a node's device KV once its host copy exists; the node stays in the
+         tree, now host-only."""
+diff --git a/python/sglang/srt/mem_cache/unified_cache/unified_tree_core_interface.py b/python/sglang/srt/mem_cache/unified_cache/unified_tree_core_interface.py
+index 367c111d7..73fcf3bf1 100644
+--- a/python/sglang/srt/mem_cache/unified_cache/unified_tree_core_interface.py
++++ b/python/sglang/srt/mem_cache/unified_cache/unified_tree_core_interface.py
+@@ -54,6 +54,15 @@ class DemoteResult(BaseEvictionResult):
+     pass
+ 
+ 
++class SessionDemoteExecution(msgspec.Struct):
++    """Terminal result of one backend-owned final check and demote attempt."""
++
++    node_id: NodeId
++    disposition: str
++    reason: str
++    demote_result: Optional[DemoteResult] = None
++
++
+ class DropSubtreeNoHostResult(BaseEvictionResult):
+     is_dropped: bool = False
+ 
+@@ -235,6 +244,14 @@ class UnifiedTreeCoreInterface(KVCacheEventMixin, ABC):
+         under host pressure; declines (is_dropped=False) if any node is locked."""
+         ...
+ 
++    def demote_session_checked(self, node_id: NodeId) -> SessionDemoteExecution:
++        """Fail closed until a registered backend owns the atomic implementation."""
++        return SessionDemoteExecution(
++            node_id=node_id,
++            disposition="REJECTED",
++            reason="UNSUPPORTED_BACKEND",
++        )
++
+     @abstractmethod
+     def demote(self, node_id: NodeId) -> DemoteResult:
+         """Demote a backed-up node: drop its device value after a successful backup."""
+diff --git a/python/sglang/srt/mem_cache/unified_radix_cache.py b/python/sglang/srt/mem_cache/unified_radix_cache.py
+index b78f906b0..0a21192e8 100644
+--- a/python/sglang/srt/mem_cache/unified_radix_cache.py
++++ b/python/sglang/srt/mem_cache/unified_radix_cache.py
+@@ -3,6 +3,7 @@ from __future__ import annotations
+ import logging
+ import threading
+ import time
++from dataclasses import dataclass
+ from queue import Empty, Queue
+ from typing import TYPE_CHECKING, Iterator, NamedTuple, Optional, Sequence, TypeVar
+ 
+@@ -103,6 +104,25 @@ COMPONENT_REGISTRY: dict[ComponentType, type[TreeComponent]] = {
+ logger = logging.getLogger(__name__)
+ 
+ 
++@dataclass(frozen=True)
++class SessionNodeDemoteOutcome:
++    node_id: NodeId
++    disposition: str
++    reason: str
++    freed_device_ids: tuple[int, ...]
++
++
++@dataclass(frozen=True)
++class SessionCheckedDemoteOutcome:
++    session_id: str
++    generation: int
++    priority_release: str
++    disposition: str
++    released_component_leaves: int
++    nodes: tuple[SessionNodeDemoteOutcome, ...]
++    reason: str
++
++
+ class _OngoingWriteThrough(NamedTuple):
+     """Tracks an in-flight D→H write-through operation."""
+ 
+@@ -2120,6 +2140,90 @@ class UnifiedRadixCache(BasePrefixCache):
+     def ensure_session_generation(self, session_id: str) -> int:
+         return self.session_refs.ensure_session_generation(session_id)
+ 
++    def checked_demote_session(
++        self, session_id: str, generation: int
++    ) -> SessionCheckedDemoteOutcome:
++        """Release target priority and consume atomic backend demote attempts."""
++        if self.tree_components != (BASE_COMPONENT_TYPE,):
++            return SessionCheckedDemoteOutcome(
++                session_id,
++                generation,
++                "NOT_RELEASED",
++                "REJECTED",
++                0,
++                (),
++                "UNSUPPORTED_COMPONENT_SET",
++            )
++
++        released = self.session_refs.release_session_priority(session_id, generation)
++        if released is None:
++            return SessionCheckedDemoteOutcome(
++                session_id,
++                generation,
++                "NOT_RELEASED",
++                "REJECTED",
++                0,
++                (),
++                "STALE_GENERATION",
++            )
++
++        frontier_by_component = dict(released.frontier_node_ids)
++        node_ids = frontier_by_component.get("FULL", ())
++        if not node_ids:
++            return SessionCheckedDemoteOutcome(
++                session_id,
++                generation,
++                "RELEASED",
++                "REJECTED",
++                released.released_component_leaves,
++                (),
++                "EMPTY_TARGET_FRONTIER",
++            )
++
++        nodes = []
++        tracker = {component: 0 for component in self.tree_components}
++        for node_id in node_ids:
++            execution = self.tree_core.demote_session_checked(node_id)
++            freed_device_ids = ()
++            if execution.demote_result is not None:
++                result = execution.demote_result
++                freed_device_ids = tuple(
++                    int(index)
++                    for values in result.device_frees.values()
++                    for value in values
++                    for index in value.tolist()
++                )
++                self._free_values(result.device_frees, result.host_frees)
++                self._accumulate_tracker(tracker, result.tracker)
++            nodes.append(
++                SessionNodeDemoteOutcome(
++                    node_id,
++                    execution.disposition,
++                    execution.reason,
++                    freed_device_ids,
++                )
++            )
++
++        completed = sum(node.disposition == "COMPLETED" for node in nodes)
++        rejected = sum(node.disposition == "REJECTED" for node in nodes)
++        if completed == len(nodes):
++            disposition = "ACCEPTED"
++        elif completed > 0:
++            disposition = "CLIPPED"
++        elif rejected > 0:
++            disposition = "REJECTED"
++        else:
++            disposition = "DEFERRED"
++        return SessionCheckedDemoteOutcome(
++            session_id,
++            generation,
++            "RELEASED",
++            disposition,
++            released.released_component_leaves,
++            tuple(nodes),
++            disposition,
++        )
++
+     def release_radix_session(self, session_id: str) -> int:
+         return self.session_refs.release_radix_session(session_id)
+ 

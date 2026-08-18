@@ -1,0 +1,24 @@
+command: toolgap/experiments/g0/commands/02-source-audit.sh
+exit_code: 0
+fixed_commit: 92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2
+spec_sha256: f25f8899ff59b7eaf06efe338c7558861734bd5718b1554896e56d932d80a654
+
+The broad symbol inventory completed successfully. Its terminal output was
+379,828 bytes and the tool UI retained only a truncated view. This file records
+that limitation instead of pretending the entire broad grep was retained.
+
+Decision-relevant matches retained by focused reads:
+
+- session tracker: `session_ref_tracker.py:54-118`
+- session frontier/index: `tree_component.py:118-120,167-251`
+- Full path coverage: `full_component.py:59-99`
+- Host duplicate settled predicate: `unified_tree_core.py:1163-1173`
+- D-leaf predicate: `unified_tree_core.py:1676-1692`
+- physical primitive: `unified_tree_core.py:1465-1503`
+- pending write completion: `unified_radix_cache.py:925-1018,1880-1919`
+- cache-side drain wrapper: `unified_radix_cache.py:474-518`
+- allocator observation: `allocator/base.py:45-58`
+
+Exact immutable links, file hashes, and claim mappings are retained in
+`source-index.md` and `capability-matrix.md`; those focused artifacts, rather
+than the truncated broad grep, support the G0 decision.

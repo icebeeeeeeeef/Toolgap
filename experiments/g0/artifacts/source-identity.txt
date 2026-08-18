@@ -1,0 +1,20 @@
+command: toolgap/experiments/g0/commands/01-source-identity.sh
+exit_code: 0
+captured_after_spec_sha256: f25f8899ff59b7eaf06efe338c7558861734bd5718b1554896e56d932d80a654
+
+https://github.com/sgl-project/sglang.git
+92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2
+25e9bf86d04c27fe380024d9c8c421c3b5b51f3c
+b6d7602914d1d54253e79b1cc5b8f9017152b6e0
+Enrique Shockwave
+2026-08-17T04:43:36+01:00
+[Fix] Correct dense FP8 Marlin bias ordering (#35020)
+benchmark/hicache
+docs/backend/hicache
+python/sglang/srt/managers
+python/sglang/srt/mem_cache
+test/registered/unit/mem_cache
+## HEAD (no branch)
+
+The command also ran `git diff --exit-code` against the fixed commit and exited
+zero; the checkout had no source patch at capture time.
