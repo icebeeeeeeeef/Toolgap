@@ -191,3 +191,70 @@ treated as selected:
 
 If these answers require replacing the cache backend or maintaining a second
 physical ownership system, the design must be narrowed or stopped.
+
+## 9. Source Layout and Gate-Conditional Landing
+
+The repository separates three kinds of ownership:
+
+1. `src/toolgap/` contains candidate-owned runtime behavior only after G0 has
+   selected a real invocation seam;
+2. `upstream/sglang/` contains the exact-pin integration contract, active
+   patch, and tests intended for SGLang, without vendoring the SGLang checkout;
+3. `experiments/<gate>/` contains frozen execution evidence and is never an
+   importable runtime dependency.
+
+The target layout is:
+
+```text
+src/toolgap/session_demotion/
+  __init__.py       # the only candidate module interface
+  _model.py         # identity, intent, decision, and reason values
+  _runtime.py       # admission, execution, and completion orchestration
+  _sglang.py        # fixed-pin SGLang adapter
+  _trace.py         # DecisionTrace and physical-result attribution
+  _lifecycle.py     # G2: resume, cancel, stale completion, fallback, cleanup
+
+upstream/sglang/
+  README.md
+  pin.toml          # only after a new G0 exact pin is authorized
+  patches/          # only while the narrow contract is not upstreamed
+  tests/             # contract tests for the selected upstream seam
+
+tests/
+  test_session_demotion.py
+  test_sglang_adapter.py
+  lifecycle/
+  cuda/
+
+benchmarks/toolgap_bench/
+  runner.py
+  workloads.py
+  metrics.py
+```
+
+The landing order is part of the design:
+
+- while G0 is `RESHAPE`, keep the frozen G0 artifacts in place and do not add
+  runtime implementation files;
+- after a reviewed successor seam and exact pin exist, add the SGLang
+  integration files and contract tests;
+- after G0 passes, add the candidate runtime package and the G1 tests;
+- add lifecycle and failure-injection code only for G2;
+- add the benchmark harness only for G3/G4;
+- add policy code only if G5 admits it.
+
+The dependency direction is one-way:
+
+```text
+tests / benchmarks / experiments
+              -> toolgap.session_demotion
+              -> fixed-pin SGLang adapter and checked-demote seam
+              -> SGLang tree, movement, allocator, and scheduler
+```
+
+SGLang must not import the candidate package, production code must not import
+`experiments/`, and no `common/`, `utils/`, public RPC layer, generic backend
+platform, Mooncake/L3, or prefetch package is created as placeholder structure.
+If the proven invocation seam requires candidate logic to remain inside the
+SGLang patch, keep that code there rather than introducing an artificial
+standalone package.

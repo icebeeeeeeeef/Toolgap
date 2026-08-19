@@ -40,3 +40,25 @@
 - Run the relevant repository checks before claiming a change is complete.
 - Use GitHub Issues in `icebeeeeeeeef/Toolgap` for project tracking once the
   repository is available.
+
+## Worklog discipline
+
+- `worklog/` is a lightweight history of local plans, decision-changing
+  reviews, and lessons. It is not a second roadmap, experiment record, or
+  source of current technical truth.
+- Before a non-trivial task that can change implementation, project scope,
+  architecture, experiment evidence, or a Gate decision, search the relevant
+  `worklog/` entries first. Record its executable scope in
+  `worklog/plans/YYYY-MM-DD/<topic>.md`.
+- Record a review in `worklog/reviews/YYYY-MM-DD/<topic>.md` only when the
+  discussion changes a decision or rejects a credible alternative. Record a
+  lesson in `worklog/lessons/YYYY-MM-DD/<topic>.md` after a falsified
+  assumption, error, or counterexample.
+- Each record links to its canonical owner. Update the owner itself when a
+  fact, scope, Gate order, contract, or experiment result changes:
+  `docs/PROJECT.md`, `docs/ROADMAP.md`, `docs/DEMOTION_CONTRACT.md`,
+  `docs/DECISIONS.md`, or `experiments/<gate>/` as applicable.
+- Keep records concise and evidence-linked. Do not store raw chat transcripts,
+  private reasoning, secrets, generated logs, or duplicated frozen artifacts.
+  Preserve an earlier record; append a correction or supersession rather than
+  rewriting its observed rationale.
