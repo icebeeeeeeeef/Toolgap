@@ -23,9 +23,24 @@ physical primitive, and cache-owned drain. G1 remains blocked until that
 contract is accepted in a new exact pin and G0 is rerun on the frozen CUDA-
 capable environment.
 
+The proposed pre-rental execution bundle is
+[G0-C-ATOMIC-007](experiments/g0/SPEC.g0-c-007.md). It prepares an exact
+two-wheel, ordinary-serving CUDA attempt and preserves all outcomes, but it
+does not change the current roadmap claim state or the prior RESHAPE decision.
+
 Start with [docs/README.md](docs/README.md).
 
 No runtime implementation or performance result is claimed in this directory.
+
+The planned source ownership and Gate-conditional directory layout is recorded
+in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#9-source-layout-and-gate-conditional-landing).
+The structure markers under `src/`, `upstream/`, `tests/`, and `benchmarks/`
+contain no runtime behavior; they make the future landing points explicit while
+G1 remains blocked.
+
+Local implementation plans, decision-changing reviews, and reusable lessons
+are maintained in [worklog/](worklog/README.md). It is historical context, not
+a second roadmap or a source of current technical facts.
 
 ## Repository checks
 
@@ -41,4 +56,5 @@ dependencies and are intentionally not rewritten.
 
 ```bash
 bash scripts/verify-g0-evidence.sh
+bash scripts/verify-g0-c-007-bundle.sh
 ```

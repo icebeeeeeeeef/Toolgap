@@ -1,0 +1,72 @@
+{
+  "identity": {
+    "experiment_id": "G0-C-ATOMIC-007",
+    "gate": "G0",
+    "spec_path": "experiments/g0/SPEC.g0-c-007.md",
+    "spec_sha256": "__GENERATED_FROM_FROZEN_SPEC__",
+    "run_id": "g0-c-atomic-runtime-integration-007",
+    "attempt_id": "__OPERATOR_SUPPLIED_ATTEMPT_ID__",
+    "repeat_id": "N/A: binary integration protocol",
+    "run_status": "ADMITTED_PRE_ARM"
+  },
+  "source": {
+    "engine": "SGLang",
+    "remote": "https://github.com/sgl-project/sglang.git",
+    "base_commit": "92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2",
+    "base_tree": "25e9bf86d04c27fe380024d9c8c421c3b5b51f3c",
+    "patch_sha256": "e69776678909b4ee49b1c0fa4a8e208666893b659c0508387c83fcdf11e82a9a",
+    "stock_checkout": "__GENERATED__",
+    "treatment_checkout": "__GENERATED__",
+    "stock_commit": "__GENERATED__",
+    "stock_tree": "__GENERATED__",
+    "treatment_commit": "__GENERATED__",
+    "treatment_tree": "__GENERATED__",
+    "stock_wheel_sha256": "__GENERATED__",
+    "treatment_wheel_sha256": "__GENERATED__",
+    "dependency_lock_sha256": "__GENERATED__"
+  },
+  "environment": {
+    "target": "Ubuntu 24.04.3 x86_64; one NVIDIA A10 24 GB; driver 580.65.06; CUDA 13.0; Python 3.12.11",
+    "observed_readback": "__GENERATED__",
+    "observed_readback_sha256": "__GENERATED__",
+    "stock_interpreter": "__GENERATED__",
+    "treatment_interpreter": "__GENERATED__"
+  },
+  "protocol": {
+    "stock_control": "v6 source oracle must exit 1 with 27 expected missing-contract cases",
+    "treatment_control": "v6 source oracle must exit 0 with 27 passes",
+    "seam_control": "installed treatment cache -> registered legacy backend -> typed UNSUPPORTED_BACKEND -> zero physical demote",
+    "serving_control": "two serial native streaming generate requests per arm with HTTP/SSE and cleanup terminal",
+    "physical_demotion": "prohibited in G0-C-ATOMIC-007"
+  },
+  "planned_artifacts": [
+    "environment.txt",
+    "preflight-status.txt",
+    "dependency-lock.txt",
+    "wheels.txt",
+    "stock-provenance.json",
+    "treatment-provenance.json",
+    "stock-oracle.txt",
+    "treatment-oracle.txt",
+    "installed-seam.txt",
+    "static-inventory.json",
+    "stock-server.log",
+    "treatment-server.log",
+    "stock-request-1.sse",
+    "stock-request-2.sse",
+    "treatment-request-1.sse",
+    "treatment-request-2.sse",
+    "stock-request-1.json",
+    "stock-request-2.json",
+    "treatment-request-1.json",
+    "treatment-request-2.json",
+    "stock-cleanup-status.txt",
+    "treatment-cleanup-status.txt",
+    "execution-status.json",
+    "artifact-index.json"
+  ],
+  "outcome": {
+    "gate_decision": "N/A: manifest sealed before runtime arms",
+    "claim_state": "roadmap"
+  }
+}

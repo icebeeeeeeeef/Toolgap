@@ -1,0 +1,9 @@
+{
+  "text": "ordinary cache integration prompt ordinary cache integration prompt ordinary cache integration prompt ordinary cache integration prompt ordinary cache integration prompt ordinary cache integration prompt ordinary cache integration prompt ordinary cache integration prompt ordinary cache integration prompt ordinary cache integration prompt ordinary cache integration prompt ordinary cache integration prompt ordinary cache integration prompt ordinary cache integration prompt ordinary cache integration prompt ordinary cache integration prompt",
+  "sampling_params": {
+    "temperature": 0.0,
+    "max_new_tokens": 8,
+    "ignore_eos": true
+  },
+  "stream": true
+}
