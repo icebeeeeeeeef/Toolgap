@@ -24,12 +24,13 @@ contract is accepted in a new exact pin and G0 is rerun on the frozen CUDA-
 capable environment.
 
 The current pre-rental execution bundle is
-[G0-C-ATOMIC-008](experiments/g0/SPEC.g0-c-008.md). It minimally repairs the
-frozen but never-executed [007 protocol](experiments/g0/SPEC.g0-c-007.md),
-prepares an exact two-wheel ordinary-serving CUDA attempt, and preserves all
-outcomes. It does not change the current `roadmap` claim state or the prior
-RESHAPE decision; a passing local bundle check authorizes only a rented-host
-attempt.
+[G0-C-ATOMIC-009](experiments/g0/SPEC.g0-c-009.md). It preserves the frozen,
+never-executed [008 protocol](experiments/g0/SPEC.g0-c-008.md) while correcting
+its non-causal host pins: the attempt reuses Alibaba Cloud's official Ubuntu
+24.04 NVIDIA GPU image, seals its exact identity, and keeps exact source and
+application dependencies. It does not change the current `roadmap` claim state
+or the prior RESHAPE decision; a passing local bundle check authorizes only a
+rented-host attempt.
 
 Start with [docs/README.md](docs/README.md).
 
@@ -61,4 +62,5 @@ dependencies and are intentionally not rewritten.
 bash scripts/verify-g0-evidence.sh
 bash scripts/verify-g0-c-007-bundle.sh
 bash scripts/verify-g0-c-008-bundle.sh
+bash scripts/verify-g0-c-009-bundle.sh
 ```
