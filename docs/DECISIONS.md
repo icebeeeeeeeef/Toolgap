@@ -420,6 +420,61 @@ Affected documents and experiments:
 `../experiments/g0/RESULTS.md`, `../experiments/g0/SPEC.g0-c-010.md`,
 `../experiments/g0/SPEC.g0-c-011.md`, and the G0-C-011 execution bundle.
 
+## 2026-08-20 — D026: Preserve G0-C-011 and stage the fixed model as G0-C-012
+
+Status: accepted
+
+Context:
+
+G0-C-011 attempts 001-004 preserved ordinary Rust/build-cache prerequisites.
+Attempt 005 then built distinct stock and treatment wheels, resolved and
+installed the same dependency lock into two isolated environments, and passed
+the fixed CUDA/Torch self-check in both. Before any arm, its fixed Hugging Face
+snapshot request failed with `Network is unreachable`; the connection never
+left TCP `SYN-SENT`, and no model bytes entered the host cache.
+
+Decision:
+
+Preserve G0-C-011 and all five attempts unchanged. Freeze G0-C-012 with the same
+source seed, commit/tree, patch, host, dependency resolution, model repository
+and revision, controls, serving protocol, deadlines, seal, and claim ceiling.
+Replace only the live Hugging Face download with one operator-staged archive.
+Bind the archive SHA-256 and an exact per-file inventory; reject links/path
+escapes and rehash the extracted model before every phase and serving arm.
+
+Alternatives considered:
+
+- retry the unreachable Hugging Face route during paid rental time;
+- add a proxy, model mirror service, OSS dependency, or another cloud product;
+- change the model, revision, format, source pin, or dependency lock;
+- mutate attempt 005 or populate its cache after the sealed failure.
+
+Evidence:
+
+The attempt-005 logs and install reports retain successful paired wheel builds,
+paired dependency-identical installs, and CUDA self-checks. Its traceback ends
+in `httpcore.ConnectError: [Errno 101] Network is unreachable` while listing the
+fixed revision. The remote and off-host failure seals verify.
+
+Consequences:
+
+G0 remains `roadmap`. Model staging proves no runtime mechanism. G0-C-012 may
+start only from its committed runner, frozen archive/inventory hashes, and a new
+attempt ID. Success still requires controls, paired serving, final sealing,
+off-host verification, and independent Gate review. G1 remains blocked.
+
+Reopen condition:
+
+Reopen if the staged archive cannot reproduce the exact fixed snapshot, if any
+phase can use network/model bytes outside it, or if transport changes the
+paired-serving protocol.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `../experiments/g0/RESULTS.md`,
+`../experiments/g0/SPEC.g0-c-011.md`, `../experiments/g0/SPEC.g0-c-012.md`, and
+the G0-C-012 execution bundle.
+
 ## Decision Template
 
 ```text

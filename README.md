@@ -23,15 +23,14 @@ physical primitive, and cache-owned drain. G1 remains blocked until that
 contract is accepted in a new exact pin and G0 is rerun on the frozen CUDA-
 capable environment.
 
-The current pre-rental execution bundle is
-[G0-C-ATOMIC-011](experiments/g0/SPEC.g0-c-011.md). It preserves frozen 010 and
-its two verified pre-arm source-network terminals, while replacing only two
-live GitHub source clones with one SHA-256-bound operator-staged Git seed. It
-still reuses Alibaba Cloud's official Ubuntu 24.04 NVIDIA GPU image, seals the
-same SGLang commit/tree/patch identity, and keeps the exact application
-dependencies and protocol. It does not change the `roadmap` claim state or
-prior RESHAPE decision; a passing local bundle check authorizes only a
-rented-host attempt.
+The current rental execution bundle is
+[G0-C-ATOMIC-012](experiments/g0/SPEC.g0-c-012.md). It preserves frozen 011 and
+its five verified pre-arm terminals. The latest reached paired wheel builds,
+same-lock installs, and paired CUDA self-checks before the host's unreachable
+Hugging Face route stopped model admission. Successor 012 changes only model
+transport to one SHA-256-bound, per-file-verified operator-staged archive. It
+retains the same provider GPU image, SGLang commit/tree/patch, model revision,
+dependencies, controls, serving protocol, and `roadmap` claim ceiling.
 
 Start with [docs/README.md](docs/README.md).
 
@@ -66,4 +65,5 @@ bash scripts/verify-g0-c-008-bundle.sh
 bash scripts/verify-g0-c-009-bundle.sh
 bash scripts/verify-g0-c-010-bundle.sh
 bash scripts/verify-g0-c-011-bundle.sh
+bash scripts/verify-g0-c-012-bundle.sh
 ```

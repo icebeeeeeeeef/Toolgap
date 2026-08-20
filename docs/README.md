@@ -117,9 +117,15 @@ independently verifiable pre-arm terminals and neither started an arm.
 [D025](DECISIONS.md#2026-08-20--d025-preserve-g0-c-010-and-stage-the-fixed-source-as-g0-c-011)
 preserves them and freezes
 [G0-C-ATOMIC-011](../experiments/g0/SPEC.g0-c-011.md), which replaces only live
-source transport with a SHA-256-bound Git seed. G0 remains `roadmap`; its local
-verifier can authorize a rented-host attempt but cannot produce a CUDA
-observation or Gate decision.
+source transport with a SHA-256-bound Git seed. Its fifth attempt built both
+wheels, installed both same-lock environments, and passed both CUDA self-checks
+before the host's Hugging Face route failed with `Network is unreachable`; no
+arm started. [D026](DECISIONS.md#2026-08-20--d026-preserve-g0-c-011-and-stage-the-fixed-model-as-g0-c-012)
+preserves all five attempts and freezes
+[G0-C-ATOMIC-012](../experiments/g0/SPEC.g0-c-012.md), which replaces only live
+model transport with one archive bound by an archive hash and exact per-file
+inventory. G0 remains `roadmap`; only a completed paired runtime protocol plus
+off-host verification and independent review can change the Gate decision.
 
 ## Claim States
 

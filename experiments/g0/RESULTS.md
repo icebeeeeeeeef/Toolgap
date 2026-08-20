@@ -78,12 +78,22 @@ host.
 | 009 / `g0-c-009-a10-attempt-002` | fixed SGLang clone ended with a GitHub connection reset | preserved raw evidence exposed an invalid failure seal; D024 retains it but it cannot be treated as a verified terminal |
 | 010 / `g0-c-010-a10-attempt-001` | `BLOCKED_BEFORE_EXECUTION` before an arm because GitHub HTTPS to the fixed SGLang remote could not connect | remote and off-host failure seals verified; not a Gate result |
 | 010 / `g0-c-010-a10-attempt-002` | `BLOCKED_BEFORE_EXECUTION` before an arm after about 90 MB of the fixed SGLang Git pack was received and the connection reset with `early EOF` | remote and off-host failure seals verified; D025 replaces only live source transport in successor 011; not a Gate result |
+| 011 / `g0-c-011-a10-attempt-001` | `BLOCKED_BEFORE_EXECUTION` because provider Rust 1.75 could not parse the pinned Edition 2024 workspace | remote and off-host failure seals verified; ordinary build-tool prerequisite, not a Gate result |
+| 011 / `g0-c-011-a10-attempt-002` | `BLOCKED_BEFORE_EXECUTION` after the bounded stock wheel build spent 1,800 seconds obtaining the pinned Cargo graph | remote and off-host failure seals verified; exact Cargo cache was warmed outside any attempt without changing source or lock |
+| 011 / `g0-c-011-a10-attempt-003` | `BLOCKED_BEFORE_EXECUTION` because Rust 1.85 supports Edition 2024 but not the pinned `let-chains` use | remote and off-host failure seals verified; not a Gate result |
+| 011 / `g0-c-011-a10-attempt-004` | `BLOCKED_BEFORE_EXECUTION` because pinned `rustpython-ruff` packages declare `rustc >=1.92` | remote and off-host failure seals verified; established the fixed source's true minimum compiler |
+| 011 / `g0-c-011-a10-attempt-005` | `BLOCKED_BEFORE_EXECUTION` after both wheels, same-lock isolated installs, and both CUDA self-checks succeeded; fixed Hugging Face snapshot failed with `Network is unreachable` | remote and off-host failure seals verified; D026 replaces only live model transport in successor 012; no arm started and no Gate result |
 
 The authoritative raw attempt directories remain Git-ignored. The observed
 source-network failures do not authorize an alternate SGLang mirror, source
 pin, dependency, or model under the frozen protocols. D025 authorizes one
 SHA-256-bound operator-staged Git seed in successor 011 while retaining the
 same canonical remote, commit, tree, and patch identity.
+
+The 011 sequence also proved that incidental model transport can remain after
+source transport is removed. D026 authorizes one exact-file, SHA-256-bound
+model seed in successor 012, retaining the same model repository/revision and
+requiring per-file verification before every phase and serving arm.
 
 ## Decisive atomic seam evidence
 

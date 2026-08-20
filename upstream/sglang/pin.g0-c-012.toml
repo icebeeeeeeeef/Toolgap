@@ -1,0 +1,41 @@
+# G0-C-ATOMIC-012 source identity. This is an experimental integration pin,
+# not an upstream-acceptance claim.
+
+[upstream]
+name = "SGLang"
+remote = "https://github.com/sgl-project/sglang.git"
+base_commit = "92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2"
+base_tree = "25e9bf86d04c27fe380024d9c8c421c3b5b51f3c"
+
+[source_transport]
+kind = "operator-staged shallow bare Git seed archive"
+archive_sha256 = "2d40db92ff1a21cb78e95f4da98352f1fa17086e1a16a82e95070f05e1460400"
+
+[treatment]
+patch = "patches/0001-atomic-checked-demote.patch"
+patch_sha256 = "e69776678909b4ee49b1c0fa4a8e208666893b659c0508387c83fcdf11e82a9a"
+changed_paths = [
+  "python/sglang/srt/mem_cache/unified_cache/session_ref_tracker.py",
+  "python/sglang/srt/mem_cache/unified_cache/unified_tree_core.py",
+  "python/sglang/srt/mem_cache/unified_cache/unified_tree_core_interface.py",
+  "python/sglang/srt/mem_cache/unified_radix_cache.py",
+]
+
+[runtime_target]
+os = "Alibaba Cloud official Ubuntu 24.04 NVIDIA GPU image, x86_64"
+gpu = "NVIDIA A10 24 GB"
+driver = ">=580.65.06 (exact version retained in attempt readback)"
+cuda = "13.0"
+python = "3.12.x (exact patch retained in attempt readback)"
+rust = ">=1.92.0 (exact version retained in attempt readback)"
+torch = "2.13.0"
+transformers = "5.12.1"
+
+[model]
+repository = "Qwen/Qwen2.5-0.5B-Instruct"
+revision = "c89bee90d9f811437d9735454613c35b4a3c4dc8"
+
+[model_transport]
+kind = "operator-staged exact-file model snapshot archive"
+archive_sha256 = "7831ff4149673415ff5adcb36630438b418d0c21092f230ed3b3176fc584edb8"
+inventory = "../../experiments/g0/artifacts/model-files.g0-c-012.json"
