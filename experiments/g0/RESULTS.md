@@ -69,8 +69,8 @@ the source-contract arm.
 ## Rental-host admission terminals
 
 The provider host itself was admitted as Ubuntu 24.04 on one NVIDIA A10 with
-the required CUDA 13.0 path and compatible driver. No arm has started on that
-host.
+the required CUDA 13.0 path and compatible driver. The rows below preserve
+every rental-host terminal; none is silently upgraded into a Gate result.
 
 | Revision and attempt | Terminal | Interpretation |
 | --- | --- | --- |
@@ -87,6 +87,8 @@ host.
 | 013 / `g0-c-013-a10-attempt-001` | `INVALID_SCOPE` in command 21 after admission, exact stock 27/27 RED, treatment 27/27 GREEN, and the installed seam; the full-tree AST inventory rejected a legal UTF-8 BOM in an unrelated upstream Python file | remote and off-host failure seals verified; D028 changes only the successor inventory decoder to `utf-8-sig`; no arm started and no Gate result |
 | 014 / `g0-c-014-a10-attempt-001` | `EXECUTION_FAILED_AFTER_START` in command 22 after admission and all controls; stock loaded the fixed model and KV cache, then FlashInfer CUDA JIT failed before health because `ninja` was absent | remote and off-host failure seals verified; cleanup left no process-group or attributable GPU PID survivor; D029 adds only the ordinary project tool in successor 015; no request or treatment arm ran and no Gate result |
 | 015 / `g0-c-015-a10-attempt-001` | `EXECUTION_FAILED_AFTER_START` in command 22 after stock passed FlashInfer JIT, health, and both frozen streaming requests; runner-issued SIGTERM led fixed SGLang to self-kill with 137, and the active `ERR` trap intercepted `wait` before cleanup receipt creation | both request JSON files say `passed: true`; remote and off-host failure seals verify; no process-group, listener, or attributable GPU PID survived; D030 changes only attributed shutdown capture in successor 016; treatment did not run and no Gate result was produced |
+| 016 / `g0-c-016-a10-attempt-001` | `EXECUTION_FAILED_AFTER_START` after stock completed health, both requests, and attributed cleanup; the operator requested a network pause while treatment was starting | remote and off-host failure seals verify; no process, listener, or GPU PID survived; the interruption is not a Gate result |
+| 016 / `g0-c-016-a10-attempt-002` | `EXECUTION_FAILED_AFTER_START` after both arms completed health and both requests; treatment process-group and GPU evidence quiesced, but its unowned listener entry remained in the immediate cleanup snapshot | remote and off-host failure seals verify; a later residual probe found no process, listener, or GPU PID; D031 keeps the same deadline and waits for joint cleanup quiescence in successor 017; not a Gate result |
 
 The authoritative raw attempt directories remain Git-ignored. The observed
 source-network failures do not authorize an alternate SGLang mirror, source
@@ -121,6 +123,14 @@ requests. Its intentional shutdown exposed the same Bash `ERR`-trap pattern at
 `wait`; cleanup itself left no survivor. D030 preserves the attempt and
 authorizes only conditional wait-status capture plus live-PID/TERM attribution
 in successor 016.
+
+The first 016 attempt was deliberately interrupted and sealed without residue.
+The second completed health and both requests in both arms. Its treatment
+cleanup showed the process group and attributable GPU PID gone while the
+kernel still exposed the target listener for one immediate snapshot; a later
+probe found it gone. D031 preserves both attempts and authorizes only waiting
+for all three cleanup observations to quiesce within the unchanged deadline in
+successor 017.
 
 ## Decisive atomic seam evidence
 

@@ -687,6 +687,66 @@ Affected documents and experiments:
 `../experiments/g0/SPEC.g0-c-015.md`, `../experiments/g0/SPEC.g0-c-016.md`, and
 the G0-C-016 execution bundle.
 
+## 2026-08-21 — D031: Preserve G0-C-016 and wait for joint cleanup quiescence in G0-C-017
+
+Status: accepted
+
+Context:
+
+G0-C-016 attempt 001 was deliberately interrupted and sealed without residue.
+Attempt 002 completed admission, every control, and both requests in both arms.
+Both server groups received runner-issued TERM and reaped with the attributed
+status 137. Stock cleanup passed. For treatment, the group and attributable GPU
+PID were gone while the immediately sampled `ss` output still contained an
+unowned port-30001 listener; a later residual probe found no listener. The 016
+runner waited only for the process group before sampling all cleanup evidence.
+
+Decision:
+
+Preserve 016 and both attempts unchanged. Freeze G0-C-017 with the same source,
+model, dependencies, controls, server parameters, requests, receipt schema,
+and 60-second cleanup deadline. Inside that deadline, resample process-group,
+target-listener, and attributable-GPU state until all three are jointly
+quiescent, then retain the final snapshots. Any survivor at the deadline still
+fails closed. Reuse the immutable 016 pin, input inventories, helpers,
+prerequisite installer, and evidence verifier instead of duplicating them.
+
+Alternatives considered:
+
+- accept 016/002 from the later ad hoc residual probe;
+- ignore listener evidence when the process group is gone;
+- add a fixed sleep before the existing one-shot snapshot;
+- add a generic retry/supervisor framework or patch SGLang shutdown;
+- resume or rewrite the sealed 016 attempt.
+
+Evidence:
+
+Both treatment request JSON files record `passed: true`, including 48 cached
+tokens on the second request. The cleanup receipt records no process-group or
+GPU survivor and status 137, while the same-timestamp listener snapshot alone
+contains port 30001 without a process owner. The remote failure seal and
+off-host copy both verify. The 017 bundle executes the production cleanup
+function against transient-listener and permanent-listener counterexamples.
+
+Consequences:
+
+G0 remains `roadmap`; 016/002 is not a Gate result. G0-C-017 requires a fresh
+full attempt and off-host verification. No physical demotion, allocator,
+correctness, recovery, or performance claim is promoted, and G1 remains
+blocked.
+
+Reopen condition:
+
+Reopen if joint quiescence exceeds the existing deadline, a final snapshot
+retains any process/listener/GPU survivor, the new counterexamples admit a
+permanent listener, or another experimental input must change.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `../experiments/g0/RESULTS.md`,
+`../experiments/g0/SPEC.g0-c-016.md`, `../experiments/g0/SPEC.g0-c-017.md`, and
+the G0-C-017 execution bundle.
+
 ## Decision Template
 
 ```text

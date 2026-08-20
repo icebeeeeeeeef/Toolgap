@@ -152,6 +152,13 @@ preserves it and freezes
 status capture and attribution while retaining all no-survivor checks. G0
 remains `roadmap`; only a completed paired runtime protocol plus off-host
 verification and independent review can change the Gate decision.
+[D031](DECISIONS.md#2026-08-21--d031-preserve-g0-c-016-and-wait-for-joint-cleanup-quiescence-in-g0-c-017)
+preserves both 016 attempts and freezes
+[G0-C-ATOMIC-017](../experiments/g0/SPEC.g0-c-017.md). It keeps the same
+60-second deadline but waits for process-group, target-listener, and
+attributable-GPU evidence to quiesce together before the final cleanup
+snapshot. G0 remains `roadmap` pending a completed fresh attempt, off-host
+verification, and independent review.
 
 ## Claim States
 
