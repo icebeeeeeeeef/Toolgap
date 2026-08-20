@@ -97,10 +97,13 @@ frontier release, backend-owned final check plus existing demote, and cache-owne
 drain. G1 remains blocked; no runtime or performance claim was promoted. Later
 Gates are not expanded into a second project-wide execution outline.
 
-A proposed pre-rental execution bundle,
-[G0-C-ATOMIC-007](../experiments/g0/SPEC.g0-c-007.md), fixes the source,
-wheel, host-admission, serving, and evidence protocol for a possible rerun. It
-is roadmap material and does not rewrite the G0 RESHAPE result.
+The frozen [G0-C-ATOMIC-007](../experiments/g0/SPEC.g0-c-007.md) pre-rental
+protocol was never executed and is retained after deterministic pre-run review
+found execution and evidence defects. [D022](DECISIONS.md#2026-08-20--d022-preserve-g0-c-007-and-repair-the-pre-run-protocol-as-g0-c-008)
+preserves it and freezes the minimally repaired
+[G0-C-ATOMIC-008](../experiments/g0/SPEC.g0-c-008.md) bundle. G0-C-008 remains
+`roadmap`; its local verifier can authorize a rented-host attempt but cannot
+produce a CUDA observation or Gate decision.
 
 ## Claim States
 
