@@ -303,6 +303,62 @@ Affected documents and experiments:
 `../experiments/g0/SPEC.g0-c-008.md`,
 `../experiments/g0/SPEC.g0-c-009.md`, and the G0-C-009 execution bundle.
 
+## 2026-08-20 — D024: Preserve G0-C-009 and repair preflight discovery and failure sealing as G0-C-010
+
+Status: accepted
+
+Context:
+
+The first provider-host G0-C-009 attempt stopped before an arm because the
+official CUDA 13.0 executable existed at the required path but was not on the
+initial non-login shell `PATH`. A second new attempt used that already-present
+canonical path, then stopped during the fixed SGLang clone after a network
+reset. Its raw log exposed a separate evidence defect: the failure finalizer
+wrote a summary line after creating an index that included the redirected build
+log, so the resulting failure terminal could not verify off host.
+
+Decision:
+
+Preserve G0-C-009 and both attempts unchanged. Freeze G0-C-010 with the same
+source pin, patch, host capability envelope, model, controls, serving protocol,
+and deadlines. It only establishes the canonical CUDA path before command
+discovery and prevents failure finalization from writing post-index bytes to an
+indexed artifact. Its verifier includes the redirected-log counterexample.
+
+Alternatives considered:
+
+- mutate 009 or overwrite either attempt;
+- install or replace CUDA to satisfy bare-command discovery;
+- treat the unverified 002 terminal as valid because SCP was successful;
+- add retry logic, a mirror, a container, or a new infrastructure subsystem.
+
+Evidence:
+
+The provider `nvcc` executable reported CUDA 13.0 at
+`/usr/local/cuda-13.0/bin/nvcc`; 009 itself later selected that same path. The
+attempt-002 log contains the finalizer's `SEALED_FAILURE` line after the clone
+error, whereas its artifact index records the pre-line hash. Both the remote
+original and the off-host copy fail verification identically. A local
+redirected-log regression test fails under 009 behavior and passes under 010.
+
+Consequences:
+
+G0 remains `roadmap`; neither pre-arm terminal is a Gate outcome or CUDA
+integration result. A new 010 attempt must use a new ID and the unchanged
+ordinary clone route. No driver, CUDA, source pin, dependency, model, patch,
+control, serving, or G1 scope change is authorized.
+
+Reopen condition:
+
+Reopen if a new 010 attempt again cannot produce an independently verifiable
+terminal without changes beyond the two listed corrections.
+
+Affected documents and experiments:
+
+`README.md`, `docs/README.md`, `DECISIONS.md`,
+`../experiments/g0/SPEC.g0-c-009.md`,
+`../experiments/g0/SPEC.g0-c-010.md`, and the G0-C-010 execution bundle.
+
 ## Decision Template
 
 ```text
