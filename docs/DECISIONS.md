@@ -169,6 +169,68 @@ Affected documents and experiments:
 `../experiments/g0/SPEC.g0-c-006.md`, and
 `../experiments/g0/RESULTS.md`.
 
+## 2026-08-20 — D022: Preserve G0-C-007 and repair the pre-run protocol as G0-C-008
+
+Status: accepted
+
+Context:
+
+G0-C-007 was frozen as a successor package and ordinary-serving integration
+protocol but was never executed. Pre-rental review found deterministic defects
+in its default attempt path, fixed-pin package-root check, UnifiedRadixCache
+selection, phase ordering, runtime identity, process cleanup, and evidence
+sealing. These are protocol defects visible before either CUDA arm, not an
+observed engine or mechanism result.
+
+Decision:
+
+Preserve G0-C-007 unchanged and record no Gate decision for it. Freeze
+G0-C-008 as the smallest repaired successor G0 protocol. It retains the exact
+SGLang pin, four-file patch, source controls, installed fail-closed seam,
+ordinary HiCache serving question, and G0/G1 boundary. Generated attempts live
+under `experiments/g0/raw/`; every phase is bound to the admitted Git/runtime
+identity and predecessor receipt; exact wheels remain in the attempt; failures
+receive a terminal plus artifact index; success requires a completion receipt
+bound to the terminal-containing index.
+
+Alternatives considered:
+
+- modify the frozen 007 files in place;
+- introduce a new G0.5 Gate or generic experiment-runner framework;
+- widen the rerun to physical demotion, allocator evidence, or G1 execution;
+- require cgroups, containers, a full dependency wheelhouse, or external
+  signing before the first runtime attempt.
+
+Evidence:
+
+Three independent adversarial reviews agreed that the integration question is
+still the narrowest useful successor G0 question while 007 is not executable as
+frozen. Version-matched SGLang source places its build metadata at
+`python/pyproject.toml` and requires
+`SGLANG_ENABLE_UNIFIED_RADIX_TREE=1` for UnifiedRadixCache. Local probes also
+reproduced the missing default parent and showed that the old structural check
+did not distinguish several wrong execution/evidence implementations.
+
+Consequences:
+
+The project and all G0-C-008 implementation claims remain `roadmap`. Passing
+the local G0-C-008 verifier authorizes only a rented runtime attempt. A complete
+rented attempt still requires independent review before any successor G0 Gate
+decision. An accepted successor PASS may authorize a separate G1 plan and
+frozen SPEC; it does not itself authorize G1 execution.
+
+Reopen condition:
+
+Reopen this decision if a version-matched source check invalidates the fixed
+package/cache assumptions, or if the repaired integration cannot run without
+widening ownership into physical demotion, a replacement cache data plane, or
+another explicitly excluded subsystem.
+
+Affected documents and experiments:
+
+`README.md`, `DECISIONS.md`, `../experiments/g0/SPEC.g0-c-007.md`,
+`../experiments/g0/SPEC.g0-c-008.md`, and the G0-C-008 execution bundle.
+
 ## Decision Template
 
 ```text
