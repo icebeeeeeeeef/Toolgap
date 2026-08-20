@@ -101,9 +101,13 @@ The frozen [G0-C-ATOMIC-007](../experiments/g0/SPEC.g0-c-007.md) pre-rental
 protocol was never executed and is retained after deterministic pre-run review
 found execution and evidence defects. [D022](DECISIONS.md#2026-08-20--d022-preserve-g0-c-007-and-repair-the-pre-run-protocol-as-g0-c-008)
 preserves it and freezes the minimally repaired
-[G0-C-ATOMIC-008](../experiments/g0/SPEC.g0-c-008.md) bundle. G0-C-008 remains
-`roadmap`; its local verifier can authorize a rented-host attempt but cannot
-produce a CUDA observation or Gate decision.
+[G0-C-ATOMIC-008](../experiments/g0/SPEC.g0-c-008.md) bundle. Purchase-page
+review then found that 008 had mistaken one planned host snapshot for a causal
+environment requirement. [D023](DECISIONS.md#2026-08-20--d023-reuse-provider-gpu-infrastructure-in-g0-c-009)
+preserves 008 and freezes the provider-reused
+[G0-C-ATOMIC-009](../experiments/g0/SPEC.g0-c-009.md) successor. G0-C-009
+remains `roadmap`; its local verifier can authorize a rented-host attempt but
+cannot produce a CUDA observation or Gate decision.
 
 ## Claim States
 

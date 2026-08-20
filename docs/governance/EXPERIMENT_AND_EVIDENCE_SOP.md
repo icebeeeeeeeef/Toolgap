@@ -64,6 +64,54 @@ SPEC, workload, threshold, action set, order, or analysis rule after execution
 creates a new SPEC revision and new run identity; it never overwrites the old
 artifact or silently retries a losing result.
 
+### 2.1 Resolve infrastructure capability first, reuse first
+
+An experiment specification constrains the capabilities and identities needed
+to interpret the result; it does not prescribe manual assembly of the host.
+Freeze an exact infrastructure value only when at least one of these is true:
+
+1. the decision question is causally sensitive to that value;
+2. a fixed upstream/API/ABI requirement or a known defect establishes a hard
+   compatibility boundary;
+3. paired or repeated measurements require the identical value to prevent a
+   confound.
+
+Otherwise freeze a capability envelope, reject values outside it, and retain
+the exact observed value in the immutable manifest/readback. An observed value
+from a convenient preparation host is not a requirement by itself.
+
+Resolve a capable substrate in this order:
+
+1. an official provider image with the required driver/runtime already
+   installed and supported;
+2. a provider-managed installation option when no suitable image exists;
+3. project-isolated application dependencies in a virtual environment, or a
+   container only when isolation is demonstrated to be necessary;
+4. manual host, driver, or accelerator-runtime installation only through a new
+   frozen revision that names the unmet provider capability and the resulting
+   interpretation/reproducibility risk.
+
+Do not combine a preinstalled accelerator image with a second automatic driver
+installation. Do not accept a mutable image label such as `latest` without
+sealing the provider's exact image identity before the first arm. Record only
+the provider metadata needed for provenance; omit account identifiers,
+instance identifiers, addresses, credentials, and other secrets.
+
+Keep three layers explicit in each runtime SPEC:
+
+- **experimental invariants:** causal hardware, source, workload, arm, and
+  measurement conditions;
+- **provider substrate:** image, OS, driver/runtime and managed services whose
+  exact readbacks are sealed;
+- **project dependencies:** application packages and build tools that the
+  project must pin or install because the provider does not supply them.
+
+For performance Gates, all paired arms use the same exact admitted substrate
+and tuning state. A capability-compatible replacement image may start a new
+cohort, but may not silently enter an existing pair or repeat set. For
+non-performance capability Gates, avoid patch-level host pins that do not
+affect the tested contract.
+
 The existing Gates use the same contract with different evidence questions:
 
 | Gate | SPEC must make observable |

@@ -7,10 +7,11 @@ vendoring or copying the SGLang source tree. The authoritative current source
 audit and frozen patch artifacts remain under `experiments/g0/` and
 `docs/ARCHITECTURE.md`.
 
-After a successor G0 is authorized, this area may contain:
+The current successor execution contract uses:
 
-- `pin.toml` for the exact source revision and environment identity;
-- a temporary patch series while the contract is under upstream review;
+- `pin.g0-c-009.toml` for the exact source/application identity and admitted
+  provider capability envelope;
+- `patches/0001-atomic-checked-demote.patch` as the temporary reviewed patch;
 - contract tests that run against the selected SGLang checkout.
 
 The physical KV tree, allocator, movement, and eviction remain SGLang-owned.

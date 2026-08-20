@@ -231,6 +231,78 @@ Affected documents and experiments:
 `README.md`, `DECISIONS.md`, `../experiments/g0/SPEC.g0-c-007.md`,
 `../experiments/g0/SPEC.g0-c-008.md`, and the G0-C-008 execution bundle.
 
+## 2026-08-20 — D023: Reuse provider GPU infrastructure in G0-C-009
+
+Status: accepted
+
+Context:
+
+G0-C-008 was frozen but never executed. While selecting the rental image, its
+exact driver `580.65.06` and Python `3.12.11` requirements were traced back to
+one planned host snapshot rather than the checked-demote decision question.
+They would reject Alibaba Cloud's supported Ubuntu 24.04 NVIDIA GPU image even
+though that image supplies a newer CUDA-13-compatible driver and Python 3.12,
+and the pinned SGLang source does not require either exact patch version.
+
+Decision:
+
+Preserve G0-C-008 unchanged and freeze G0-C-009 as its infrastructure-corrected
+successor. Require one physical A10, real CUDA, the exact SGLang/Torch/
+Transformers source and application stack, and identical substrate for both
+arms. Reuse Alibaba Cloud's official Ubuntu 24.04 NVIDIA GPU image on `gn7i`;
+admit driver `>=580.65.06`, provider CUDA 13.0, and Python 3.12.x; seal the exact
+image ID, instance type, region/zone, OS/kernel, GPU, driver, CUDA, Python, and
+available tuning/runtime readbacks before either arm. The project may install
+only ordinary SGLang build tools missing from the provider image. It may not
+install or replace the GPU driver or accelerator runtime under this SPEC.
+
+Alternatives considered:
+
+- retain the exact 008 host snapshot as an experimental invariant;
+- use a plain Ubuntu image plus Alibaba Cloud's automatic driver installation;
+- add a project container despite no demonstrated virtual-environment conflict;
+- manually install the NVIDIA driver and CUDA toolkit;
+- modify frozen G0-C-008 in place.
+
+Evidence:
+
+Alibaba Cloud documents an official Ubuntu 24.04 GPU image for `gn7i` with
+NVIDIA driver `580.126.09`, CUDA 12.8/13.0, cuDNN, NCCL, Docker, NVIDIA
+Container Toolkit, and Python 3.12.3. Its instance-family table maps
+`ecs.gn7i-c16g1.4xlarge` to one 24 GiB A10. NVIDIA documents `580.65.06` as the
+minimum Linux driver for CUDA 13.0 GA, not a required exact driver. The pinned
+SGLang `python/pyproject.toml` requires Python `>=3.10`, `cuda-python>=13.0`,
+Torch `2.13.0`, and Transformers `5.12.1`. Primary references:
+
+- https://help.aliyun.com/en/ecs/user-guide/ubuntu-pre-installed-nvidia-gpu-driver-image
+- https://help.aliyun.com/en/ecs/user-guide/gpu-accelerated-compute-optimized-and-vgpu-accelerated-instance-families-1
+- https://docs.nvidia.com/cuda/archive/13.0.0/cuda-toolkit-release-notes/index.html
+- https://raw.githubusercontent.com/sgl-project/sglang/92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2/python/pyproject.toml
+
+Consequences:
+
+The purchase-page choice is the official preinstalled Ubuntu 24.04 NVIDIA GPU
+image; the separate GPU-driver installation option remains unchecked. If that
+image cannot satisfy the frozen capability checks, the attempt is retained as
+`BLOCKED_BEFORE_EXECUTION`; the operator must not repair the GPU substrate in
+place. A provider-managed installation fallback or manual installation requires
+a new revision and explicit reason. The project remains `roadmap`; passing the
+local 009 verifier authorizes only one rented G0 attempt, not a Gate result or
+G1 execution.
+
+Reopen condition:
+
+Reopen D023 if Alibaba Cloud withdraws the supported image, its CUDA 13 path is
+not usable by the pinned SGLang package, the provider image creates an observed
+arm asymmetry, or a source/ABI defect proves an exact driver or Python patch is
+causally required.
+
+Affected documents and experiments:
+
+`governance/EXPERIMENT_AND_EVIDENCE_SOP.md`, `DECISIONS.md`,
+`../experiments/g0/SPEC.g0-c-008.md`,
+`../experiments/g0/SPEC.g0-c-009.md`, and the G0-C-009 execution bundle.
+
 ## Decision Template
 
 ```text
