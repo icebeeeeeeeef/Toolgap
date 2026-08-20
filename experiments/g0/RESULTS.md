@@ -66,6 +66,22 @@ the source-contract arm.
 - [`commands/10-stock-hicache-smoke.sh`](commands/10-stock-hicache-smoke.sh)
 - [`artifacts/g0-c-006-runtime-readbacks.txt`](artifacts/g0-c-006-runtime-readbacks.txt)
 
+## Rental-host admission terminals
+
+The provider host itself was admitted as Ubuntu 24.04 on one NVIDIA A10 with
+the required CUDA 13.0 path and compatible driver. No arm has started on that
+host.
+
+| Revision and attempt | Terminal | Interpretation |
+| --- | --- | --- |
+| 009 / `g0-c-009-a10-attempt-001` | `BLOCKED_BEFORE_EXECUTION` before an arm because bare `nvcc` was discovered before the script established its canonical provider CUDA path | preserved, independently verifiable preflight counterexample; not a Gate result |
+| 009 / `g0-c-009-a10-attempt-002` | fixed SGLang clone ended with a GitHub connection reset | preserved raw evidence exposed an invalid failure seal; D024 retains it but it cannot be treated as a verified terminal |
+| 010 / `g0-c-010-a10-attempt-001` | `BLOCKED_BEFORE_EXECUTION` before an arm because GitHub HTTPS to the fixed SGLang remote could not connect | remote and off-host failure seals verified; not a Gate result |
+
+The authoritative raw attempt directories remain Git-ignored. The observed
+source-network failures do not authorize an alternate SGLang mirror, source
+pin, dependency, model, or infrastructure path under the frozen protocol.
+
 ## Decisive atomic seam evidence
 
 [`SPEC.g0-c-006.md`](SPEC.g0-c-006.md), its preregistration manifest/receipt,

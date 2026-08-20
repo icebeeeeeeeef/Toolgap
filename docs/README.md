@@ -110,9 +110,11 @@ pre-arm rental attempts are retained: one exposed canonical CUDA-path discovery
 ordering; one exposed an unverifiable failure seal after a fixed-source clone
 network reset. [D024](DECISIONS.md#2026-08-20--d024-preserve-g0-c-009-and-repair-preflight-discovery-and-failure-sealing-as-g0-c-010)
 preserves 009 and freezes the minimally repaired
-[G0-C-ATOMIC-010](../experiments/g0/SPEC.g0-c-010.md) successor. G0 remains
-`roadmap`; its local verifier can authorize a rented-host attempt but cannot
-produce a CUDA observation or Gate decision.
+[G0-C-ATOMIC-010](../experiments/g0/SPEC.g0-c-010.md) successor. Its first
+rental attempt produced an independently verifiable pre-arm source-network
+terminal; it did not start an arm. G0 remains `roadmap`; its local verifier can
+authorize a rented-host attempt but cannot produce a CUDA observation or Gate
+decision.
 
 ## Claim States
 
