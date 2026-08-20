@@ -111,10 +111,15 @@ ordering; one exposed an unverifiable failure seal after a fixed-source clone
 network reset. [D024](DECISIONS.md#2026-08-20--d024-preserve-g0-c-009-and-repair-preflight-discovery-and-failure-sealing-as-g0-c-010)
 preserves 009 and freezes the minimally repaired
 [G0-C-ATOMIC-010](../experiments/g0/SPEC.g0-c-010.md) successor. Its first
-rental attempt produced an independently verifiable pre-arm source-network
-terminal; it did not start an arm. G0 remains `roadmap`; its local verifier can
-authorize a rented-host attempt but cannot produce a CUDA observation or Gate
-decision.
+rental attempt could not connect to the fixed SGLang remote; its second
+received about 90 MB before the Git data connection reset. Both produced
+independently verifiable pre-arm terminals and neither started an arm.
+[D025](DECISIONS.md#2026-08-20--d025-preserve-g0-c-010-and-stage-the-fixed-source-as-g0-c-011)
+preserves them and freezes
+[G0-C-ATOMIC-011](../experiments/g0/SPEC.g0-c-011.md), which replaces only live
+source transport with a SHA-256-bound Git seed. G0 remains `roadmap`; its local
+verifier can authorize a rented-host attempt but cannot produce a CUDA
+observation or Gate decision.
 
 ## Claim States
 

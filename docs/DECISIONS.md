@@ -359,6 +359,67 @@ Affected documents and experiments:
 `../experiments/g0/SPEC.g0-c-009.md`,
 `../experiments/g0/SPEC.g0-c-010.md`, and the G0-C-010 execution bundle.
 
+## 2026-08-20 — D025: Preserve G0-C-010 and stage the fixed source as G0-C-011
+
+Status: accepted
+
+Context:
+
+Two G0-C-010 rental attempts stopped before an arm on the live GitHub source
+path. The first could not connect. The second received about 90 MB before a
+connection reset caused `early EOF`. Its remote and off-host failure seals
+verify. A GitHub web HEAD could succeed while a bounded `git ls-remote` timed
+out, and GitHub's public Git Operations status was operational. Existing
+evidence cannot attribute the reset to GitHub, Alibaba Cloud egress, or an
+intermediary, but it does establish that the live source path is not a stable
+experimental prerequisite on this host.
+
+Decision:
+
+Preserve 010 and both attempts unchanged. Freeze G0-C-011 with the same source
+remote, commit, tree, patch, host, dependency/model pins, controls, serving
+protocol, deadlines, seal, and claim ceiling. Replace only the two live SGLang
+clones with two local clones restored from one operator-staged shallow bare Git
+seed archive. Freeze that archive's SHA-256. Before admission, verify its hash,
+Git object integrity, fixed commit/tree, canonical origin readback, and two
+independent clean checkouts.
+
+Alternatives considered:
+
+- repeatedly spend rental time retrying full GitHub clones;
+- use a source mirror, proxy, OSS subsystem, or a different SGLang pin;
+- mutate 010 or place pre-staged files under its live-clone destination;
+- accept a shallow Git bundle that cannot restore its missing parent boundary.
+
+Evidence:
+
+The 010/002 build log records the connection reset, remaining response bytes,
+`early EOF`, and invalid index-pack output. Its sealed terminal verifies on and
+off host. A locally fetched fixed snapshot produced the exact frozen commit and
+tree. A first shallow Git bundle passed `git bundle verify` but failed a real
+clone because its parent boundary was absent. The replacement portable shallow
+bare Git seed restored clean checkouts on both macOS and the Ubuntu rental host;
+the transferred archive SHA-256 matched exactly.
+
+Consequences:
+
+G0 remains `roadmap`. Source staging proves no SGLang mechanism and changes no
+experiment arm. G0-C-011 may start only with the frozen seed SHA-256 and an
+unused attempt ID. Success still requires commands 20 through 23 plus off-host
+seal verification and independent Gate review. G1 remains blocked.
+
+Reopen condition:
+
+Reopen if the frozen seed cannot restore the exact commit/tree on the admitted
+host, or if staging changes the resulting source, wheel, dependency, model,
+control, or serving identities.
+
+Affected documents and experiments:
+
+`README.md`, `docs/README.md`, `DECISIONS.md`,
+`../experiments/g0/RESULTS.md`, `../experiments/g0/SPEC.g0-c-010.md`,
+`../experiments/g0/SPEC.g0-c-011.md`, and the G0-C-011 execution bundle.
+
 ## Decision Template
 
 ```text

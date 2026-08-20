@@ -77,10 +77,13 @@ host.
 | 009 / `g0-c-009-a10-attempt-001` | `BLOCKED_BEFORE_EXECUTION` before an arm because bare `nvcc` was discovered before the script established its canonical provider CUDA path | preserved, independently verifiable preflight counterexample; not a Gate result |
 | 009 / `g0-c-009-a10-attempt-002` | fixed SGLang clone ended with a GitHub connection reset | preserved raw evidence exposed an invalid failure seal; D024 retains it but it cannot be treated as a verified terminal |
 | 010 / `g0-c-010-a10-attempt-001` | `BLOCKED_BEFORE_EXECUTION` before an arm because GitHub HTTPS to the fixed SGLang remote could not connect | remote and off-host failure seals verified; not a Gate result |
+| 010 / `g0-c-010-a10-attempt-002` | `BLOCKED_BEFORE_EXECUTION` before an arm after about 90 MB of the fixed SGLang Git pack was received and the connection reset with `early EOF` | remote and off-host failure seals verified; D025 replaces only live source transport in successor 011; not a Gate result |
 
 The authoritative raw attempt directories remain Git-ignored. The observed
 source-network failures do not authorize an alternate SGLang mirror, source
-pin, dependency, model, or infrastructure path under the frozen protocol.
+pin, dependency, or model under the frozen protocols. D025 authorizes one
+SHA-256-bound operator-staged Git seed in successor 011 while retaining the
+same canonical remote, commit, tree, and patch identity.
 
 ## Decisive atomic seam evidence
 
