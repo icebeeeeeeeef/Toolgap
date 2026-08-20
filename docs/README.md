@@ -89,13 +89,17 @@ reviewed [G0-C atomic seam revision](../experiments/g0/SPEC.g0-c-006.md) were
 frozen and executed. Revisions
 [001](../experiments/g0/SPEC.g0-c-001.md) through
 [005](../experiments/g0/SPEC.g0-c-005.md) are retained as invalid protocol
-attempts. [G0 ended at `RESHAPE`](../experiments/g0/RESULTS.md),
-recorded by
+attempts. G0's historical `RESHAPE`, recorded by
 [D021](DECISIONS.md#2026-08-17--d021-reshape-g0-around-one-atomic-checked-demote-contract):
 the fixed stock pin lacks one atomic cache-level contract composing non-terminal
 frontier release, backend-owned final check plus existing demote, and cache-owned
-drain. G1 remains blocked; no runtime or performance claim was promoted. Later
-Gates are not expanded into a second project-wide execution outline.
+drain. The independently reviewed G0-C-017/001 successor now replaces that Gate
+decision with [`PASS`](../experiments/g0/RESULTS.md), recorded by
+[D032](DECISIONS.md#2026-08-21--d032-accept-g0-c-017-successor-pass-and-authorize-g1-planning-only).
+The narrow package/ordinary-serving integration finding is `experimentally
+validated`; the overall project remains `roadmap`. G1 planning and a frozen
+SPEC are authorized, but G1 execution is not. Later Gates are not expanded
+into a second project-wide execution outline.
 
 The frozen [G0-C-ATOMIC-007](../experiments/g0/SPEC.g0-c-007.md) pre-rental
 protocol was never executed and is retained after deterministic pre-run review
@@ -157,9 +161,9 @@ preserves both 016 attempts and freezes
 [G0-C-ATOMIC-017](../experiments/g0/SPEC.g0-c-017.md). It keeps the same
 60-second deadline but waits for process-group, target-listener, and
 attributable-GPU evidence to quiesce together before the final cleanup
-snapshot. G0 remains `roadmap` pending a completed fresh attempt, off-host
-verification, and independent review. Attempt 017/001 has completed the first
-two requirements; independent Gate review remains pending.
+snapshot. Attempt 017/001 completed the frozen protocol and off-host
+verification. Independent review selected `PASS` with no Gate blocker; the
+allowed claim and exclusions are recorded in D032 and the G0 results.
 
 ## Claim States
 

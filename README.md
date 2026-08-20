@@ -16,11 +16,13 @@ and whether that mechanism beats the same committed-copy path with only a
 generation-preserving target session-priority release and stock eviction under
 a joint serving SLO.
 
-[G0's last accepted decision is `RESHAPE`](experiments/g0/RESULTS.md): the fixed
-stock pin lacks one atomic cache-level checked-demote contract. The successor
-G0-C-017 protocol is now complete on the frozen CUDA host, but its independent
-Gate review is pending; G1 remains blocked until that review selects the next
-Gate decision.
+[G0's accepted successor decision is `PASS`](experiments/g0/RESULTS.md). The
+historical stock pin lacked one atomic cache-level checked-demote contract;
+G0-C-006 isolated that seam, and independently reviewed G0-C-017/001 proved
+that the exact treatment package installs, fails closed through the registered
+cache surface, and coexists with ordinary HiCache CUDA serving on the frozen
+A10 environment. This is a narrow `experimentally validated` integration
+finding; the overall ToolGap project remains `roadmap`.
 
 The current rental execution bundle is
 [G0-C-ATOMIC-017](experiments/g0/SPEC.g0-c-017.md). Frozen 016/002 completed
@@ -33,6 +35,7 @@ SGLang commit/tree/patch, dependencies, controls, serving protocol, receipt
 schema, and `roadmap` claim ceiling. Attempt 001 has now completed both arms,
 the success seal, and off-host verification; this is an experimental serving-
 integration result, not evidence of physical demotion or allocator recovery.
+G0 PASS authorizes a separate G1 plan and frozen SPEC, not G1 execution.
 
 Start with [docs/README.md](docs/README.md).
 
@@ -43,7 +46,7 @@ The planned source ownership and Gate-conditional directory layout is recorded
 in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#9-source-layout-and-gate-conditional-landing).
 The structure markers under `src/`, `upstream/`, `tests/`, and `benchmarks/`
 contain no runtime behavior; they make the future landing points explicit while
-G1 remains blocked.
+G1 execution remains unauthorized.
 
 Local implementation plans, decision-changing reviews, and reusable lessons
 are maintained in [worklog/](worklog/README.md). It is historical context, not

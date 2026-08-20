@@ -14,9 +14,9 @@ The current source-audit candidate is SGLang commit:
 92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2
 ```
 
-Before implementation, Gate G0 must either adopt this commit or replace it with
-another exact pin and rerun the contract audit. No unpinned `main` claim is
-allowed.
+G0 accepted this exact commit plus the reviewed narrow patch as its source
+boundary. G1 planning must bind any executable mechanism SPEC to an exact
+reviewed source and patch identity. No unpinned `main` claim is allowed.
 
 Version-matched source facts already used by this draft:
 
@@ -100,10 +100,10 @@ The result describes admission, not final completion. Completion is a separate
 event tied to the same operation identity.
 
 This proposed external shape is not selected by the first forced-mechanism
-experiment. G1 may use an internal test trigger inside its declared quiescent
-envelope. The dedicated-API versus request-carried-hint decision remains open
-until G0 proves the narrowest supported seam; a successful internal trace does
-not by itself authorize a public orchestrator API.
+experiment. G0 proved a narrow internal checked seam; G1 may still use only an
+internal test trigger inside its declared quiescent envelope. The dedicated-API
+versus request-carried-hint decision remains open, and a successful internal
+trace does not by itself authorize a public orchestrator API.
 
 ## 5. Identity Model
 
@@ -174,10 +174,10 @@ resource owned by an operation.
 Records intent, identity, resolved targets, filter failures, physical results,
 allocator delta, fallback, timings, and terminal cleanup.
 
-## 8. Integration Boundary to Prove in G0
+## 8. Integration Boundary Selected by G0
 
-G0 must answer all of the following before implementation architecture is
-treated as selected:
+G0 accepted the fixed-source answers to questions 1-7 through the reviewed
+atomic seam. Question 8 remains the G1 physical-mechanism exit condition:
 
 1. How are exact candidate leaves derived from upstream session bookkeeping?
 2. Which object establishes a committed Host copy?
@@ -187,7 +187,8 @@ treated as selected:
 5. How is device-leaf and cascade safety checked immediately before execution?
 6. Which supported or narrowly patched seam invokes physical demotion?
 7. Which event reports final freed block IDs or bytes?
-8. How does allocator-visible capacity prove a physical rather than logical win?
+8. Which G1 measurement proves allocator-visible physical capacity rather than
+   a logical state change?
 
 If these answers require replacing the cache backend or maintaining a second
 physical ownership system, the design must be narrowed or stopped.
@@ -216,7 +217,7 @@ src/toolgap/session_demotion/
 
 upstream/sglang/
   README.md
-  pin.toml          # only after a new G0 exact pin is authorized
+  pin.toml          # exact identity selected by the authorized Gate SPEC
   patches/          # only while the narrow contract is not upstreamed
   tests/             # contract tests for the selected upstream seam
 
@@ -234,11 +235,11 @@ benchmarks/toolgap_bench/
 
 The landing order is part of the design:
 
-- while G0 is `RESHAPE`, keep the frozen G0 artifacts in place and do not add
-  runtime implementation files;
-- after a reviewed successor seam and exact pin exist, add the SGLang
-  integration files and contract tests;
-- after G0 passes, add the candidate runtime package and the G1 tests;
+- preserve the historical G0 artifacts and the reviewed SGLang integration
+  patch/tests after successor `PASS`;
+- after G0 passes, prepare and review a separate G1 plan and frozen SPEC;
+- add the minimum candidate runtime package and G1 tests only after an explicit
+  G1 execution authorization;
 - add lifecycle and failure-injection code only for G2;
 - add the benchmark harness only for G3/G4;
 - add policy code only if G5 admits it.

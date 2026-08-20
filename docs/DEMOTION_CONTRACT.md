@@ -21,8 +21,9 @@ asynchronous lifecycle semantics, or cleanup ownership.
 Establish that the exact KV materialization required for recovery has a committed
 Host-tier copy. A submitted or pending copy is not committed. An upstream
 `backuped` flag or non-null Host value is not sufficient project evidence until
-G0 binds it to the authoritative completion and pending-state semantics recorded
-in `ARCHITECTURE.md`.
+the authoritative completion and pending-state semantics are proven. G0 bound
+the selected `write_through` source seam to ack synchronization plus both
+pending markers clear; `backuped` alone remains insufficient.
 
 ### Session-priority release
 
@@ -30,8 +31,9 @@ Remove only the target session's contribution to upstream session-aware eviction
 priority. This does not by itself prove that a node was previously unevictable,
 nor does it prove that device memory has been reclaimed. The operation must
 preserve the declared pause/resume identity; a terminal close/tombstone API is
-not automatically a conforming implementation. G0 must either prove the narrow
-operation on the fixed pin or take the declared RESHAPE/STOP branch.
+not automatically a conforming implementation. G0 accepted the narrow
+generation-preserving target-only release in the reviewed atomic patch; the
+stock terminal release remains non-conforming for this purpose.
 
 ### Checked reclamation
 
@@ -87,8 +89,10 @@ hold at the final execution check:
 without a version-matched source proof. Host eviction safety and device eviction
 safety are separate questions.
 
-The unresolved part of predicate 7 is a Gate G0 blocker: `session_ids` cannot be
-assumed to be a complete arbitrary-node coverage set.
+G0 resolved predicate 7 for the selected Full-only seam by combining the exact
+session frontier/path bookkeeping with preserved non-target coverage.
+`session_ids` alone remains frontier-only and must not be treated as a complete
+arbitrary-node coverage set.
 
 ## 5. Non-Target Session Contract
 

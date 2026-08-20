@@ -1,10 +1,10 @@
 # G0 Results — Fixed Source and Atomic Safe Seam
 
-> Claim state: `roadmap`
+> Narrow G0 integration finding: `experimentally validated`
 >
-> Last accepted Gate decision: `RESHAPE`
+> Overall ToolGap project claim state: `roadmap`
 >
-> Successor protocol: G0-C-017/001 `COMPLETED`; independent Gate review pending
+> Accepted Gate decision: `PASS` through independently reviewed G0-C-017/001
 >
 > Source: SGLang `92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2`
 >
@@ -14,8 +14,9 @@
 
 ## Decision
 
-The last accepted G0 decision remains `RESHAPE` until an independent review
-selects a successor Gate decision from the completed G0-C-017 evidence.
+Independent review selected `PASS` for G0-C-017/001 and found no Gate blocker.
+This successor decision replaces the historical G0 `RESHAPE` without changing
+the overall project claim state from `roadmap`.
 
 The fixed source already owns the physical tree, Host transfer completion,
 device/Host values, live leaf predicate, `demote` primitive, free payload,
@@ -38,9 +39,9 @@ validate exact current caller identity and Full-only scope
 The independently reviewed `G0-C-ATOMIC-006` source prototype proved that the
 missing seam was narrow enough for `RESHAPE`. G0-C-017/001 now proves that its
 fixed treatment wheel installs, preserves the fail-closed registered seam, and
-coexists with ordinary HiCache GPU serving under the frozen protocol. That
-completed protocol has not yet received the independent review required to
-replace the accepted Gate decision, and it never invoked physical demotion.
+coexists with ordinary HiCache GPU serving under the frozen protocol. The
+independent review accepted this combined source and runtime evidence as G0
+`PASS`. The attempt never invoked physical demotion.
 
 ## Fixed-source findings
 
@@ -96,7 +97,7 @@ every rental-host terminal; none is silently upgraded into a Gate result.
 | 015 / `g0-c-015-a10-attempt-001` | `EXECUTION_FAILED_AFTER_START` in command 22 after stock passed FlashInfer JIT, health, and both frozen streaming requests; runner-issued SIGTERM led fixed SGLang to self-kill with 137, and the active `ERR` trap intercepted `wait` before cleanup receipt creation | both request JSON files say `passed: true`; remote and off-host failure seals verify; no process-group, listener, or attributable GPU PID survived; D030 changes only attributed shutdown capture in successor 016; treatment did not run and no Gate result was produced |
 | 016 / `g0-c-016-a10-attempt-001` | `EXECUTION_FAILED_AFTER_START` after stock completed health, both requests, and attributed cleanup; the operator requested a network pause while treatment was starting | remote and off-host failure seals verify; no process, listener, or GPU PID survived; the interruption is not a Gate result |
 | 016 / `g0-c-016-a10-attempt-002` | `EXECUTION_FAILED_AFTER_START` after both arms completed health and both requests; treatment process-group and GPU evidence quiesced, but its unowned listener entry remained in the immediate cleanup snapshot | remote and off-host failure seals verify; a later residual probe found no process, listener, or GPU PID; D031 keeps the same deadline and waits for joint cleanup quiescence in successor 017; not a Gate result |
-| 017 / `g0-c-017-a10-attempt-001` | `COMPLETED`: admission, 27/27 stock RED, 27/27 treatment GREEN, installed fail-closed seam, static inventory, both arms' health and two streaming requests, joint cleanup, final evidence verification, and completion seal passed | remote and off-host seals verify; all four requests returned HTTP 200, each second request reported 48 cached tokens, both cleanups reaped attributed status 137 with no process-group/listener/GPU survivor; independent Gate review remains pending |
+| 017 / `g0-c-017-a10-attempt-001` | `COMPLETED`: admission, 27/27 stock RED, 27/27 treatment GREEN, installed fail-closed seam, static inventory, both arms' health and two streaming requests, joint cleanup, final evidence verification, and completion seal passed | remote and off-host seals verify; all four requests returned HTTP 200, each second request reported 48 cached tokens, both cleanups reaped attributed status 137 with no process-group/listener/GPU survivor; independent review selected `PASS` |
 
 The authoritative raw attempt directories remain Git-ignored. The observed
 source-network failures do not authorize an alternate SGLang mirror, source
@@ -147,7 +148,10 @@ both native streaming requests; the second request in each arm reported 48
 device-cached tokens. Both runner-issued shutdowns reaped with attributed status
 137 and retained empty process-group, target-listener, and attributable-GPU
 survivor evidence. The completion receipt remains `roadmap` and explicitly
-records that independent review is pending.
+records that independent review was pending when the immutable attempt was
+sealed. The later independent decision is recorded separately in
+[`artifacts/g0-c-017-independent-review.md`](artifacts/g0-c-017-independent-review.md)
+and D032; the frozen receipt is not rewritten.
 
 ## Decisive atomic seam evidence
 
@@ -220,8 +224,8 @@ retained. Every invalid manifest records `N/A` Gate decision.
 
 Still unproven:
 
-- upstream acceptance and real-environment import/build compatibility;
-- real registered Python backend behavior under CUDA;
+- upstream acceptance and compatibility beyond the exact frozen environment;
+- real physical Python-backend demotion behavior under CUDA;
 - physical demotion, allocator-visible headroom, and output equality;
 - resume, cancel, retry, stale completion, fallback, and production failure
   orchestration;
@@ -234,9 +238,12 @@ The proposed interface and G1 deletion test remain design artifacts:
 - [`artifacts/session-to-leaf.md`](artifacts/session-to-leaf.md)
 - [`artifacts/priority-release.md`](artifacts/priority-release.md)
 
-## Only legal next action
+## Authorized next action
 
-G1 remains blocked. The only legal next action is upstream review/integration of
-the atomic vertical contract, selection of the resulting exact source pin,
-provisioning of the frozen CUDA-capable dependency environment, and a new G0
-run. Only that new frozen run may authorize a G1 real physical mechanism test.
+G0 is closed at `PASS`. The next authorized action is to prepare and review a
+separate G1 plan and frozen SPEC for the real physical mechanism and its
+allocator-visible evidence. G0 PASS does not authorize G1 execution; execution
+requires a later explicit decision after that contract is accepted. Reopen G0
+if the fixed package identity is no longer reproducible, the registered seam no
+longer fails closed, an accepted source mapping is falsified, or a claimed G0
+integration result requires a changed experimental input.

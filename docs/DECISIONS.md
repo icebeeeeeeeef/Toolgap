@@ -3,8 +3,9 @@
 > Status: `roadmap`
 >
 > D001-D019 are `accepted` design decisions. D020 records the owner's D0
-> closure. D021 records the evidence-backed G0 `RESHAPE`; decision status
-> remains distinct from project claim state.
+> closure. D021 preserves the historical evidence-backed G0 `RESHAPE`; D032
+> records the accepted successor G0 `PASS`. Decision status remains distinct
+> from project claim state.
 
 ## Decision Status
 
@@ -746,6 +747,67 @@ Affected documents and experiments:
 `DECISIONS.md`, `../experiments/g0/RESULTS.md`,
 `../experiments/g0/SPEC.g0-c-016.md`, `../experiments/g0/SPEC.g0-c-017.md`, and
 the G0-C-017 execution bundle.
+
+## 2026-08-21 — D032: Accept G0-C-017 successor PASS and authorize G1 planning only
+
+Status: accepted
+
+Context:
+
+G0-C-017 attempt 001 completed the frozen protocol on the admitted Alibaba
+Cloud A10 host. Remote and off-host semantic verification and seal verification
+passed. A fresh independent review checked attempt identity, immutable
+protocol inputs, wheel provenance, source oracles, installed seam behavior,
+static inventory, both CUDA serving arms, and cleanup evidence, then selected
+`PASS` with no Gate blocker.
+
+Decision:
+
+Accept G0-C-017/001 as the successor G0 `PASS`, replacing the historical
+accepted `RESHAPE` while preserving all earlier specifications and attempts.
+Classify only the fixed package and ordinary-serving integration finding as
+`experimentally validated`; keep the overall ToolGap project `roadmap`.
+Authorize preparation and review of a separate G1 plan and frozen SPEC. Do not
+authorize G1 execution through this decision.
+
+Alternatives considered:
+
+- retain `RESHAPE` despite the completed independently reviewed successor;
+- promote G0 to proof of physical demotion or allocator-visible reclamation;
+- start G1 execution directly from the G0 result;
+- rewrite the immutable completion receipt after independent review;
+- add a new Gate or generalized experiment framework.
+
+Evidence:
+
+The exact frozen source oracle produced 27/27 stock RED and 27/27 treatment
+GREEN. The installed treatment cache surface returned `UNSUPPORTED_BACKEND`,
+released target priority, and made zero physical `demote` calls. Both stock and
+treatment wheels completed health plus two native streaming requests on the
+A10; all four requests returned HTTP 200 and each second request reported 48
+device-cached tokens. Both attributed shutdowns left no process-group, target
+listener, or GPU survivor. The two prescribed off-host verifiers exited zero,
+and the independent reviewer recomputed the completion bindings.
+
+Consequences:
+
+G0 is closed. The allowed narrow claim is limited to the exact frozen source,
+patch, wheels, dependency lock, model, and host. No physical demotion,
+allocator-visible headroom, output equality, lifecycle/recovery behavior,
+latency/throughput/capacity gain, upstream acceptance, or general compatibility
+is proven. G1 may now be specified but remains unauthorized for execution.
+
+Reopen condition:
+
+Reopen G0 if the fixed package identity cannot be reproduced, the registered
+seam ceases to fail closed, an accepted source-contract mapping is falsified,
+or the G0 integration claim requires a changed causal input.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `ROADMAP.md`, `README.md`,
+`../experiments/g0/RESULTS.md`, `../experiments/g0/SPEC.g0-c-017.md`, and
+`../experiments/g0/artifacts/g0-c-017-independent-review.md`.
 
 ## Decision Template
 
