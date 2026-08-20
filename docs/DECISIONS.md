@@ -526,6 +526,58 @@ Affected documents and experiments:
 `../experiments/g0/SPEC.g0-c-012.md`, `../experiments/g0/SPEC.g0-c-013.md`, and
 the G0-C-013 execution bundle.
 
+## 2026-08-20 — D028: Preserve G0-C-013 and read Python source BOMs in G0-C-014
+
+Status: accepted
+
+Context:
+
+G0-C-013 attempt 001 completed admission and entered command 21. The stock
+oracle produced the required 27/27 RED, the treatment oracle produced 27/27
+GREEN, and the installed seam passed. The following full-tree AST inventory
+decoded every Python file as plain `utf-8`; an unrelated upstream source file
+begins with a legal UTF-8 BOM, so `ast.parse` rejected the retained U+FEFF. The
+attempt sealed `INVALID_SCOPE` before either server started.
+
+Decision:
+
+Preserve 013 and attempt 001 unchanged. Freeze G0-C-014 with every experimental
+input and check unchanged except for a successor-specific inventory reader
+using `utf-8-sig`. Retain parsing of every Python file and the exact zero
+production caller, one backend call, and zero dynamic-route assertions.
+
+Alternatives considered:
+
+- skip the BOM-bearing file or ignore inventory parse errors;
+- normalize or rewrite the fixed upstream source archive;
+- mutate the shared 013 inventory helper and rerun the sealed attempt;
+- add generic encoding detection or fallback logic.
+
+Evidence:
+
+The sealed 013/001 artifacts include the exact stock/treatment oracle and
+installed-seam terminals, followed by `INVALID_SCOPE` at command 21 line 81.
+The failing path begins with bytes `EF BB BF`. A local counterexample reproduces
+the failure with plain `utf-8` and passes with the one-line `utf-8-sig` change
+while retaining the exact call-site assertions.
+
+Consequences:
+
+G0 remains `roadmap`; 013/001 is not a Gate result. G0-C-014 requires a fresh
+attempt and the full unchanged admission/controls/serving/final sequence. G1
+remains blocked.
+
+Reopen condition:
+
+Reopen if `utf-8-sig` changes non-BOM UTF-8 parsing, any source file is skipped,
+an AST failure is suppressed, or the inventory call-site assertions change.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `../experiments/g0/RESULTS.md`,
+`../experiments/g0/SPEC.g0-c-013.md`, `../experiments/g0/SPEC.g0-c-014.md`, and
+the G0-C-014 execution bundle.
+
 ## Decision Template
 
 ```text

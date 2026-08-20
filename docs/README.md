@@ -130,7 +130,13 @@ status inspection; no treatment control or arm started.
 [D027](DECISIONS.md#2026-08-20--d027-preserve-g0-c-012-and-capture-expected-red-in-g0-c-013)
 preserves it and freezes
 [G0-C-ATOMIC-013](../experiments/g0/SPEC.g0-c-013.md), changing only that status
-capture to a Bash `if` condition. G0 remains `roadmap`; only a completed paired
+capture to a Bash `if` condition. Its first attempt completed admission, the
+exact stock 27/27 RED, treatment 27/27 GREEN, and the installed seam before the
+full-tree inventory rejected a legal UTF-8 BOM; no server started.
+[D028](DECISIONS.md#2026-08-20--d028-preserve-g0-c-013-and-read-python-source-boms-in-g0-c-014)
+preserves it and freezes
+[G0-C-ATOMIC-014](../experiments/g0/SPEC.g0-c-014.md), changing only the frozen
+inventory decoder to `utf-8-sig`. G0 remains `roadmap`; only a completed paired
 runtime protocol plus off-host verification and independent review can change
 the Gate decision.
 

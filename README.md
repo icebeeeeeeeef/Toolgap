@@ -24,11 +24,11 @@ contract is accepted in a new exact pin and G0 is rerun on the frozen CUDA-
 capable environment.
 
 The current rental execution bundle is
-[G0-C-ATOMIC-013](experiments/g0/SPEC.g0-c-013.md). It preserves frozen 012/001,
-which completed admission and produced the exact expected 27/27 stock RED but
-was sealed `INVALID_SCOPE` because Bash's active `ERR` trap intercepted that
-expected exit 1. Successor 013 changes only the status-capture context to an
-`if`; it retains the same provider GPU image, source/model seeds, SGLang
+[G0-C-ATOMIC-014](experiments/g0/SPEC.g0-c-014.md). It preserves frozen 013/001,
+which completed admission, exact 27/27 stock RED, 27/27 treatment GREEN, and
+the installed seam before the full-tree inventory rejected a legal UTF-8 BOM;
+no server started. Successor 014 changes only that frozen inventory decoder to
+`utf-8-sig`; it retains the same provider GPU image, source/model seeds, SGLang
 commit/tree/patch, dependencies, controls, serving protocol, and `roadmap`
 claim ceiling.
 
@@ -67,4 +67,5 @@ bash scripts/verify-g0-c-010-bundle.sh
 bash scripts/verify-g0-c-011-bundle.sh
 bash scripts/verify-g0-c-012-bundle.sh
 bash scripts/verify-g0-c-013-bundle.sh
+bash scripts/verify-g0-c-014-bundle.sh
 ```

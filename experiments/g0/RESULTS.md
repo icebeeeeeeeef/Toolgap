@@ -84,6 +84,7 @@ host.
 | 011 / `g0-c-011-a10-attempt-004` | `BLOCKED_BEFORE_EXECUTION` because pinned `rustpython-ruff` packages declare `rustc >=1.92` | remote and off-host failure seals verified; established the fixed source's true minimum compiler |
 | 011 / `g0-c-011-a10-attempt-005` | `BLOCKED_BEFORE_EXECUTION` after both wheels, same-lock isolated installs, and both CUDA self-checks succeeded; fixed Hugging Face snapshot failed with `Network is unreachable` | remote and off-host failure seals verified; D026 replaces only live model transport in successor 012; no arm started and no Gate result |
 | 012 / `g0-c-012-a10-attempt-001` | `INVALID_SCOPE` in command 21 after admission and model/identity revalidation; stock produced the required 27/27 RED, but its expected exit 1 triggered the active `ERR` trap before status inspection | remote and off-host failure seals verified; D027 changes only expected-RED status capture in successor 013; no treatment control or arm started and no Gate result |
+| 013 / `g0-c-013-a10-attempt-001` | `INVALID_SCOPE` in command 21 after admission, exact stock 27/27 RED, treatment 27/27 GREEN, and the installed seam; the full-tree AST inventory rejected a legal UTF-8 BOM in an unrelated upstream Python file | remote and off-host failure seals verified; D028 changes only the successor inventory decoder to `utf-8-sig`; no arm started and no Gate result |
 
 The authoritative raw attempt directories remain Git-ignored. The observed
 source-network failures do not authorize an alternate SGLang mirror, source
@@ -100,6 +101,12 @@ The first 012 attempt proved the offline input path and full admission, then
 exposed a Bash control-runner defect rather than a contract failure. D027
 authorizes only conditional capture of the preregistered stock RED in successor
 013; every oracle assertion and later phase remains unchanged.
+
+The first 013 attempt then proved both source oracles and the installed seam,
+but exposed a Python-source decoding defect in the full-tree inventory before
+either server started. D028 preserves it and authorizes only a BOM-safe frozen
+inventory in successor 014; all call-site assertions and later phases remain
+unchanged.
 
 ## Decisive atomic seam evidence
 
