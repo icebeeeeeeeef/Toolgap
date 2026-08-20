@@ -24,13 +24,13 @@ contract is accepted in a new exact pin and G0 is rerun on the frozen CUDA-
 capable environment.
 
 The current rental execution bundle is
-[G0-C-ATOMIC-012](experiments/g0/SPEC.g0-c-012.md). It preserves frozen 011 and
-its five verified pre-arm terminals. The latest reached paired wheel builds,
-same-lock installs, and paired CUDA self-checks before the host's unreachable
-Hugging Face route stopped model admission. Successor 012 changes only model
-transport to one SHA-256-bound, per-file-verified operator-staged archive. It
-retains the same provider GPU image, SGLang commit/tree/patch, model revision,
-dependencies, controls, serving protocol, and `roadmap` claim ceiling.
+[G0-C-ATOMIC-013](experiments/g0/SPEC.g0-c-013.md). It preserves frozen 012/001,
+which completed admission and produced the exact expected 27/27 stock RED but
+was sealed `INVALID_SCOPE` because Bash's active `ERR` trap intercepted that
+expected exit 1. Successor 013 changes only the status-capture context to an
+`if`; it retains the same provider GPU image, source/model seeds, SGLang
+commit/tree/patch, dependencies, controls, serving protocol, and `roadmap`
+claim ceiling.
 
 Start with [docs/README.md](docs/README.md).
 
@@ -66,4 +66,5 @@ bash scripts/verify-g0-c-009-bundle.sh
 bash scripts/verify-g0-c-010-bundle.sh
 bash scripts/verify-g0-c-011-bundle.sh
 bash scripts/verify-g0-c-012-bundle.sh
+bash scripts/verify-g0-c-013-bundle.sh
 ```

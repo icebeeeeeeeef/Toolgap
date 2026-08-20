@@ -124,8 +124,15 @@ arm started. [D026](DECISIONS.md#2026-08-20--d026-preserve-g0-c-011-and-stage-th
 preserves all five attempts and freezes
 [G0-C-ATOMIC-012](../experiments/g0/SPEC.g0-c-012.md), which replaces only live
 model transport with one archive bound by an archive hash and exact per-file
-inventory. G0 remains `roadmap`; only a completed paired runtime protocol plus
-off-host verification and independent review can change the Gate decision.
+inventory. Its first attempt completed admission and produced the exact stock
+27/27 RED, but Bash's active `ERR` trap intercepted that expected exit 1 before
+status inspection; no treatment control or arm started.
+[D027](DECISIONS.md#2026-08-20--d027-preserve-g0-c-012-and-capture-expected-red-in-g0-c-013)
+preserves it and freezes
+[G0-C-ATOMIC-013](../experiments/g0/SPEC.g0-c-013.md), changing only that status
+capture to a Bash `if` condition. G0 remains `roadmap`; only a completed paired
+runtime protocol plus off-host verification and independent review can change
+the Gate decision.
 
 ## Claim States
 

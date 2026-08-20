@@ -475,6 +475,57 @@ Affected documents and experiments:
 `../experiments/g0/SPEC.g0-c-011.md`, `../experiments/g0/SPEC.g0-c-012.md`, and
 the G0-C-012 execution bundle.
 
+## 2026-08-20 — D027: Preserve G0-C-012 and capture expected RED in G0-C-013
+
+Status: accepted
+
+Context:
+
+G0-C-012 attempt 001 completed admission and entered command 21. Identity and
+model revalidation passed. The stock oracle then produced exactly the required
+exit 1, 27 tests, and 27 failures, but the inherited Bash `ERR` trap fired at
+the oracle command before `stock_status=$?` ran. `set +e` disables `errexit`; it
+does not disable an `ERR` trap. No treatment control or server started.
+
+Decision:
+
+Preserve 012 and attempt 001 unchanged. Freeze G0-C-013 with every experimental
+input and check unchanged. Replace only the stock-oracle status capture with an
+`if` condition, where Bash suppresses `ERR` for the expected nonzero command,
+and retain the exact exit/output assertions afterward. All unexpected command
+failures keep the existing trap.
+
+Alternatives considered:
+
+- remove or globally disable the `ERR` trap during all controls;
+- accept 012/001 manually or resume its sealed phase directory;
+- change the oracle to return zero on stock or ignore its status;
+- add a generic command runner abstraction for one expected failure.
+
+Evidence:
+
+The sealed 012/001 status records `INVALID_SCOPE` at command 21 line 57. Its
+`stock-oracle.txt` ends with `Ran 27 tests` and `FAILED (failures=27)`; treatment
+and installed-seam artifacts are absent. A local counterexample requires the
+stock command to be an `if` condition and rejects the former `set +e` pattern.
+
+Consequences:
+
+G0 remains `roadmap`; 012/001 is not a Gate result. G0-C-013 requires a fresh
+attempt and the full unchanged admission/controls/serving/final sequence. G1
+remains blocked.
+
+Reopen condition:
+
+Reopen if the conditional capture suppresses any non-stock failure, changes the
+expected RED assertions, or command 21 cannot reach treatment controls.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `../experiments/g0/RESULTS.md`,
+`../experiments/g0/SPEC.g0-c-012.md`, `../experiments/g0/SPEC.g0-c-013.md`, and
+the G0-C-013 execution bundle.
+
 ## Decision Template
 
 ```text
