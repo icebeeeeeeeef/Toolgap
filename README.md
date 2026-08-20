@@ -24,14 +24,14 @@ contract is accepted in a new exact pin and G0 is rerun on the frozen CUDA-
 capable environment.
 
 The current rental execution bundle is
-[G0-C-ATOMIC-015](experiments/g0/SPEC.g0-c-015.md). It preserves frozen 014/001,
-which completed admission and all controls, then loaded the fixed model/KV
-cache before FlashInfer's first CUDA JIT failed because the ordinary `ninja`
-tool was absent; no request or treatment arm ran. Successor 015 adds only
-Ubuntu `ninja-build` to project prerequisites and admits/version-records it; it
-retains the same provider GPU image, source/model seeds, SGLang
-commit/tree/patch, dependencies, controls, serving protocol, and `roadmap`
-claim ceiling.
+[G0-C-ATOMIC-016](experiments/g0/SPEC.g0-c-016.md). It preserves frozen 015/001,
+whose stock arm passed CUDA JIT, reached health, completed both requests, and
+left no cleanup survivor, but whose expected signaled `wait` status was
+intercepted by the active Bash `ERR` trap before cleanup receipt creation;
+treatment did not run. Successor 016 changes only shutdown status capture and
+attribution; it retains the same provider GPU image, source/model seeds,
+SGLang commit/tree/patch, dependencies, controls, serving protocol, and
+`roadmap` claim ceiling.
 
 Start with [docs/README.md](docs/README.md).
 
@@ -70,4 +70,5 @@ bash scripts/verify-g0-c-012-bundle.sh
 bash scripts/verify-g0-c-013-bundle.sh
 bash scripts/verify-g0-c-014-bundle.sh
 bash scripts/verify-g0-c-015-bundle.sh
+bash scripts/verify-g0-c-016-bundle.sh
 ```

@@ -630,6 +630,63 @@ Affected documents and experiments:
 `../experiments/g0/SPEC.g0-c-014.md`, `../experiments/g0/SPEC.g0-c-015.md`, and
 the G0-C-015 execution bundle.
 
+## 2026-08-21 — D030: Preserve G0-C-015 and capture attributed shutdown in G0-C-016
+
+Status: accepted
+
+Context:
+
+G0-C-015 attempt 001 completed admission and every control. Stock passed its
+FlashInfer CUDA JIT, reached health, and completed both frozen streaming
+requests. The runner then sent SIGTERM. This fixed SGLang revision terminated a
+child, entered logged SIGQUIT cleanup, and self-killed with wait status 137.
+No process-group member, listener, or attributable GPU PID survived. The active
+Bash `ERR` trap intercepted the old `set +e; wait` before cleanup receipt
+creation, so treatment never ran.
+
+Decision:
+
+Preserve 015 and attempt 001 unchanged. Freeze G0-C-016 with all experimental
+inputs, controls, server parameters, requests, and cleanup invariants unchanged.
+Before TERM, require the server PID to be alive; require process-group TERM to
+succeed; capture `wait` as an `if` condition; accept the fixed runtime's
+observed 137 alongside 0/143 only when every no-survivor check passes, both
+when writing the cleanup receipt and during final evidence verification.
+
+Alternatives considered:
+
+- accept every 137 without proving signal attribution or cleanup;
+- require only 0/143 despite the fixed runtime's observed self-kill path;
+- patch SGLang's shutdown behavior or add a server wrapper;
+- resume the sealed 015 attempt at treatment.
+
+Evidence:
+
+Both 015/001 stock request JSON files record `passed: true`. The log records
+health 200, both generate 200 responses, runner-timed SIGTERM, child -15,
+SIGQUIT cleanup, and `kill_process_tree`; the seal records line 200 and exit
+137. Process-group, listener, and attributable GPU survivor files are empty.
+A local counterexample rejects `set +e; wait` and requires conditional capture,
+live-PID/TERM ordering, status 137, and all inherited cleanup evidence.
+
+Consequences:
+
+G0 remains `roadmap`; 015/001 is not a Gate result. G0-C-016 requires a fresh
+full attempt. No physical demotion, allocator, correctness, or performance
+claim is promoted, and G1 remains blocked.
+
+Reopen condition:
+
+Reopen if 137 occurs without successful runner-issued TERM, any cleanup
+survivor remains, the fixed runtime changes its shutdown behavior, or another
+server/request parameter must change.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `../experiments/g0/RESULTS.md`,
+`../experiments/g0/SPEC.g0-c-015.md`, `../experiments/g0/SPEC.g0-c-016.md`, and
+the G0-C-016 execution bundle.
+
 ## Decision Template
 
 ```text

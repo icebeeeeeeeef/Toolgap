@@ -143,8 +143,15 @@ ordinary `ninja` tool was absent; no request or treatment arm ran.
 preserves it and freezes
 [G0-C-ATOMIC-015](../experiments/g0/SPEC.g0-c-015.md), adding only Ubuntu
 `ninja-build` to project prerequisites and admitting/version-recording the
-executable. G0 remains `roadmap`; only a completed paired runtime protocol plus
-off-host verification and independent review can change the Gate decision.
+executable. Its first stock arm then passed JIT, health, and both requests, but
+the active Bash `ERR` trap intercepted the expected signaled `wait` before a
+cleanup receipt was written; no treatment arm ran.
+[D030](DECISIONS.md#2026-08-21--d030-preserve-g0-c-015-and-capture-attributed-shutdown-in-g0-c-016)
+preserves it and freezes
+[G0-C-ATOMIC-016](../experiments/g0/SPEC.g0-c-016.md), changing only shutdown
+status capture and attribution while retaining all no-survivor checks. G0
+remains `roadmap`; only a completed paired runtime protocol plus off-host
+verification and independent review can change the Gate decision.
 
 ## Claim States
 
