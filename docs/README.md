@@ -158,7 +158,8 @@ preserves both 016 attempts and freezes
 60-second deadline but waits for process-group, target-listener, and
 attributable-GPU evidence to quiesce together before the final cleanup
 snapshot. G0 remains `roadmap` pending a completed fresh attempt, off-host
-verification, and independent review.
+verification, and independent review. Attempt 017/001 has completed the first
+two requirements; independent Gate review remains pending.
 
 ## Claim States
 

@@ -2,16 +2,20 @@
 
 > Claim state: `roadmap`
 >
-> Gate decision: `RESHAPE`
+> Last accepted Gate decision: `RESHAPE`
+>
+> Successor protocol: G0-C-017/001 `COMPLETED`; independent Gate review pending
 >
 > Source: SGLang `92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2`
 >
-> No stock engine, real physical demotion, GPU, allocator, lifecycle,
-> output-correctness, or performance result was produced.
+> A paired stock/treatment GPU serving integration result now exists. No real
+> physical demotion, allocator-reclamation, lifecycle, output-correctness, or
+> performance result was produced.
 
 ## Decision
 
-G0 is `RESHAPE`.
+The last accepted G0 decision remains `RESHAPE` until an independent review
+selects a successor Gate decision from the completed G0-C-017 evidence.
 
 The fixed source already owns the physical tree, Host transfer completion,
 device/Host values, live leaf predicate, `demote` primitive, free payload,
@@ -31,9 +35,12 @@ validate exact current caller identity and Full-only scope
 -> return actual typed per-node and aggregate outcomes
 ```
 
-`PASS` is not supported because that contract is absent on stock and no real
-physical/runtime path ran. The independently reviewed `G0-C-ATOMIC-006` source
-prototype proves only that the missing seam is narrow enough for `RESHAPE`.
+The independently reviewed `G0-C-ATOMIC-006` source prototype proved that the
+missing seam was narrow enough for `RESHAPE`. G0-C-017/001 now proves that its
+fixed treatment wheel installs, preserves the fail-closed registered seam, and
+coexists with ordinary HiCache GPU serving under the frozen protocol. That
+completed protocol has not yet received the independent review required to
+replace the accepted Gate decision, and it never invoked physical demotion.
 
 ## Fixed-source findings
 
@@ -89,6 +96,7 @@ every rental-host terminal; none is silently upgraded into a Gate result.
 | 015 / `g0-c-015-a10-attempt-001` | `EXECUTION_FAILED_AFTER_START` in command 22 after stock passed FlashInfer JIT, health, and both frozen streaming requests; runner-issued SIGTERM led fixed SGLang to self-kill with 137, and the active `ERR` trap intercepted `wait` before cleanup receipt creation | both request JSON files say `passed: true`; remote and off-host failure seals verify; no process-group, listener, or attributable GPU PID survived; D030 changes only attributed shutdown capture in successor 016; treatment did not run and no Gate result was produced |
 | 016 / `g0-c-016-a10-attempt-001` | `EXECUTION_FAILED_AFTER_START` after stock completed health, both requests, and attributed cleanup; the operator requested a network pause while treatment was starting | remote and off-host failure seals verify; no process, listener, or GPU PID survived; the interruption is not a Gate result |
 | 016 / `g0-c-016-a10-attempt-002` | `EXECUTION_FAILED_AFTER_START` after both arms completed health and both requests; treatment process-group and GPU evidence quiesced, but its unowned listener entry remained in the immediate cleanup snapshot | remote and off-host failure seals verify; a later residual probe found no process, listener, or GPU PID; D031 keeps the same deadline and waits for joint cleanup quiescence in successor 017; not a Gate result |
+| 017 / `g0-c-017-a10-attempt-001` | `COMPLETED`: admission, 27/27 stock RED, 27/27 treatment GREEN, installed fail-closed seam, static inventory, both arms' health and two streaming requests, joint cleanup, final evidence verification, and completion seal passed | remote and off-host seals verify; all four requests returned HTTP 200, each second request reported 48 cached tokens, both cleanups reaped attributed status 137 with no process-group/listener/GPU survivor; independent Gate review remains pending |
 
 The authoritative raw attempt directories remain Git-ignored. The observed
 source-network failures do not authorize an alternate SGLang mirror, source
@@ -131,6 +139,15 @@ kernel still exposed the target listener for one immediate snapshot; a later
 probe found it gone. D031 preserves both attempts and authorizes only waiting
 for all three cleanup observations to quiesce within the unchanged deadline in
 successor 017.
+
+G0-C-017/001 then completed the full preregistered protocol on the admitted
+Alibaba Cloud A10 host. Stock and treatment used separate wheels and isolated
+environments resolved from one dependency lock. Each arm returned HTTP 200 for
+both native streaming requests; the second request in each arm reported 48
+device-cached tokens. Both runner-issued shutdowns reaped with attributed status
+137 and retained empty process-group, target-listener, and attributable-GPU
+survivor evidence. The completion receipt remains `roadmap` and explicitly
+records that independent review is pending.
 
 ## Decisive atomic seam evidence
 

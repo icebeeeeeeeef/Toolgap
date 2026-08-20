@@ -16,12 +16,11 @@ and whether that mechanism beats the same committed-copy path with only a
 generation-preserving target session-priority release and stock eviction under
 a joint serving SLO.
 
-[Gate G0 ended at `RESHAPE`](experiments/g0/RESULTS.md): the fixed stock pin
-lacks one atomic cache-level checked-demote contract that composes generation-
-preserving frontier release with backend-owned final checks, the existing
-physical primitive, and cache-owned drain. G1 remains blocked until that
-contract is accepted in a new exact pin and G0 is rerun on the frozen CUDA-
-capable environment.
+[G0's last accepted decision is `RESHAPE`](experiments/g0/RESULTS.md): the fixed
+stock pin lacks one atomic cache-level checked-demote contract. The successor
+G0-C-017 protocol is now complete on the frozen CUDA host, but its independent
+Gate review is pending; G1 remains blocked until that review selects the next
+Gate decision.
 
 The current rental execution bundle is
 [G0-C-ATOMIC-017](experiments/g0/SPEC.g0-c-017.md). Frozen 016/002 completed
@@ -31,11 +30,14 @@ the kernel removed the treatment listener entry. Successor 017 changes only
 the existing 60-second cleanup convergence so process, port, and GPU evidence
 must quiesce together. It retains the same provider image, source/model seeds,
 SGLang commit/tree/patch, dependencies, controls, serving protocol, receipt
-schema, and `roadmap` claim ceiling.
+schema, and `roadmap` claim ceiling. Attempt 001 has now completed both arms,
+the success seal, and off-host verification; this is an experimental serving-
+integration result, not evidence of physical demotion or allocator recovery.
 
 Start with [docs/README.md](docs/README.md).
 
-No runtime implementation or performance result is claimed in this directory.
+No physical-demotion implementation or performance result is claimed in this
+directory.
 
 The planned source ownership and Gate-conditional directory layout is recorded
 in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#9-source-layout-and-gate-conditional-landing).
