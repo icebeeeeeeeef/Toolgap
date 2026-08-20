@@ -85,6 +85,7 @@ host.
 | 011 / `g0-c-011-a10-attempt-005` | `BLOCKED_BEFORE_EXECUTION` after both wheels, same-lock isolated installs, and both CUDA self-checks succeeded; fixed Hugging Face snapshot failed with `Network is unreachable` | remote and off-host failure seals verified; D026 replaces only live model transport in successor 012; no arm started and no Gate result |
 | 012 / `g0-c-012-a10-attempt-001` | `INVALID_SCOPE` in command 21 after admission and model/identity revalidation; stock produced the required 27/27 RED, but its expected exit 1 triggered the active `ERR` trap before status inspection | remote and off-host failure seals verified; D027 changes only expected-RED status capture in successor 013; no treatment control or arm started and no Gate result |
 | 013 / `g0-c-013-a10-attempt-001` | `INVALID_SCOPE` in command 21 after admission, exact stock 27/27 RED, treatment 27/27 GREEN, and the installed seam; the full-tree AST inventory rejected a legal UTF-8 BOM in an unrelated upstream Python file | remote and off-host failure seals verified; D028 changes only the successor inventory decoder to `utf-8-sig`; no arm started and no Gate result |
+| 014 / `g0-c-014-a10-attempt-001` | `EXECUTION_FAILED_AFTER_START` in command 22 after admission and all controls; stock loaded the fixed model and KV cache, then FlashInfer CUDA JIT failed before health because `ninja` was absent | remote and off-host failure seals verified; cleanup left no process-group or attributable GPU PID survivor; D029 adds only the ordinary project tool in successor 015; no request or treatment arm ran and no Gate result |
 
 The authoritative raw attempt directories remain Git-ignored. The observed
 source-network failures do not authorize an alternate SGLang mirror, source
@@ -107,6 +108,12 @@ but exposed a Python-source decoding defect in the full-tree inventory before
 either server started. D028 preserves it and authorizes only a BOM-safe frozen
 inventory in successor 014; all call-site assertions and later phases remain
 unchanged.
+
+The first 014 attempt completed admission and all controls, then proved that
+the stock package could load the fixed model and allocate the fixed KV cache.
+FlashInfer's first CUDA JIT exposed the missing ordinary `ninja` tool before
+health. D029 preserves the failure and authorizes only installation, admission,
+and version readback of Ubuntu `ninja-build` in successor 015.
 
 ## Decisive atomic seam evidence
 

@@ -136,9 +136,15 @@ full-tree inventory rejected a legal UTF-8 BOM; no server started.
 [D028](DECISIONS.md#2026-08-20--d028-preserve-g0-c-013-and-read-python-source-boms-in-g0-c-014)
 preserves it and freezes
 [G0-C-ATOMIC-014](../experiments/g0/SPEC.g0-c-014.md), changing only the frozen
-inventory decoder to `utf-8-sig`. G0 remains `roadmap`; only a completed paired
-runtime protocol plus off-host verification and independent review can change
-the Gate decision.
+inventory decoder to `utf-8-sig`. Its first attempt completed all controls and
+started stock, but FlashInfer's first CUDA JIT failed before health because the
+ordinary `ninja` tool was absent; no request or treatment arm ran.
+[D029](DECISIONS.md#2026-08-20--d029-preserve-g0-c-014-and-admit-ninja-in-g0-c-015)
+preserves it and freezes
+[G0-C-ATOMIC-015](../experiments/g0/SPEC.g0-c-015.md), adding only Ubuntu
+`ninja-build` to project prerequisites and admitting/version-recording the
+executable. G0 remains `roadmap`; only a completed paired runtime protocol plus
+off-host verification and independent review can change the Gate decision.
 
 ## Claim States
 

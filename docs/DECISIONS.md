@@ -578,6 +578,58 @@ Affected documents and experiments:
 `../experiments/g0/SPEC.g0-c-013.md`, `../experiments/g0/SPEC.g0-c-014.md`, and
 the G0-C-014 execution bundle.
 
+## 2026-08-20 — D029: Preserve G0-C-014 and admit Ninja in G0-C-015
+
+Status: accepted
+
+Context:
+
+G0-C-014 attempt 001 completed admission and every command 21 control. Command
+22 started stock, loaded the fixed model, and allocated the fixed KV cache.
+FlashInfer's first CUDA JIT then tried to execute `ninja`, which command 19 had
+not installed and command 20 had not admitted. The scheduler failed before
+health; cleanup left no process-group or attributable GPU PID survivor. No
+request or treatment arm ran.
+
+Decision:
+
+Preserve 014 and attempt 001 unchanged. Freeze G0-C-015 with every experimental
+input, control, and server parameter unchanged. Add Ubuntu `ninja-build` only
+to the existing ordinary project-prerequisite installer, require `ninja` in
+preflight, and retain `ninja --version` in the sealed environment readback.
+
+Alternatives considered:
+
+- change the attention backend or disable prefill CUDA graphs;
+- install Ninja manually without a frozen admission requirement;
+- reuse the sealed 014 environments or resume command 22;
+- treat the supervisor's cleanup SIGKILL status as a GPU OOM.
+
+Evidence:
+
+The sealed 014/001 stock log shows model load and KV-cache allocation followed
+by `FileNotFoundError: ninja` inside FlashInfer JIT. The server never reached
+health. Kernel logs contain no OOM event, and cleanup records no surviving
+listener, process-group member, or attributable GPU PID. The local successor
+verifier requires install, admission, and version readback of Ninja.
+
+Consequences:
+
+G0 remains `roadmap`; 014/001 is not a Gate result. G0-C-015 requires a fresh
+attempt and the full unchanged admission/controls/serving/final sequence. The
+provider GPU driver/CUDA image remains reused and G1 remains blocked.
+
+Reopen condition:
+
+Reopen if Ninja is not sufficient for the fixed FlashInfer JIT path, installing
+it changes dependency resolution, or a server/backend parameter must change.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `../experiments/g0/RESULTS.md`,
+`../experiments/g0/SPEC.g0-c-014.md`, `../experiments/g0/SPEC.g0-c-015.md`, and
+the G0-C-015 execution bundle.
+
 ## Decision Template
 
 ```text
