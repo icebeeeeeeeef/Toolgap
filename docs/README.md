@@ -89,13 +89,17 @@ reviewed [G0-C atomic seam revision](../experiments/g0/SPEC.g0-c-006.md) were
 frozen and executed. Revisions
 [001](../experiments/g0/SPEC.g0-c-001.md) through
 [005](../experiments/g0/SPEC.g0-c-005.md) are retained as invalid protocol
-attempts. [G0 ended at `RESHAPE`](../experiments/g0/RESULTS.md),
-recorded by
+attempts. G0's historical `RESHAPE`, recorded by
 [D021](DECISIONS.md#2026-08-17--d021-reshape-g0-around-one-atomic-checked-demote-contract):
 the fixed stock pin lacks one atomic cache-level contract composing non-terminal
 frontier release, backend-owned final check plus existing demote, and cache-owned
-drain. G1 remains blocked; no runtime or performance claim was promoted. Later
-Gates are not expanded into a second project-wide execution outline.
+drain. The independently reviewed G0-C-017/001 successor now replaces that Gate
+decision with [`PASS`](../experiments/g0/RESULTS.md), recorded by
+[D032](DECISIONS.md#2026-08-21--d032-accept-g0-c-017-successor-pass-and-authorize-g1-planning-only).
+The narrow package/ordinary-serving integration finding is `experimentally
+validated`; the overall project remains `roadmap`. G1 planning and a frozen
+SPEC are authorized, but G1 execution is not. Later Gates are not expanded
+into a second project-wide execution outline.
 
 The frozen [G0-C-ATOMIC-007](../experiments/g0/SPEC.g0-c-007.md) pre-rental
 protocol was never executed and is retained after deterministic pre-run review
@@ -105,9 +109,61 @@ preserves it and freezes the minimally repaired
 review then found that 008 had mistaken one planned host snapshot for a causal
 environment requirement. [D023](DECISIONS.md#2026-08-20--d023-reuse-provider-gpu-infrastructure-in-g0-c-009)
 preserves 008 and freezes the provider-reused
-[G0-C-ATOMIC-009](../experiments/g0/SPEC.g0-c-009.md) successor. G0-C-009
-remains `roadmap`; its local verifier can authorize a rented-host attempt but
-cannot produce a CUDA observation or Gate decision.
+[G0-C-ATOMIC-009](../experiments/g0/SPEC.g0-c-009.md) successor. Its first two
+pre-arm rental attempts are retained: one exposed canonical CUDA-path discovery
+ordering; one exposed an unverifiable failure seal after a fixed-source clone
+network reset. [D024](DECISIONS.md#2026-08-20--d024-preserve-g0-c-009-and-repair-preflight-discovery-and-failure-sealing-as-g0-c-010)
+preserves 009 and freezes the minimally repaired
+[G0-C-ATOMIC-010](../experiments/g0/SPEC.g0-c-010.md) successor. Its first
+rental attempt could not connect to the fixed SGLang remote; its second
+received about 90 MB before the Git data connection reset. Both produced
+independently verifiable pre-arm terminals and neither started an arm.
+[D025](DECISIONS.md#2026-08-20--d025-preserve-g0-c-010-and-stage-the-fixed-source-as-g0-c-011)
+preserves them and freezes
+[G0-C-ATOMIC-011](../experiments/g0/SPEC.g0-c-011.md), which replaces only live
+source transport with a SHA-256-bound Git seed. Its fifth attempt built both
+wheels, installed both same-lock environments, and passed both CUDA self-checks
+before the host's Hugging Face route failed with `Network is unreachable`; no
+arm started. [D026](DECISIONS.md#2026-08-20--d026-preserve-g0-c-011-and-stage-the-fixed-model-as-g0-c-012)
+preserves all five attempts and freezes
+[G0-C-ATOMIC-012](../experiments/g0/SPEC.g0-c-012.md), which replaces only live
+model transport with one archive bound by an archive hash and exact per-file
+inventory. Its first attempt completed admission and produced the exact stock
+27/27 RED, but Bash's active `ERR` trap intercepted that expected exit 1 before
+status inspection; no treatment control or arm started.
+[D027](DECISIONS.md#2026-08-20--d027-preserve-g0-c-012-and-capture-expected-red-in-g0-c-013)
+preserves it and freezes
+[G0-C-ATOMIC-013](../experiments/g0/SPEC.g0-c-013.md), changing only that status
+capture to a Bash `if` condition. Its first attempt completed admission, the
+exact stock 27/27 RED, treatment 27/27 GREEN, and the installed seam before the
+full-tree inventory rejected a legal UTF-8 BOM; no server started.
+[D028](DECISIONS.md#2026-08-20--d028-preserve-g0-c-013-and-read-python-source-boms-in-g0-c-014)
+preserves it and freezes
+[G0-C-ATOMIC-014](../experiments/g0/SPEC.g0-c-014.md), changing only the frozen
+inventory decoder to `utf-8-sig`. Its first attempt completed all controls and
+started stock, but FlashInfer's first CUDA JIT failed before health because the
+ordinary `ninja` tool was absent; no request or treatment arm ran.
+[D029](DECISIONS.md#2026-08-20--d029-preserve-g0-c-014-and-admit-ninja-in-g0-c-015)
+preserves it and freezes
+[G0-C-ATOMIC-015](../experiments/g0/SPEC.g0-c-015.md), adding only Ubuntu
+`ninja-build` to project prerequisites and admitting/version-recording the
+executable. Its first stock arm then passed JIT, health, and both requests, but
+the active Bash `ERR` trap intercepted the expected signaled `wait` before a
+cleanup receipt was written; no treatment arm ran.
+[D030](DECISIONS.md#2026-08-21--d030-preserve-g0-c-015-and-capture-attributed-shutdown-in-g0-c-016)
+preserves it and freezes
+[G0-C-ATOMIC-016](../experiments/g0/SPEC.g0-c-016.md), changing only shutdown
+status capture and attribution while retaining all no-survivor checks. G0
+remains `roadmap`; only a completed paired runtime protocol plus off-host
+verification and independent review can change the Gate decision.
+[D031](DECISIONS.md#2026-08-21--d031-preserve-g0-c-016-and-wait-for-joint-cleanup-quiescence-in-g0-c-017)
+preserves both 016 attempts and freezes
+[G0-C-ATOMIC-017](../experiments/g0/SPEC.g0-c-017.md). It keeps the same
+60-second deadline but waits for process-group, target-listener, and
+attributable-GPU evidence to quiesce together before the final cleanup
+snapshot. Attempt 017/001 completed the frozen protocol and off-host
+verification. Independent review selected `PASS` with no Gate blocker; the
+allowed claim and exclusions are recorded in D032 and the G0 results.
 
 ## Claim States
 

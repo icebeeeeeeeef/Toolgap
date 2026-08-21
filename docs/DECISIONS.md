@@ -3,8 +3,9 @@
 > Status: `roadmap`
 >
 > D001-D019 are `accepted` design decisions. D020 records the owner's D0
-> closure. D021 records the evidence-backed G0 `RESHAPE`; decision status
-> remains distinct from project claim state.
+> closure. D021 preserves the historical evidence-backed G0 `RESHAPE`; D032
+> records the accepted successor G0 `PASS`. Decision status remains distinct
+> from project claim state.
 
 ## Decision Status
 
@@ -302,6 +303,511 @@ Affected documents and experiments:
 `governance/EXPERIMENT_AND_EVIDENCE_SOP.md`, `DECISIONS.md`,
 `../experiments/g0/SPEC.g0-c-008.md`,
 `../experiments/g0/SPEC.g0-c-009.md`, and the G0-C-009 execution bundle.
+
+## 2026-08-20 — D024: Preserve G0-C-009 and repair preflight discovery and failure sealing as G0-C-010
+
+Status: accepted
+
+Context:
+
+The first provider-host G0-C-009 attempt stopped before an arm because the
+official CUDA 13.0 executable existed at the required path but was not on the
+initial non-login shell `PATH`. A second new attempt used that already-present
+canonical path, then stopped during the fixed SGLang clone after a network
+reset. Its raw log exposed a separate evidence defect: the failure finalizer
+wrote a summary line after creating an index that included the redirected build
+log, so the resulting failure terminal could not verify off host.
+
+Decision:
+
+Preserve G0-C-009 and both attempts unchanged. Freeze G0-C-010 with the same
+source pin, patch, host capability envelope, model, controls, serving protocol,
+and deadlines. It only establishes the canonical CUDA path before command
+discovery and prevents failure finalization from writing post-index bytes to an
+indexed artifact. Its verifier includes the redirected-log counterexample.
+
+Alternatives considered:
+
+- mutate 009 or overwrite either attempt;
+- install or replace CUDA to satisfy bare-command discovery;
+- treat the unverified 002 terminal as valid because SCP was successful;
+- add retry logic, a mirror, a container, or a new infrastructure subsystem.
+
+Evidence:
+
+The provider `nvcc` executable reported CUDA 13.0 at
+`/usr/local/cuda-13.0/bin/nvcc`; 009 itself later selected that same path. The
+attempt-002 log contains the finalizer's `SEALED_FAILURE` line after the clone
+error, whereas its artifact index records the pre-line hash. Both the remote
+original and the off-host copy fail verification identically. A local
+redirected-log regression test fails under 009 behavior and passes under 010.
+
+Consequences:
+
+G0 remains `roadmap`; neither pre-arm terminal is a Gate outcome or CUDA
+integration result. A new 010 attempt must use a new ID and the unchanged
+ordinary clone route. No driver, CUDA, source pin, dependency, model, patch,
+control, serving, or G1 scope change is authorized.
+
+Reopen condition:
+
+Reopen if a new 010 attempt again cannot produce an independently verifiable
+terminal without changes beyond the two listed corrections.
+
+Affected documents and experiments:
+
+`README.md`, `docs/README.md`, `DECISIONS.md`,
+`../experiments/g0/SPEC.g0-c-009.md`,
+`../experiments/g0/SPEC.g0-c-010.md`, and the G0-C-010 execution bundle.
+
+## 2026-08-20 — D025: Preserve G0-C-010 and stage the fixed source as G0-C-011
+
+Status: accepted
+
+Context:
+
+Two G0-C-010 rental attempts stopped before an arm on the live GitHub source
+path. The first could not connect. The second received about 90 MB before a
+connection reset caused `early EOF`. Its remote and off-host failure seals
+verify. A GitHub web HEAD could succeed while a bounded `git ls-remote` timed
+out, and GitHub's public Git Operations status was operational. Existing
+evidence cannot attribute the reset to GitHub, Alibaba Cloud egress, or an
+intermediary, but it does establish that the live source path is not a stable
+experimental prerequisite on this host.
+
+Decision:
+
+Preserve 010 and both attempts unchanged. Freeze G0-C-011 with the same source
+remote, commit, tree, patch, host, dependency/model pins, controls, serving
+protocol, deadlines, seal, and claim ceiling. Replace only the two live SGLang
+clones with two local clones restored from one operator-staged shallow bare Git
+seed archive. Freeze that archive's SHA-256. Before admission, verify its hash,
+Git object integrity, fixed commit/tree, canonical origin readback, and two
+independent clean checkouts.
+
+Alternatives considered:
+
+- repeatedly spend rental time retrying full GitHub clones;
+- use a source mirror, proxy, OSS subsystem, or a different SGLang pin;
+- mutate 010 or place pre-staged files under its live-clone destination;
+- accept a shallow Git bundle that cannot restore its missing parent boundary.
+
+Evidence:
+
+The 010/002 build log records the connection reset, remaining response bytes,
+`early EOF`, and invalid index-pack output. Its sealed terminal verifies on and
+off host. A locally fetched fixed snapshot produced the exact frozen commit and
+tree. A first shallow Git bundle passed `git bundle verify` but failed a real
+clone because its parent boundary was absent. The replacement portable shallow
+bare Git seed restored clean checkouts on both macOS and the Ubuntu rental host;
+the transferred archive SHA-256 matched exactly.
+
+Consequences:
+
+G0 remains `roadmap`. Source staging proves no SGLang mechanism and changes no
+experiment arm. G0-C-011 may start only with the frozen seed SHA-256 and an
+unused attempt ID. Success still requires commands 20 through 23 plus off-host
+seal verification and independent Gate review. G1 remains blocked.
+
+Reopen condition:
+
+Reopen if the frozen seed cannot restore the exact commit/tree on the admitted
+host, or if staging changes the resulting source, wheel, dependency, model,
+control, or serving identities.
+
+Affected documents and experiments:
+
+`README.md`, `docs/README.md`, `DECISIONS.md`,
+`../experiments/g0/RESULTS.md`, `../experiments/g0/SPEC.g0-c-010.md`,
+`../experiments/g0/SPEC.g0-c-011.md`, and the G0-C-011 execution bundle.
+
+## 2026-08-20 — D026: Preserve G0-C-011 and stage the fixed model as G0-C-012
+
+Status: accepted
+
+Context:
+
+G0-C-011 attempts 001-004 preserved ordinary Rust/build-cache prerequisites.
+Attempt 005 then built distinct stock and treatment wheels, resolved and
+installed the same dependency lock into two isolated environments, and passed
+the fixed CUDA/Torch self-check in both. Before any arm, its fixed Hugging Face
+snapshot request failed with `Network is unreachable`; the connection never
+left TCP `SYN-SENT`, and no model bytes entered the host cache.
+
+Decision:
+
+Preserve G0-C-011 and all five attempts unchanged. Freeze G0-C-012 with the same
+source seed, commit/tree, patch, host, dependency resolution, model repository
+and revision, controls, serving protocol, deadlines, seal, and claim ceiling.
+Replace only the live Hugging Face download with one operator-staged archive.
+Bind the archive SHA-256 and an exact per-file inventory; reject links/path
+escapes and rehash the extracted model before every phase and serving arm.
+
+Alternatives considered:
+
+- retry the unreachable Hugging Face route during paid rental time;
+- add a proxy, model mirror service, OSS dependency, or another cloud product;
+- change the model, revision, format, source pin, or dependency lock;
+- mutate attempt 005 or populate its cache after the sealed failure.
+
+Evidence:
+
+The attempt-005 logs and install reports retain successful paired wheel builds,
+paired dependency-identical installs, and CUDA self-checks. Its traceback ends
+in `httpcore.ConnectError: [Errno 101] Network is unreachable` while listing the
+fixed revision. The remote and off-host failure seals verify.
+
+Consequences:
+
+G0 remains `roadmap`. Model staging proves no runtime mechanism. G0-C-012 may
+start only from its committed runner, frozen archive/inventory hashes, and a new
+attempt ID. Success still requires controls, paired serving, final sealing,
+off-host verification, and independent Gate review. G1 remains blocked.
+
+Reopen condition:
+
+Reopen if the staged archive cannot reproduce the exact fixed snapshot, if any
+phase can use network/model bytes outside it, or if transport changes the
+paired-serving protocol.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `../experiments/g0/RESULTS.md`,
+`../experiments/g0/SPEC.g0-c-011.md`, `../experiments/g0/SPEC.g0-c-012.md`, and
+the G0-C-012 execution bundle.
+
+## 2026-08-20 — D027: Preserve G0-C-012 and capture expected RED in G0-C-013
+
+Status: accepted
+
+Context:
+
+G0-C-012 attempt 001 completed admission and entered command 21. Identity and
+model revalidation passed. The stock oracle then produced exactly the required
+exit 1, 27 tests, and 27 failures, but the inherited Bash `ERR` trap fired at
+the oracle command before `stock_status=$?` ran. `set +e` disables `errexit`; it
+does not disable an `ERR` trap. No treatment control or server started.
+
+Decision:
+
+Preserve 012 and attempt 001 unchanged. Freeze G0-C-013 with every experimental
+input and check unchanged. Replace only the stock-oracle status capture with an
+`if` condition, where Bash suppresses `ERR` for the expected nonzero command,
+and retain the exact exit/output assertions afterward. All unexpected command
+failures keep the existing trap.
+
+Alternatives considered:
+
+- remove or globally disable the `ERR` trap during all controls;
+- accept 012/001 manually or resume its sealed phase directory;
+- change the oracle to return zero on stock or ignore its status;
+- add a generic command runner abstraction for one expected failure.
+
+Evidence:
+
+The sealed 012/001 status records `INVALID_SCOPE` at command 21 line 57. Its
+`stock-oracle.txt` ends with `Ran 27 tests` and `FAILED (failures=27)`; treatment
+and installed-seam artifacts are absent. A local counterexample requires the
+stock command to be an `if` condition and rejects the former `set +e` pattern.
+
+Consequences:
+
+G0 remains `roadmap`; 012/001 is not a Gate result. G0-C-013 requires a fresh
+attempt and the full unchanged admission/controls/serving/final sequence. G1
+remains blocked.
+
+Reopen condition:
+
+Reopen if the conditional capture suppresses any non-stock failure, changes the
+expected RED assertions, or command 21 cannot reach treatment controls.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `../experiments/g0/RESULTS.md`,
+`../experiments/g0/SPEC.g0-c-012.md`, `../experiments/g0/SPEC.g0-c-013.md`, and
+the G0-C-013 execution bundle.
+
+## 2026-08-20 — D028: Preserve G0-C-013 and read Python source BOMs in G0-C-014
+
+Status: accepted
+
+Context:
+
+G0-C-013 attempt 001 completed admission and entered command 21. The stock
+oracle produced the required 27/27 RED, the treatment oracle produced 27/27
+GREEN, and the installed seam passed. The following full-tree AST inventory
+decoded every Python file as plain `utf-8`; an unrelated upstream source file
+begins with a legal UTF-8 BOM, so `ast.parse` rejected the retained U+FEFF. The
+attempt sealed `INVALID_SCOPE` before either server started.
+
+Decision:
+
+Preserve 013 and attempt 001 unchanged. Freeze G0-C-014 with every experimental
+input and check unchanged except for a successor-specific inventory reader
+using `utf-8-sig`. Retain parsing of every Python file and the exact zero
+production caller, one backend call, and zero dynamic-route assertions.
+
+Alternatives considered:
+
+- skip the BOM-bearing file or ignore inventory parse errors;
+- normalize or rewrite the fixed upstream source archive;
+- mutate the shared 013 inventory helper and rerun the sealed attempt;
+- add generic encoding detection or fallback logic.
+
+Evidence:
+
+The sealed 013/001 artifacts include the exact stock/treatment oracle and
+installed-seam terminals, followed by `INVALID_SCOPE` at command 21 line 81.
+The failing path begins with bytes `EF BB BF`. A local counterexample reproduces
+the failure with plain `utf-8` and passes with the one-line `utf-8-sig` change
+while retaining the exact call-site assertions.
+
+Consequences:
+
+G0 remains `roadmap`; 013/001 is not a Gate result. G0-C-014 requires a fresh
+attempt and the full unchanged admission/controls/serving/final sequence. G1
+remains blocked.
+
+Reopen condition:
+
+Reopen if `utf-8-sig` changes non-BOM UTF-8 parsing, any source file is skipped,
+an AST failure is suppressed, or the inventory call-site assertions change.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `../experiments/g0/RESULTS.md`,
+`../experiments/g0/SPEC.g0-c-013.md`, `../experiments/g0/SPEC.g0-c-014.md`, and
+the G0-C-014 execution bundle.
+
+## 2026-08-20 — D029: Preserve G0-C-014 and admit Ninja in G0-C-015
+
+Status: accepted
+
+Context:
+
+G0-C-014 attempt 001 completed admission and every command 21 control. Command
+22 started stock, loaded the fixed model, and allocated the fixed KV cache.
+FlashInfer's first CUDA JIT then tried to execute `ninja`, which command 19 had
+not installed and command 20 had not admitted. The scheduler failed before
+health; cleanup left no process-group or attributable GPU PID survivor. No
+request or treatment arm ran.
+
+Decision:
+
+Preserve 014 and attempt 001 unchanged. Freeze G0-C-015 with every experimental
+input, control, and server parameter unchanged. Add Ubuntu `ninja-build` only
+to the existing ordinary project-prerequisite installer, require `ninja` in
+preflight, and retain `ninja --version` in the sealed environment readback.
+
+Alternatives considered:
+
+- change the attention backend or disable prefill CUDA graphs;
+- install Ninja manually without a frozen admission requirement;
+- reuse the sealed 014 environments or resume command 22;
+- treat the supervisor's cleanup SIGKILL status as a GPU OOM.
+
+Evidence:
+
+The sealed 014/001 stock log shows model load and KV-cache allocation followed
+by `FileNotFoundError: ninja` inside FlashInfer JIT. The server never reached
+health. Kernel logs contain no OOM event, and cleanup records no surviving
+listener, process-group member, or attributable GPU PID. The local successor
+verifier requires install, admission, and version readback of Ninja.
+
+Consequences:
+
+G0 remains `roadmap`; 014/001 is not a Gate result. G0-C-015 requires a fresh
+attempt and the full unchanged admission/controls/serving/final sequence. The
+provider GPU driver/CUDA image remains reused and G1 remains blocked.
+
+Reopen condition:
+
+Reopen if Ninja is not sufficient for the fixed FlashInfer JIT path, installing
+it changes dependency resolution, or a server/backend parameter must change.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `../experiments/g0/RESULTS.md`,
+`../experiments/g0/SPEC.g0-c-014.md`, `../experiments/g0/SPEC.g0-c-015.md`, and
+the G0-C-015 execution bundle.
+
+## 2026-08-21 — D030: Preserve G0-C-015 and capture attributed shutdown in G0-C-016
+
+Status: accepted
+
+Context:
+
+G0-C-015 attempt 001 completed admission and every control. Stock passed its
+FlashInfer CUDA JIT, reached health, and completed both frozen streaming
+requests. The runner then sent SIGTERM. This fixed SGLang revision terminated a
+child, entered logged SIGQUIT cleanup, and self-killed with wait status 137.
+No process-group member, listener, or attributable GPU PID survived. The active
+Bash `ERR` trap intercepted the old `set +e; wait` before cleanup receipt
+creation, so treatment never ran.
+
+Decision:
+
+Preserve 015 and attempt 001 unchanged. Freeze G0-C-016 with all experimental
+inputs, controls, server parameters, requests, and cleanup invariants unchanged.
+Before TERM, require the server PID to be alive; require process-group TERM to
+succeed; capture `wait` as an `if` condition; accept the fixed runtime's
+observed 137 alongside 0/143 only when every no-survivor check passes, both
+when writing the cleanup receipt and during final evidence verification.
+
+Alternatives considered:
+
+- accept every 137 without proving signal attribution or cleanup;
+- require only 0/143 despite the fixed runtime's observed self-kill path;
+- patch SGLang's shutdown behavior or add a server wrapper;
+- resume the sealed 015 attempt at treatment.
+
+Evidence:
+
+Both 015/001 stock request JSON files record `passed: true`. The log records
+health 200, both generate 200 responses, runner-timed SIGTERM, child -15,
+SIGQUIT cleanup, and `kill_process_tree`; the seal records line 200 and exit
+137. Process-group, listener, and attributable GPU survivor files are empty.
+A local counterexample rejects `set +e; wait` and requires conditional capture,
+live-PID/TERM ordering, status 137, and all inherited cleanup evidence.
+
+Consequences:
+
+G0 remains `roadmap`; 015/001 is not a Gate result. G0-C-016 requires a fresh
+full attempt. No physical demotion, allocator, correctness, or performance
+claim is promoted, and G1 remains blocked.
+
+Reopen condition:
+
+Reopen if 137 occurs without successful runner-issued TERM, any cleanup
+survivor remains, the fixed runtime changes its shutdown behavior, or another
+server/request parameter must change.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `../experiments/g0/RESULTS.md`,
+`../experiments/g0/SPEC.g0-c-015.md`, `../experiments/g0/SPEC.g0-c-016.md`, and
+the G0-C-016 execution bundle.
+
+## 2026-08-21 — D031: Preserve G0-C-016 and wait for joint cleanup quiescence in G0-C-017
+
+Status: accepted
+
+Context:
+
+G0-C-016 attempt 001 was deliberately interrupted and sealed without residue.
+Attempt 002 completed admission, every control, and both requests in both arms.
+Both server groups received runner-issued TERM and reaped with the attributed
+status 137. Stock cleanup passed. For treatment, the group and attributable GPU
+PID were gone while the immediately sampled `ss` output still contained an
+unowned port-30001 listener; a later residual probe found no listener. The 016
+runner waited only for the process group before sampling all cleanup evidence.
+
+Decision:
+
+Preserve 016 and both attempts unchanged. Freeze G0-C-017 with the same source,
+model, dependencies, controls, server parameters, requests, receipt schema,
+and 60-second cleanup deadline. Inside that deadline, resample process-group,
+target-listener, and attributable-GPU state until all three are jointly
+quiescent, then retain the final snapshots. Any survivor at the deadline still
+fails closed. Reuse the immutable 016 pin, input inventories, helpers,
+prerequisite installer, and evidence verifier instead of duplicating them.
+
+Alternatives considered:
+
+- accept 016/002 from the later ad hoc residual probe;
+- ignore listener evidence when the process group is gone;
+- add a fixed sleep before the existing one-shot snapshot;
+- add a generic retry/supervisor framework or patch SGLang shutdown;
+- resume or rewrite the sealed 016 attempt.
+
+Evidence:
+
+Both treatment request JSON files record `passed: true`, including 48 cached
+tokens on the second request. The cleanup receipt records no process-group or
+GPU survivor and status 137, while the same-timestamp listener snapshot alone
+contains port 30001 without a process owner. The remote failure seal and
+off-host copy both verify. The 017 bundle executes the production cleanup
+function against transient-listener and permanent-listener counterexamples.
+
+Consequences:
+
+G0 remains `roadmap`; 016/002 is not a Gate result. G0-C-017 requires a fresh
+full attempt and off-host verification. No physical demotion, allocator,
+correctness, recovery, or performance claim is promoted, and G1 remains
+blocked.
+
+Reopen condition:
+
+Reopen if joint quiescence exceeds the existing deadline, a final snapshot
+retains any process/listener/GPU survivor, the new counterexamples admit a
+permanent listener, or another experimental input must change.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `../experiments/g0/RESULTS.md`,
+`../experiments/g0/SPEC.g0-c-016.md`, `../experiments/g0/SPEC.g0-c-017.md`, and
+the G0-C-017 execution bundle.
+
+## 2026-08-21 — D032: Accept G0-C-017 successor PASS and authorize G1 planning only
+
+Status: accepted
+
+Context:
+
+G0-C-017 attempt 001 completed the frozen protocol on the admitted Alibaba
+Cloud A10 host. Remote and off-host semantic verification and seal verification
+passed. A fresh independent review checked attempt identity, immutable
+protocol inputs, wheel provenance, source oracles, installed seam behavior,
+static inventory, both CUDA serving arms, and cleanup evidence, then selected
+`PASS` with no Gate blocker.
+
+Decision:
+
+Accept G0-C-017/001 as the successor G0 `PASS`, replacing the historical
+accepted `RESHAPE` while preserving all earlier specifications and attempts.
+Classify only the fixed package and ordinary-serving integration finding as
+`experimentally validated`; keep the overall ToolGap project `roadmap`.
+Authorize preparation and review of a separate G1 plan and frozen SPEC. Do not
+authorize G1 execution through this decision.
+
+Alternatives considered:
+
+- retain `RESHAPE` despite the completed independently reviewed successor;
+- promote G0 to proof of physical demotion or allocator-visible reclamation;
+- start G1 execution directly from the G0 result;
+- rewrite the immutable completion receipt after independent review;
+- add a new Gate or generalized experiment framework.
+
+Evidence:
+
+The exact frozen source oracle produced 27/27 stock RED and 27/27 treatment
+GREEN. The installed treatment cache surface returned `UNSUPPORTED_BACKEND`,
+released target priority, and made zero physical `demote` calls. Both stock and
+treatment wheels completed health plus two native streaming requests on the
+A10; all four requests returned HTTP 200 and each second request reported 48
+device-cached tokens. Both attributed shutdowns left no process-group, target
+listener, or GPU survivor. The two prescribed off-host verifiers exited zero,
+and the independent reviewer recomputed the completion bindings.
+
+Consequences:
+
+G0 is closed. The allowed narrow claim is limited to the exact frozen source,
+patch, wheels, dependency lock, model, and host. No physical demotion,
+allocator-visible headroom, output equality, lifecycle/recovery behavior,
+latency/throughput/capacity gain, upstream acceptance, or general compatibility
+is proven. G1 may now be specified but remains unauthorized for execution.
+
+Reopen condition:
+
+Reopen G0 if the fixed package identity cannot be reproduced, the registered
+seam ceases to fail closed, an accepted source-contract mapping is falsified,
+or the G0 integration claim requires a changed causal input.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `ROADMAP.md`, `README.md`,
+`../experiments/g0/RESULTS.md`, `../experiments/g0/SPEC.g0-c-017.md`, and
+`../experiments/g0/artifacts/g0-c-017-independent-review.md`.
 
 ## Decision Template
 

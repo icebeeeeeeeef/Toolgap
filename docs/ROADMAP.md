@@ -53,17 +53,23 @@ under D021 below.
 ## G0 — Fixed Source and Safe Seam
 
 The [G0 source SPEC](../experiments/g0/SPEC.md) was frozen and executed against
-SGLang `92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2`. The result is
-[`RESHAPE`](../experiments/g0/RESULTS.md): stock lacks one atomic cache-level
-checked-demote contract that composes generation-preserving frontier release,
-backend-owned final checks and existing physical primitive, then cache-owned
-drain. Independently reviewed G0-C-006 represents it as a four-file,
-216-insertion vertical source prototype with one caller surface, exact
-target/caller attribution, fail-closed legacy behavior, and no second index.
-Its frozen oracle produced 27/27 stock RED and 27/27 patched GREEN with fake
-resources; it did not invoke the real physical path. G1 is blocked until the
-contract is accepted, a new exact pin and frozen CUDA-capable environment are
-selected, and G0 is rerun. The project claim state remains `roadmap`.
+SGLang `92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2`. Its historical decision was
+`RESHAPE`: stock lacks one atomic cache-level checked-demote contract composing
+generation-preserving frontier release, backend-owned final checks and the
+existing physical primitive, then cache-owned drain. Independently reviewed
+G0-C-006 represents that missing seam as a four-file, 216-insertion vertical
+source prototype with one caller surface, exact target/caller attribution,
+fail-closed legacy behavior, and no second index.
+
+Independently reviewed [G0-C-017/001](../experiments/g0/RESULTS.md) is the
+accepted successor `PASS`. Its fixed oracle reproduced 27/27 stock RED and
+27/27 treatment GREEN; the exact treatment wheel installed, the registered
+cache seam failed closed without a physical call, and both stock and treatment
+completed ordinary HiCache CUDA serving and cleanup on the frozen A10 host.
+This is a narrow `experimentally validated` package/serving-integration result.
+It does not prove physical demotion, allocator-visible reclamation, lifecycle
+or output correctness, recovery, performance, upstream acceptance, or general
+compatibility. The overall project claim state remains `roadmap`.
 
 ### Decision question
 
@@ -102,6 +108,10 @@ and invoke physical demotion through maintainable seams?
   physical ownership system.
 
 ## G1 — Forced Host-Tier Mechanism
+
+G0 PASS authorizes preparation and review of a separate G1 plan and frozen
+SPEC. It does not authorize G1 execution; that requires an explicit later
+decision after the G1 contract and evidence protocol are accepted.
 
 ### Decision question
 
