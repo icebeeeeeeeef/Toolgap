@@ -225,3 +225,26 @@ If deletion changes the unconditional mainline contract, the projects have been
 coupled and prefetch admission must be rejected or redesigned. This document
 must remain a future review artifact, never a hidden G6 or an implementation
 authorization.
+
+## 9. Distinction — Intra-Request Pipelined Restore Is Not Prefetch
+
+This document governs pre-request hiding: a transfer issued and completed, in
+whole or in part, before the corresponding request reaches the engine. It does
+not govern any mechanism that begins only after the request has already
+started.
+
+Intra-request layer-wise pipelined restore — overlapping the remaining
+Host-to-Device transfer with per-layer prefill computation once the request is
+already in flight — is a different mechanism at a different seam. It is not
+authorized, admitted, or governed by this document.
+
+Its mainline, Host-to-Device form is a candidate root-cause fix inside the
+conditional performance-diagnosis path of [`../ROADMAP.md`](../ROADMAP.md),
+admissible only on profiler evidence and on pin verification of the existing
+restore path; see
+[`../../worklog/reviews/2026-08-21/restore-layerwise-overlap-question.md`](../../worklog/reviews/2026-08-21/restore-layerwise-overlap-question.md).
+
+Any L3/external-store form of this mechanism would require its own future
+admission review, with the same honesty about prior art (LMCache's layerwise
+pipelining, the Cake paper); it must not be smuggled into the mainline through
+this prefetch contract.

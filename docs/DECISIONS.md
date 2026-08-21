@@ -809,6 +809,81 @@ Affected documents and experiments:
 `../experiments/g0/RESULTS.md`, `../experiments/g0/SPEC.g0-c-017.md`, and
 `../experiments/g0/artifacts/g0-c-017-independent-review.md`.
 
+## 2026-08-21 — D033: Reject mainline data-plane expansion; admit PD transfer slice as future review and checksum round-trip as an instrument option
+
+Status: accepted
+
+Context:
+
+A job-description-driven capability review asked whether ToolGap should absorb
+distributed KV-store data-plane features — automatic large-value slicing with
+concurrent multi-node reads and writes, full-path zero-copy with GPUDirect,
+small-object coalescing for prefill-to-decode KV transfer, and end-to-end
+iterative CRC verification. These features match an existing mature
+distributed KV cache store's feature set. At review time G0 had just closed
+with a successor PASS (D032); G1 is specified for planning only, so the
+project holds no physical demotion, allocator, recovery, or performance
+evidence yet, and a limited rented-machine budget (at most five hosts) is
+available.
+
+Decision:
+
+Reject adding any of these data-plane capabilities to the G0-G4 mainline;
+`PROJECT.md` non-goals (no new KV storage or transfer engine; no distributed,
+multi-node, or RDMA claims) remain unchanged. Admit
+`docs/future/PD_TRANSFER_SLICE.md` as a future review artifact for a narrow
+prefill-to-decode transfer lifecycle slice on a reused transport, gated on a
+real G1 physical-demotion PASS and expected to live outside the mainline
+repository. Record page-level checksum round-trip verification
+(demote-time per-page checksum, restore-time per-page self-check plus
+whole-payload check) as one admissible instrument choice for the G1/G2 SPEC
+authors when they design output-equivalence and corruption evidence; this is
+an instrument option, not a new Gate requirement and not a data plane. Direct
+the rented-machine budget first to G1-G4 real-GPU execution.
+
+Alternatives considered:
+
+- absorb value slicing, zero-copy/GPUDirect, and a distributed CRC-verified
+  store into the mainline: rejected as rebuilding a mature data plane,
+  violating the ownership boundary and diluting the narrow contract;
+- start the PD transfer extension now, before G1: rejected because the
+  mainline's real-CUDA evidence gap is the scarcer risk and shares the same
+  budget;
+- claim RDMA/GDR capability from commodity rented hosts: rejected; claim
+  language must name the actually measured transport;
+- make the checksum round-trip a mandatory new G2 artifact: rejected to keep
+  Gate requirements owned by their own frozen SPECs.
+
+Evidence:
+
+`PROJECT.md` Section 6 already excludes new transfer engines and distributed,
+multi-node, RDMA, and production-scale claims. D032 fixes the current state:
+G0 closed, G1 unexecuted, no physical or performance evidence. The referenced
+feature list is the published capability set of an existing mature store, so
+re-implementation would duplicate a dependency-owned data plane rather than
+close a demonstrated contract gap. No experimental evidence is created or
+promoted by this decision; every affected claim remains `roadmap`.
+
+Consequences:
+
+The mainline scope is unchanged. `ROADMAP.md` gains a future-review pointer
+for the PD transfer slice parallel to the prefetch pointer. G1/G2 SPEC
+authors may adopt or decline the checksum instrument without reopening this
+decision. Any future PD transfer claim must satisfy the admission,
+hardware-honesty, and deletion tests in `future/PD_TRANSFER_SLICE.md`.
+
+Reopen condition:
+
+Reopen if G1-G4 evidence shows the mainline itself needs a transfer-path
+mechanism to close its contract, if the upstream dependency's ownership of
+the physical data plane changes, or if the future review's admission
+preconditions are shown to be unsatisfiable on obtainable hardware.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `ROADMAP.md`, `future/PD_TRANSFER_SLICE.md`, and
+`../worklog/reviews/2026-08-21/data-plane-scope-review.md`.
+
 ## Decision Template
 
 ```text

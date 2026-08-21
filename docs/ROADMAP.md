@@ -282,3 +282,13 @@ requires a separate review that proves a non-oracle `resume_imminent` signal,
 positive usable slack for the exact transfer segment, an independent executor
 path, and a baseline beyond request-time reactive restore. Failure or success of
 prefetch must not change G0-G4 conclusions.
+
+## Future Project Review — PD KV Transfer Slice (not a Gate)
+
+See [`future/PD_TRANSFER_SLICE.md`](future/PD_TRANSFER_SLICE.md). A narrow
+prefill-to-decode KV transfer lifecycle slice — slicing, coalescing, per-slice
+verification, and atomic destination visibility on a reused transport — is
+admitted only as a separate future review after a real G1 physical-demotion
+PASS, and is expected to live outside the mainline repository. Its failure or
+success must not change G0-G4 conclusions, and it adds no distributed,
+multi-node, RDMA, or PD claim to the mainline.
