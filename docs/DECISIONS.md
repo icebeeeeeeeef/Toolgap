@@ -904,7 +904,7 @@ Decision:
 Use `write_through` only as the qualification/reference mode for G1, G2, and
 the first G3 causal comparison. In that comparison, release-only and checked
 reclamation reuse the same committed Host copy; the checked-reclamation action
-must not receive a different Publication history. Before making a
+must not receive a different Publication history. Before making an
 end-to-end optimization claim on the declared single-node testbed, challenge
 the candidate on the same workload and joint SLO against tuned stock
 `write_through_selective` and `write_back`. If checked reclamation wins only

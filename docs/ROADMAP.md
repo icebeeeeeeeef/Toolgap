@@ -256,7 +256,8 @@ Classify the symptom before selecting work:
 This diagnosis has one conditional optimization slot and may admit at most one
 series. No reproducible bottleneck means no additional optimization patch.
 Candidate admission, rejected defaults, and same-slot constraints are owned by
-[D035](DECISIONS.md); the stage-specific diagnostic method is owned by
+[D035](DECISIONS.md#2026-08-22--d035-reject-general-demote-pacing-as-the-default-admit-one-measurement-driven-conditional-optimization-series);
+the stage-specific diagnostic method is owned by
 [`engineering/PERFORMANCE_ENGINEERING.md`](engineering/PERFORMANCE_ENGINEERING.md).
 `ROADMAP.md` does not define a second optimization specification.
 
