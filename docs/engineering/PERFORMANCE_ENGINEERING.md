@@ -312,13 +312,19 @@ measurement-driven series：
 |---|---|---|
 | Publication 的 eager D2H 或 Host occupancy 是决定性成本 | 隔离 Publication timing/occupancy，保持后续 action 与 workload 可比 | 只有独立 accepted review 才能准入 **Tool-gap-triggered On-demand Publication with Pacing**；当前不授权 |
 | checked reclamation 的逐节点 final check、release 或 free-drain 造成 scheduler/CPU/allocator interference | stage timing + CPU/allocator wait + headroom/endpoint manipulation check | 可在后续 SPEC revision 考虑 candidate-owned **Checked Reclamation Chunking** |
-| Recovery/H2D 主导 resumed critical path | 先验证 fixed-pin restore/load_back 实际路径，再 profile H2D/compute overlap | 窄 layer-wise/substrate patch 若获准，baseline/candidate 两组共享，不算 ToolGap differential |
+| Recovery/H2D 主导 resumed critical path | 先验证 fixed-pin restore/load_back 与实际 copy path，再 profile H2D/compute overlap | layer-wise restore、small-transfer coalescing、pinned-buffer reuse 只可竞争同一 conditional slot |
 | polling wait 进入 completion critical path | polling interval/CPU 与 completion→headroom endpoint 对齐 | 只有此时 event-driven completion 才恢复候选资格 |
 
 Checked Reclamation Chunking 也不是当前实现。其最窄候选语义是按每个
 scheduler cycle 的 node/byte budget 分段，达到所需 allocator headroom 后停止；
 resume 只能取消尚未开始的 chunks，已释放部分仍走正常 restore/recompute。
 准入必须有独立 SPEC revision、ablation、deletion test 和 losing workload。
+
+若 fixed-pin profile 把 Recovery 瓶颈定位到实际 copy path，small-transfer
+coalescing 或 pinned-buffer reuse 可以与 layer-wise restore 竞争上述同一个
+slot，不新增 series 或 Gate。它们都是窄 upstream/shared-substrate candidate，
+baseline/candidate 两 arm 必须公平共享，不算 ToolGap differential，也未被
+当前决策授权实现。
 
 优化仍先删除不影响 allocator/scheduler 的工作，再减少实测 critical-path
 同步、重复 bookkeeping 或共享资源干扰。任何 series 都必须在同一 workload
@@ -331,8 +337,8 @@ candidate 可优化 operation identity、checked resolution、fencing、fallback
 cleanup、DecisionTrace overhead 和证据生成。SGLang 负责 physical tree、
 allocator、movement、eviction、scheduler 和 model execution；定位到它们时，
 默认是 diagnosis、substrate limitation 或 upstream handoff。任何影响两 arm
-的 substrate patch 必须公平共享。slicing、coalescing、concurrent channels
-和 PD transfer 继续属于
+的 substrate patch 必须公平共享。PD-transfer slicing、coalescing 和
+concurrent channels 继续属于
 [`future/PD_TRANSFER_SLICE.md`](../future/PD_TRANSFER_SLICE.md)；L3/prefetch
 不进入主线，dynamic selector 等 G5 admission。代码量不是 ownership。
 

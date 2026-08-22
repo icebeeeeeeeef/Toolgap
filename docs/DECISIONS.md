@@ -991,12 +991,16 @@ optimization slot, and only one series may be active:
 - if eager Publication D2H or Host occupancy is decisive, only an independent
   review may admit **Tool-gap-triggered On-demand Publication with Pacing**;
   D035 does not authorize it;
-- if Recovery/H2D is decisive, verify the fixed-pin restore path first. A
-  profile-justified narrow upstream layer-wise/substrate patch must be shared
-  by baseline and candidate arms and is not a ToolGap differential;
+- if Recovery/H2D is decisive, verify the fixed-pin restore path first. If the
+  fixed-pin profile localizes the bottleneck to the actual copy path,
+  small-transfer coalescing or pinned-buffer reuse may compete with layer-wise
+  restore for the same conditional optimization slot. These are narrow
+  upstream/shared-substrate candidates: baseline and candidate arms must share
+  the patch, it is not a ToolGap differential, and D035 does not authorize its
+  implementation;
 - event-driven completion regains candidate status only if polling wait is
   measured on the critical path;
-- slicing, coalescing, concurrent channels, and PD transfer remain in
+- PD-transfer slicing, coalescing, and concurrent channels remain in
   `future/PD_TRANSFER_SLICE.md`; L3 and prefetch remain outside the mainline;
 - a dynamic selector remains blocked until G5 admission.
 

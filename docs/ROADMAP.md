@@ -268,11 +268,14 @@ reproducible bottleneck means no additional optimization patch.
   review before **Tool-gap-triggered On-demand Publication with Pacing**; this
   route does not authorize it.
 - A Recovery/H2D bottleneck first requires fixed-pin restore-path verification.
-  Any profile-justified narrow upstream layer-wise/substrate patch must be
-  shared by baseline and candidate arms and is not a ToolGap differential.
+  If the fixed-pin profile localizes the bottleneck to the actual copy path,
+  small-transfer coalescing or pinned-buffer reuse may compete with layer-wise
+  restore for this same slot. Each is a narrow upstream/shared-substrate
+  candidate, must be shared by baseline and candidate arms, is not a ToolGap
+  differential, and is not authorized here.
 - Event-driven completion is reconsidered only if polling wait is measured on
   the critical path.
-- Slicing, coalescing, concurrent channels, and PD transfer remain in
+- PD-transfer slicing, coalescing, and concurrent channels remain in
   [`future/PD_TRANSFER_SLICE.md`](future/PD_TRANSFER_SLICE.md); L3 and prefetch
   remain separate future reviews. A dynamic selector remains blocked on G5.
 
