@@ -55,27 +55,31 @@ small selector can outperform a tuned static/action-only baseline beyond noise.
    eviction;
 4. forced checked reclamation over the same `write_through` committed Host
    copy and Publication history;
-5. for any production optimization claim, tuned stock
-   `write_through_selective` and `write_back` under the same workload and joint
-   SLO;
+5. for any end-to-end optimization claim on the declared single-node testbed,
+   tuned stock `write_through_selective` and `write_back` under the same
+   workload and joint SLO;
 6. forced restore and forced recompute when each is a fair, attributable path;
 7. no-pressure and already-timely-stock controls where demotion should lose or
    be irrelevant;
 8. for policy studies, B0/B1/B2 and an optional local action oracle.
 
-The first comparison is a qualification/causal reference for G1, G2, and the
-first G3 run: release-only and checked reclamation share `write_through`
-Publication, the committed Host copy, workload, instrumentation, and stock
-eviction. G0 must prove that the release operation is not terminal session close
-under another name. `write_through` is not presumed production-optimal.
+G1 and G2 use `write_through` as the qualification/reference mode while proving
+mechanism and correctness; they do not perform the release-only versus checked-
+reclamation causal performance comparison. That comparison begins with the
+first G3 run: both arms share `write_through` Publication, the committed Host
+copy, workload, instrumentation, and stock eviction. G0 must prove that the
+release operation is not terminal session close under another name.
+`write_through` is not presumed end-to-end-optimal on the declared testbed.
 
-A production claim adds the second comparison against the best measured tuned
-stock policy from `write_through_selective` and `write_back`, with identical
-source/build, model, capacity, workload, arrival process, SLO, and observation
-rules. If the candidate wins the same-Publication comparison but not this stock
-policy challenge, report only a mechanism result. Tool-gap-triggered on-demand
-Publication is excluded unless an independent accepted contract is opened after
-eager Publication is measured as the decisive cost.
+An end-to-end optimization claim on the declared single-node testbed adds the
+second comparison against the best measured tuned stock policy from
+`write_through_selective` and `write_back`, with identical source/build, model,
+capacity, workload, arrival process, SLO, and observation rules. If the
+candidate wins the same-Publication comparison but not this stock-policy
+challenge, report only a mechanism result. This stronger testbed comparison
+does not establish production readiness. Tool-gap-triggered on-demand
+Publication is excluded unless an independent accepted contract is opened
+after eager Publication is measured as the decisive cost.
 
 All policy baselines must share the same physical executor and legal action set
 when policy is the independent variable. A local action oracle may choose the

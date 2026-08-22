@@ -7,10 +7,10 @@ Canonical owners: D034 in `docs/DECISIONS.md` and Required Baselines in
 
 ## Goal
 
-Separate the first causal comparison from a production optimization claim:
-retain `write_through` for committed-copy qualification, then require the same
-workload and joint-SLO challenge against tuned stock
-`write_through_selective` and `write_back`.
+Separate the first causal comparison from an end-to-end optimization claim on
+the declared single-node testbed: retain `write_through` for committed-copy
+qualification, then require the same workload and joint-SLO challenge against
+tuned stock `write_through_selective` and `write_back`.
 
 ## Scope
 
@@ -24,7 +24,8 @@ workload and joint-SLO challenge against tuned stock
 ## Non-goals
 
 No runtime policy, tuning result, on-demand Publication mechanism, performance
-number, or production claim is created by this documentation task.
+number, production-readiness claim, or production-scale claim is created by
+this documentation task.
 
 ## Acceptance evidence
 

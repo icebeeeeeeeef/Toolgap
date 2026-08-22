@@ -254,30 +254,11 @@ Classify the symptom before selecting work:
 3. **Recovery:** Host-to-HBM restore or recompute after resume.
 
 This diagnosis has one conditional optimization slot and may admit at most one
-series. General Demote Pacing is not a default implementation, and no
-`PacingController`, public pacing parameter, Gate, or module is authorized. No
-reproducible bottleneck means no additional optimization patch.
-
-- Reclamation-side scheduler/CPU/allocator interference from final checks,
-  release, or free-drain may admit a later **Checked Reclamation Chunking** SPEC
-  revision: a node/byte budget per scheduler cycle, stop after sufficient
-  headroom, cancellation only for chunks not yet started, and ordinary
-  restore/recompute for already released content. It still requires an
-  ablation, deletion test, and losing workload; it is not current behavior.
-- Decisive eager Publication D2H or Host-occupancy cost requires an independent
-  review before **Tool-gap-triggered On-demand Publication with Pacing**; this
-  route does not authorize it.
-- A Recovery/H2D bottleneck first requires fixed-pin restore-path verification.
-  If the fixed-pin profile localizes the bottleneck to the actual copy path,
-  small-transfer coalescing or pinned-buffer reuse may compete with layer-wise
-  restore for this same slot. Each is a narrow upstream/shared-substrate
-  candidate, must be shared by baseline and candidate arms, is not a ToolGap
-  differential, and is not authorized here.
-- Event-driven completion is reconsidered only if polling wait is measured on
-  the critical path.
-- PD-transfer slicing, coalescing, and concurrent channels remain in
-  [`future/PD_TRANSFER_SLICE.md`](future/PD_TRANSFER_SLICE.md); L3 and prefetch
-  remain separate future reviews. A dynamic selector remains blocked on G5.
+series. No reproducible bottleneck means no additional optimization patch.
+Candidate admission, rejected defaults, and same-slot constraints are owned by
+[D035](DECISIONS.md); the stage-specific diagnostic method is owned by
+[`engineering/PERFORMANCE_ENGINEERING.md`](engineering/PERFORMANCE_ENGINEERING.md).
+`ROADMAP.md` does not define a second optimization specification.
 
 A behavior-changing fix requires an updated SPEC revision and new run identity;
 it cannot retroactively turn an earlier result into PASS. The primary question

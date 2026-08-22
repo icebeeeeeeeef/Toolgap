@@ -95,9 +95,9 @@ release target session-priority contribution + checked reclamation
 ~~~
 
 这里的 `write_through` 是 G1/G2 和第一轮 G3 的 qualification/reference
-mode，不是 production-optimal 假设。生产优化结论还必须按 EVALUATION.md 在
-相同 workload 和 joint SLO 下挑战 tuned stock `write_through_selective` 与
-`write_back`；本文件不创建第二套实验计划。
+mode，不是假设它在声明的单节点 testbed 上端到端最优。端到端优化结论还
+必须按 EVALUATION.md 在相同 workload 和 joint SLO 下挑战 tuned stock
+`write_through_selective` 与 `write_back`；本文件不创建第二套实验计划。
 
 ## 3. 证据层级决定结论上限
 
@@ -312,6 +312,7 @@ measurement-driven series：
 |---|---|---|
 | Publication 的 eager D2H 或 Host occupancy 是决定性成本 | 隔离 Publication timing/occupancy，保持后续 action 与 workload 可比 | 只有独立 accepted review 才能准入 **Tool-gap-triggered On-demand Publication with Pacing**；当前不授权 |
 | checked reclamation 的逐节点 final check、release 或 free-drain 造成 scheduler/CPU/allocator interference | stage timing + CPU/allocator wait + headroom/endpoint manipulation check | 可在后续 SPEC revision 考虑 candidate-owned **Checked Reclamation Chunking** |
+| target resolution 被实测为 checked reclamation 的 bottleneck | 隔离 resolution CPU/time 与 target 数量、headroom、endpoint 的关系 | 只有此时才可优化 candidate-owned checked resolution；仍竞争同一 conditional slot |
 | Recovery/H2D 主导 resumed critical path | 先验证 fixed-pin restore/load_back 与实际 copy path，再 profile H2D/compute overlap | layer-wise restore、small-transfer coalescing、pinned-buffer reuse 只可竞争同一 conditional slot |
 | polling wait 进入 completion critical path | polling interval/CPU 与 completion→headroom endpoint 对齐 | 只有此时 event-driven completion 才恢复候选资格 |
 

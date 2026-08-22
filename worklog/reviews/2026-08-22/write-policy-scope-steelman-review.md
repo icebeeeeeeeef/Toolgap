@@ -4,8 +4,8 @@ Canonical owners: D034 in `docs/DECISIONS.md` and Required Baselines in
 `docs/EVALUATION.md`.
 
 Decision question: may the G0-selected `write_through` mode serve both as the
-causal reference and as the production baseline for a ToolGap optimization
-claim?
+causal reference and as the sufficient baseline for an end-to-end optimization
+claim on the declared single-node testbed?
 
 Strongest case for one baseline: `write_through` exposes the cleanest committed
 Host-copy predicate and lets release-only and checked reclamation differ at one
@@ -16,17 +16,20 @@ Counterexample: that isolation eagerly pays Publication and Host occupancy.
 Stock `write_through_selective` or `write_back` may avoid or reshape those costs
 and yield a better joint-SLO result even if immediate checked reclamation beats
 release-only after the copy already exists. The causal reference therefore
-cannot establish production optimality.
+cannot establish end-to-end optimality on the declared testbed.
 
-Decision: use two levels. G1/G2 and the first G3 comparison use the same
-`write_through` committed copy; a production claim additionally challenges
-tuned stock `write_through_selective` and `write_back` on the same workload and
-joint SLO. Winning only the first level remains a mechanism result.
+Decision: use two levels. G1/G2 use `write_through` as qualification/reference
+mode. Starting with the first G3 causal comparison, release-only and checked
+reclamation use the same committed copy. An end-to-end optimization claim on
+the declared single-node testbed additionally challenges tuned stock
+`write_through_selective` and `write_back` on the same workload and joint SLO.
+Winning only the first comparison remains a mechanism result; winning the
+testbed challenge does not establish production readiness.
 
-Rejected alternatives: treat source-semantic selection as a production result;
-give the candidate a different Publication history; add on-demand Publication
-before eager Publication is measured as decisive; discard a valid mechanism
-result merely because a stock policy wins end to end.
+Rejected alternatives: treat source-semantic selection as an end-to-end
+testbed result; give the candidate a different Publication history; add
+on-demand Publication before eager Publication is measured as decisive;
+discard a valid mechanism result merely because a stock policy wins end to end.
 
 Reopen only if fixed-pin evidence invalidates the committed-copy semantics or a
 measured decisive Publication cost supports an independent on-demand

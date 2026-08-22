@@ -894,9 +894,10 @@ Context:
 G0 selected `write_through` because its settled Full Host duplicate provides an
 auditable committed-copy predicate. That source-semantic choice isolates later
 release-only and checked-reclamation actions, but it does not establish the
-best production Host-write policy. The fixed substrate also exposes
-`write_through_selective` and `write_back`, whose Publication timing and cost
-can change the end-to-end result.
+end-to-end-optimal Host-write configuration on the declared single-node
+testbed. The fixed substrate also exposes `write_through_selective` and
+`write_back`, whose Publication timing and cost can change the end-to-end
+result.
 
 Decision:
 
@@ -904,10 +905,11 @@ Use `write_through` only as the qualification/reference mode for G1, G2, and
 the first G3 causal comparison. In that comparison, release-only and checked
 reclamation reuse the same committed Host copy; the checked-reclamation action
 must not receive a different Publication history. Before making a
-production-grade optimization claim, challenge the candidate on the same
-workload and joint SLO against tuned stock `write_through_selective` and
-`write_back`. If checked reclamation wins only against the same-Publication
-reference but not the best stock policy, retain only the mechanism result.
+end-to-end optimization claim on the declared single-node testbed, challenge
+the candidate on the same workload and joint SLO against tuned stock
+`write_through_selective` and `write_back`. If checked reclamation wins only
+against the same-Publication reference but not the best stock policy, retain
+only the mechanism result.
 
 ToolGap-triggered on-demand Publication may be reviewed only after measurement
 shows that eager Publication is the decisive cost and an independent accepted
@@ -915,7 +917,8 @@ contract defines its behavior. This decision does not authorize that mechanism.
 
 Alternatives considered:
 
-- treat the G0 `write_through` choice as a production-optimal policy;
+- treat the G0 `write_through` choice as end-to-end-optimal on the declared
+  testbed;
 - compare release-only and checked reclamation with different Host-copy
   histories;
 - claim end-to-end value after beating only the same-Publication reference;
@@ -923,17 +926,19 @@ Alternatives considered:
 
 Evidence:
 
-`experiments/g0/artifacts/host-mode-selection.md` supports only the committed
-Host-copy source semantics and explicitly rejects a runtime conclusion. D004
-and `EVALUATION.md` already require a same-copy release-only causal baseline.
-There is no ToolGap runtime, Publication-cost, or performance evidence.
+[G0 host-mode selection](../experiments/g0/artifacts/host-mode-selection.md)
+supports only the committed Host-copy source semantics and explicitly rejects
+a runtime conclusion. D004 and `EVALUATION.md` already require a same-copy
+release-only causal baseline. There is no ToolGap runtime, Publication-cost, or
+performance evidence.
 
 Consequences:
 
 `EVALUATION.md` owns the two-level baseline protocol. G1/G2 mechanism and
-correctness work remains isolated from production-policy tuning, while any
-later production claim must survive the strongest measured stock policy. The
-project claim remains `roadmap`.
+correctness work remains isolated from the G3 causal comparison, while any
+later end-to-end optimization claim on the declared single-node testbed must
+survive the strongest measured stock policy. That testbed result does not
+establish production readiness. The project claim remains `roadmap`.
 
 Reopen condition:
 

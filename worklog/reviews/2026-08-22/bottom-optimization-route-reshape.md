@@ -1,8 +1,8 @@
 # Bottom optimization route reshape
 
-Canonical owners: D035 in `docs/DECISIONS.md`, Conditional performance
-diagnosis in `docs/ROADMAP.md`, and
-`docs/engineering/PERFORMANCE_ENGINEERING.md`.
+Canonical decision: D035 in `docs/DECISIONS.md`. Conditional performance
+diagnosis in `docs/ROADMAP.md` owns only Gate timing and routing;
+`docs/engineering/PERFORMANCE_ENGINEERING.md` owns the diagnostic method.
 
 Decision question: should the earlier bottom-optimization discussion become a
 general Demote Pacing implementation, or a narrower evidence-triggered rule?
