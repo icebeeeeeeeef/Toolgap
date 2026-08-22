@@ -4,8 +4,9 @@
 >
 > D001-D019 are `accepted` design decisions. D020 records the owner's D0
 > closure. D021 preserves the historical evidence-backed G0 `RESHAPE`; D032
-> records the accepted successor G0 `PASS`. Decision status remains distinct
-> from project claim state.
+> records the accepted successor G0 `PASS`. D033-D035 keep later scope and
+> optimization choices conditional on evidence. Decision status remains
+> distinct from project claim state.
 
 ## Decision Status
 
@@ -883,6 +884,166 @@ Affected documents and experiments:
 
 `DECISIONS.md`, `ROADMAP.md`, `future/PD_TRANSFER_SLICE.md`, and
 `../worklog/reviews/2026-08-21/data-plane-scope-review.md`.
+
+## 2026-08-22 — D034: Qualify `write_through` as a causal reference and require a stock-policy challenge
+
+Status: accepted
+
+Context:
+
+G0 selected `write_through` because its settled Full Host duplicate provides an
+auditable committed-copy predicate. That source-semantic choice isolates later
+release-only and checked-reclamation actions, but it does not establish the
+best production Host-write policy. The fixed substrate also exposes
+`write_through_selective` and `write_back`, whose Publication timing and cost
+can change the end-to-end result.
+
+Decision:
+
+Use `write_through` only as the qualification/reference mode for G1, G2, and
+the first G3 causal comparison. In that comparison, release-only and checked
+reclamation reuse the same committed Host copy; the checked-reclamation action
+must not receive a different Publication history. Before making a
+production-grade optimization claim, challenge the candidate on the same
+workload and joint SLO against tuned stock `write_through_selective` and
+`write_back`. If checked reclamation wins only against the same-Publication
+reference but not the best stock policy, retain only the mechanism result.
+
+ToolGap-triggered on-demand Publication may be reviewed only after measurement
+shows that eager Publication is the decisive cost and an independent accepted
+contract defines its behavior. This decision does not authorize that mechanism.
+
+Alternatives considered:
+
+- treat the G0 `write_through` choice as a production-optimal policy;
+- compare release-only and checked reclamation with different Host-copy
+  histories;
+- claim end-to-end value after beating only the same-Publication reference;
+- add on-demand Publication now to make the candidate look stronger.
+
+Evidence:
+
+`experiments/g0/artifacts/host-mode-selection.md` supports only the committed
+Host-copy source semantics and explicitly rejects a runtime conclusion. D004
+and `EVALUATION.md` already require a same-copy release-only causal baseline.
+There is no ToolGap runtime, Publication-cost, or performance evidence.
+
+Consequences:
+
+`EVALUATION.md` owns the two-level baseline protocol. G1/G2 mechanism and
+correctness work remains isolated from production-policy tuning, while any
+later production claim must survive the strongest measured stock policy. The
+project claim remains `roadmap`.
+
+Reopen condition:
+
+Reopen if fixed-pin source or runtime evidence invalidates the committed-copy
+semantics, shows that a named stock policy cannot be configured fairly, or
+measures eager Publication as a decisive cost worthy of a separate contract
+review.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `EVALUATION.md`,
+`../worklog/plans/2026-08-22/write-policy-scope-decision.md`, and
+`../worklog/reviews/2026-08-22/write-policy-scope-steelman-review.md`.
+
+## 2026-08-22 — D035: Reject general Demote Pacing as the default; admit one measurement-driven conditional optimization series
+
+Status: accepted
+
+Context:
+
+Fixed pin plus `write_through` spans three distinct costs that a generic
+"Demote Pacing" label would conflate: earlier Publication, tool-gap-triggered
+checked reclamation, and later Recovery. G0 provides only source/package and
+ordinary-serving integration evidence; no current artifact identifies any of
+these stages as a performance bottleneck.
+
+Decision:
+
+Keep the stages explicit:
+
+1. **Publication:** the earlier HBM-to-Host D2H and Host commit;
+2. **checked reclamation:** after the tool gap, reuse that committed Host copy
+   and call the existing checked demote path to release the device value/HBM;
+   do not presume this stage performs D2H;
+3. **Recovery:** on resume, restore Host-to-HBM or recompute.
+
+The G1-G4 mainline question remains whether tool-gap-triggered immediate checked
+reclamation creates allocator headroom earlier than target session-priority
+release plus stock eviction and thereby increases maximum sustainable arrival
+rate under the joint SLO. G1 and G2 establish mechanism and correctness, not a
+performance win.
+
+Reject general Demote Pacing as a default implementation. Do not add a
+`PacingController`, public pacing parameters, a Gate, or a module. During G3 or
+G4, only a reproducible stage-attributed symptom may occupy one conditional
+optimization slot, and only one series may be active:
+
+- if per-node final checks, release, or free-drain in checked reclamation is
+  measured as scheduler, CPU, or allocator interference, a later SPEC revision
+  may consider candidate-owned **Checked Reclamation Chunking**. It may apply a
+  node/byte budget per scheduler cycle and stop after the required headroom is
+  reached. Resume may cancel only chunks not yet started; already released
+  content follows normal restore/recompute. Admission requires an ablation,
+  deletion test, and losing workload. This is not a current implementation;
+- if eager Publication D2H or Host occupancy is decisive, only an independent
+  review may admit **Tool-gap-triggered On-demand Publication with Pacing**;
+  D035 does not authorize it;
+- if Recovery/H2D is decisive, verify the fixed-pin restore path first. A
+  profile-justified narrow upstream layer-wise/substrate patch must be shared
+  by baseline and candidate arms and is not a ToolGap differential;
+- event-driven completion regains candidate status only if polling wait is
+  measured on the critical path;
+- slicing, coalescing, concurrent channels, and PD transfer remain in
+  `future/PD_TRANSFER_SLICE.md`; L3 and prefetch remain outside the mainline;
+- a dynamic selector remains blocked until G5 admission.
+
+If there is no reproducible bottleneck, implement no additional optimization
+patch. No memcpy bandwidth, release-rate, or microbenchmark result can win by
+itself: the same workload must close action -> mediator -> joint endpoint, with
+realized KV-pool pressure and fair sharing of any two-arm substrate patch.
+
+Alternatives considered:
+
+- implement a general pacing framework before a measured symptom;
+- pace all three stages under one controller;
+- run multiple optimization series in parallel;
+- treat chunking, on-demand Publication, layer-wise restore, event completion,
+  PD transfer, L3, prefetch, or policy as one bundled optimization;
+- infer a performance win from bandwidth or reclamation microbenchmarks.
+
+Evidence:
+
+The fixed G0 patch defines a call to existing demote only after checking a
+committed Host duplicate; it does not establish a new D2H in checked
+reclamation. The accepted evaluation contract already requires
+allocator-visible headroom and a joint-SLO endpoint. The PR5 PD-transfer and
+restore reviews preserve separate-scope and preflight conclusions, but no prior
+accepted decision authorizes general Demote Pacing. All performance claims
+remain `roadmap`.
+
+Consequences:
+
+`ROADMAP.md` keeps the existing conditional diagnosis outside Gate order;
+`engineering/PERFORMANCE_ENGINEERING.md` owns stage attribution and one-series
+admission; `EVALUATION.md` owns fairness, pressure, reachability, and endpoint
+proof. No runtime work is authorized.
+
+Reopen condition:
+
+Reopen only from a reproducible G3/G4 symptom with stage attribution and a
+small discriminating experiment, or after G5 independently admits a selector.
+The reopen record must identify the one selected series, SPEC revision,
+ablation, deletion test, losing workload, and fair arm treatment.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `ROADMAP.md`, `EVALUATION.md`,
+`engineering/PERFORMANCE_ENGINEERING.md`,
+`../worklog/plans/2026-08-22/bottom-optimization-route-landing.md`, and
+`../worklog/reviews/2026-08-22/bottom-optimization-route-reshape.md`.
 
 ## Decision Template
 

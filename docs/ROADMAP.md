@@ -245,9 +245,42 @@ result. It does not require dynamic policy.
 
 After G0-G2, a reproducible symptom encountered during G3 or G4 may invoke the
 method in [`engineering/PERFORMANCE_ENGINEERING.md`](engineering/PERFORMANCE_ENGINEERING.md).
-No diagnosis report or optimization patch is required when no symptom exists.
+Classify the symptom before selecting work:
+
+1. **Publication:** the earlier HBM-to-Host D2H and committed Host copy;
+2. **checked reclamation:** after the tool gap, reuse that copy and call the
+   checked demote path to release device value/HBM; do not assume this stage
+   performs D2H;
+3. **Recovery:** Host-to-HBM restore or recompute after resume.
+
+This diagnosis has one conditional optimization slot and may admit at most one
+series. General Demote Pacing is not a default implementation, and no
+`PacingController`, public pacing parameter, Gate, or module is authorized. No
+reproducible bottleneck means no additional optimization patch.
+
+- Reclamation-side scheduler/CPU/allocator interference from final checks,
+  release, or free-drain may admit a later **Checked Reclamation Chunking** SPEC
+  revision: a node/byte budget per scheduler cycle, stop after sufficient
+  headroom, cancellation only for chunks not yet started, and ordinary
+  restore/recompute for already released content. It still requires an
+  ablation, deletion test, and losing workload; it is not current behavior.
+- Decisive eager Publication D2H or Host-occupancy cost requires an independent
+  review before **Tool-gap-triggered On-demand Publication with Pacing**; this
+  route does not authorize it.
+- A Recovery/H2D bottleneck first requires fixed-pin restore-path verification.
+  Any profile-justified narrow upstream layer-wise/substrate patch must be
+  shared by baseline and candidate arms and is not a ToolGap differential.
+- Event-driven completion is reconsidered only if polling wait is measured on
+  the critical path.
+- Slicing, coalescing, concurrent channels, and PD transfer remain in
+  [`future/PD_TRANSFER_SLICE.md`](future/PD_TRANSFER_SLICE.md); L3 and prefetch
+  remain separate future reviews. A dynamic selector remains blocked on G5.
+
 A behavior-changing fix requires an updated SPEC revision and new run identity;
-it cannot retroactively turn an earlier result into PASS.
+it cannot retroactively turn an earlier result into PASS. The primary question
+remains whether immediate checked reclamation beats target session-priority
+release plus stock eviction on maximum sustainable arrival rate under the
+joint SLO, not whether a local bandwidth or release microbenchmark improves.
 
 ## G5 — Dynamic Policy Admission
 

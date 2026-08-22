@@ -33,7 +33,7 @@ and return all declared resources to baseline.
 ### H3 — Immediate reclamation adds value
 
 In at least one reachable pressure regime, checked reclamation creates useful
-headroom earlier than Publication to the same committed Host copy plus the
+headroom earlier than the `write_through` same-Publication reference with the
 G0-proven target session-priority release and stock eviction.
 
 ### H4 — The mechanism has a measurable boundary
@@ -50,22 +50,37 @@ small selector can outperform a tuned static/action-only baseline beyond noise.
 
 1. stock SGLang HiCache with no ToolGap lifecycle trigger;
 2. stock session-radix behavior where applicable;
-3. Publication plus a source-proven target session-priority release that
-   preserves the declared pause/resume lifecycle, with stock eviction;
-4. forced checked reclamation over the same committed Host copy;
-5. forced restore and forced recompute when each is a fair, attributable path;
-6. no-pressure and already-timely-stock controls where demotion should lose or
+3. `write_through` Publication plus a source-proven target session-priority
+   release that preserves the declared pause/resume lifecycle, with stock
+   eviction;
+4. forced checked reclamation over the same `write_through` committed Host
+   copy and Publication history;
+5. for any production optimization claim, tuned stock
+   `write_through_selective` and `write_back` under the same workload and joint
+   SLO;
+6. forced restore and forced recompute when each is a fair, attributable path;
+7. no-pressure and already-timely-stock controls where demotion should lose or
    be irrelevant;
-7. for policy studies, B0/B1/B2 and an optional local action oracle.
+8. for policy studies, B0/B1/B2 and an optional local action oracle.
 
-The release-priority-only path is the strongest simple baseline: it shares
-Publication, committed Host copies, workload, instrumentation, and stock
-eviction with checked reclamation. G0 must prove that the release operation is
-not terminal session close under another name. All policy baselines must share
-the same physical executor and legal action set when policy is the independent
-variable. A local action oracle may choose the best observed QoS-feasible action
-at one state, but it is a local regret reference, not a global sequential-policy
-upper bound.
+The first comparison is a qualification/causal reference for G1, G2, and the
+first G3 run: release-only and checked reclamation share `write_through`
+Publication, the committed Host copy, workload, instrumentation, and stock
+eviction. G0 must prove that the release operation is not terminal session close
+under another name. `write_through` is not presumed production-optimal.
+
+A production claim adds the second comparison against the best measured tuned
+stock policy from `write_through_selective` and `write_back`, with identical
+source/build, model, capacity, workload, arrival process, SLO, and observation
+rules. If the candidate wins the same-Publication comparison but not this stock
+policy challenge, report only a mechanism result. Tool-gap-triggered on-demand
+Publication is excluded unless an independent accepted contract is opened after
+eager Publication is measured as the decisive cost.
+
+All policy baselines must share the same physical executor and legal action set
+when policy is the independent variable. A local action oracle may choose the
+best observed QoS-feasible action at one state, but it is a local regret
+reference, not a global sequential-policy upper bound.
 
 ## 4. Primary Metric
 
@@ -84,14 +99,30 @@ TTFT while violating foreground ITL is not a win.
 
 ## 5. Causal Metrics
 
-### Physical mechanism
+### Publication
+
+- Host-write policy and Publication trigger;
+- HBM-to-Host D2H submission, completion, and Host commit timing;
+- committed Host bytes and Host occupancy before the tool gap.
+
+### Checked reclamation
 
 - requested, eligible, scheduled, and completed bytes;
 - allocator free pages before and after completion;
-- time from pause to committed Host copy;
+- release-only versus checked-reclamation action identity;
 - time from demotion admission to allocator-visible capacity;
 - device/Host residency and stock eviction activity;
-- transfer queue and completion timing.
+- final-check, release, free-drain, queue, and completion timing.
+
+Checked reclamation reuses the committed Host copy. Do not attribute the
+earlier Publication D2H to the checked-reclamation action or assume that the
+existing demote performs another D2H.
+
+### Recovery
+
+- Host-to-HBM restore queue, transfer, and completion timing;
+- recompute prefill and fallback timing;
+- restored or recomputed bytes and first-token dependency.
 
 ### Request-level effect
 
@@ -111,6 +142,17 @@ TTFT while violating foreground ITL is not a win.
 - blocking and parallel tool groups.
 
 Offered context tokens alone are not a measure of realized GPU pressure.
+
+Every performance comparison must close action -> mediator -> request endpoint
+on the same workload. memcpy bandwidth, release speed, or another
+microbenchmark cannot independently establish a win. A substrate patch that
+affects both arms must be shared by both and cannot count as a ToolGap
+differential.
+
+Pressure must be evidenced by realized KV-pool occupancy, allocator headroom,
+and stock-eviction activity. A reduced pool is admissible for controlled
+pressure, but reduced capacity or offered tokens alone do not establish that
+the regime is reachable; any claim must state its workload reachability basis.
 
 ## 6. Initial Sentinel Scenarios
 

@@ -65,14 +65,20 @@ fencing、fallback、cleanup 和 DecisionTrace；SGLang 仍拥有 tree、physica
 residency、Host/device allocation、movement、stock eviction、scheduler 和
 model execution。普通请求走 stock path。
 
-| 阶段 | 主要问题 | 性能关系 |
+固定 pin + `write_through` 必须拆成三段，不能用一个 "Demote" duration
+覆盖它们：
+
+| 阶段 | 物理边界 | 性能关系 |
 |---|---|---|
-| Host publication | copy 何时 committed | 是 demotion 资格前置，不自动等于 resumed TTFT |
-| Target resolution | 目标是否仍是 legal device leaf，且不伤害 protected non-target session | 可能产生 CPU overhead；错误 resolution 是 correctness failure |
-| Physical demotion | 哪些 bytes 完成 device release，allocator 何时可见 | mechanism mediator，不是 endpoint |
-| Completion/fence/cleanup | stale、cancel、late completion 是否安全收口 | 未闭合时所有性能结果失去资格 |
-| Resume | restore/recompute/scheduler 何时完成 | 直接影响 resumed TTFT；restore 可能输给 recompute |
-| Foreground serving | copy、CPU、Host、allocator 争用是否伤害前台 | foreground ITL 和 success 是硬约束 |
+| Publication | tool gap 前更早发生的 HBM→Host D2H 与 Host commit | 是 checked reclamation 的资格前置；eager copy/Host occupancy 可独立形成成本 |
+| checked reclamation | tool gap 后复用已 committed Host copy，做 target resolution、final check、existing demote、device release 和 free-drain | 目标是更早 allocator headroom；不得预设这一段再次执行 D2H |
+| Recovery | resume 后 Host→HBM restore 或 recompute，再进入 first token | 直接影响 resumed TTFT，也可能与 foreground 争用 |
+
+Target resolution 错误、completion/fence/cleanup 未闭合仍是 correctness
+failure，不是可由性能抵消的 overhead。checked reclamation 的 bytes、释放速度
+和 allocator delta 是 mechanism mediator；Publication D2H、Recovery H2D 以及
+foreground CPU/Host/copy/allocator 争用必须分别归因，重叠 wall-clock duration
+不能无条件相加。
 
 resume 的 restore/recompute 可能在直接 TTFT critical path；异步 demotion
 通常通过 HBM、Host、copy、CPU、allocator 或 scheduler 影响 foreground，
@@ -88,7 +94,10 @@ vs
 release target session-priority contribution + checked reclamation
 ~~~
 
-其余 baseline 定义以 EVALUATION.md 为准，本文件不创建第二套实验计划。
+这里的 `write_through` 是 G1/G2 和第一轮 G3 的 qualification/reference
+mode，不是 production-optimal 假设。生产优化结论还必须按 EVALUATION.md 在
+相同 workload 和 joint SLO 下挑战 tuned stock `write_through_selective` 与
+`write_back`；本文件不创建第二套实验计划。
 
 ## 3. 证据层级决定结论上限
 
@@ -287,29 +296,45 @@ action 未分离表示实验未操控成功；mediator 未变表示机制链断�
 变而 endpoint 不变最多是机制/资源结果；endpoint 变而 mediator 不变先判
 混淆；endpoint 改善但 ITL、success、cleanup 或 correctness 退化不是 win。
 
-## 9. 优化纪律：先删无效工作，再考虑新机制
+## 9. 单槽条件优化纪律：拒绝通用 Demote Pacing 默认实现
 
-开始改动前先回答：症状能否稳定复现？path truth 是否足够？根因在哪个
-source seam/state/resource？candidate 能否控制？是否有 release-only baseline、
-falsifier、rollback、deletion test 和 losing workload？任一答案为否，先补
-证据或 handoff。
+当前没有证据授权通用 Demote Pacing。不要预建 `PacingController`、公共
+pacing 参数、新 Gate 或新模块。开始改动前先回答：症状能否稳定复现？path
+truth 是否足够？根因属于 Publication、checked reclamation 还是 Recovery？
+candidate 能否控制？是否有 release-only baseline、falsifier、rollback、
+deletion test 和 losing workload？任一答案为否，先补证据或 handoff；没有
+可重复 bottleneck 就不实现额外 optimization patch。
 
-优化顺序遵循 PERFORMANCE_BOUNDARY.md：
+G3/G4 的 conditional diagnosis 只有一个 slot，同一时刻至多准入一个
+measurement-driven series：
 
-1. 删除不影响 allocator 或 scheduler 的无效工作；
-2. 减少已证明在 critical path 上的同步和重复 bookkeeping；
-3. 按测得的 queue、copy、CPU/Host 或 GPU interference 减少干扰；
-4. 只有 target resolution 被证明是 bottleneck 时才优化它；
-5. dynamic policy 等 G5 后再讨论；
-6. prefetch、额外 storage tier、router、scheduler、kernel 或新 physical
-   data plane 走独立 review。
+| 被测症状 | 最小区分 | disposition |
+|---|---|---|
+| Publication 的 eager D2H 或 Host occupancy 是决定性成本 | 隔离 Publication timing/occupancy，保持后续 action 与 workload 可比 | 只有独立 accepted review 才能准入 **Tool-gap-triggered On-demand Publication with Pacing**；当前不授权 |
+| checked reclamation 的逐节点 final check、release 或 free-drain 造成 scheduler/CPU/allocator interference | stage timing + CPU/allocator wait + headroom/endpoint manipulation check | 可在后续 SPEC revision 考虑 candidate-owned **Checked Reclamation Chunking** |
+| Recovery/H2D 主导 resumed critical path | 先验证 fixed-pin restore/load_back 实际路径，再 profile H2D/compute overlap | 窄 layer-wise/substrate patch 若获准，baseline/candidate 两组共享，不算 ToolGap differential |
+| polling wait 进入 completion critical path | polling interval/CPU 与 completion→headroom endpoint 对齐 | 只有此时 event-driven completion 才恢复候选资格 |
+
+Checked Reclamation Chunking 也不是当前实现。其最窄候选语义是按每个
+scheduler cycle 的 node/byte budget 分段，达到所需 allocator headroom 后停止；
+resume 只能取消尚未开始的 chunks，已释放部分仍走正常 restore/recompute。
+准入必须有独立 SPEC revision、ablation、deletion test 和 losing workload。
+
+优化仍先删除不影响 allocator/scheduler 的工作，再减少实测 critical-path
+同步、重复 bookkeeping 或共享资源干扰。任何 series 都必须在同一 workload
+闭合 action → mediator → joint endpoint；memcpy 带宽、释放速度或
+microbenchmark 不能单独判赢。人为缩小 KV pool 可制造受控压力，但 claim
+还必须用真实 occupancy/headroom/eviction activity 说明 pressure，并声明
+workload reachability。
 
 candidate 可优化 operation identity、checked resolution、fencing、fallback、
 cleanup、DecisionTrace overhead 和证据生成。SGLang 负责 physical tree、
 allocator、movement、eviction、scheduler 和 model execution；定位到它们时，
-默认是 diagnosis、substrate limitation 或 upstream handoff。只有 G0 证明窄
-缺口可由 auditable patch 修补时，才另行记录 patch、测试、source pin 和
-deletion test。代码量不是 ownership。
+默认是 diagnosis、substrate limitation 或 upstream handoff。任何影响两 arm
+的 substrate patch 必须公平共享。slicing、coalescing、concurrent channels
+和 PD transfer 继续属于
+[`future/PD_TRANSFER_SLICE.md`](../future/PD_TRANSFER_SLICE.md)；L3/prefetch
+不进入主线，dynamic selector 等 G5 admission。代码量不是 ownership。
 
 ## 10. 生命周期和 non-interference 是硬 guardrail
 
