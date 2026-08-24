@@ -261,7 +261,7 @@ upload_one() {
   read -r actual_sha256 actual_size <<<"$(file_metadata "$local_path")"
   [[ "$actual_sha256" == "$expected_sha256" && "$actual_size" == "$expected_size" ]] \
     || die "artifact changed before upload: $relative_path"
-  ossutil cp "$local_path" "$object_uri"
+  ossutil -f cp "$local_path" "$object_uri" </dev/null
   version_id="$(latest_version_id "$object_uri")"
   printf '%s\t%s\t%s\t%s\t%s\n' \
     "$relative_path" "$expected_sha256" "$expected_size" "$object_uri" "$version_id" >>"$RECORDS"
@@ -277,9 +277,9 @@ read -r INDEX_SHA256 INDEX_SIZE <<<"$(file_metadata "$ATTEMPT_DIR/artifact-index
 read -r RECEIPT_SHA256 RECEIPT_SIZE <<<"$(file_metadata "$ATTEMPT_DIR/completion-receipt.json")"
 INDEX_URI="$RAW_ROOT/artifact-index.json"
 RECEIPT_URI="$RAW_ROOT/completion-receipt.json"
-ossutil cp "$ATTEMPT_DIR/artifact-index.json" "$INDEX_URI"
+ossutil -f cp "$ATTEMPT_DIR/artifact-index.json" "$INDEX_URI" </dev/null
 INDEX_VERSION_ID="$(latest_version_id "$INDEX_URI")"
-ossutil cp "$ATTEMPT_DIR/completion-receipt.json" "$RECEIPT_URI"
+ossutil -f cp "$ATTEMPT_DIR/completion-receipt.json" "$RECEIPT_URI" </dev/null
 RECEIPT_VERSION_ID="$(latest_version_id "$RECEIPT_URI")"
 
 ANCHOR_FILE="$TMP_DIR/external-anchor.json"
@@ -393,7 +393,7 @@ print(hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest())
 PY
 )"
 ANCHOR_URI="oss://$BUCKET/$ANCHOR_PREFIX/$ATTEMPT_ID/external-anchor-$ANCHOR_SHA256.json"
-ossutil cp "$ANCHOR_FILE" "$ANCHOR_URI"
+ossutil -f cp "$ANCHOR_FILE" "$ANCHOR_URI" </dev/null
 ANCHOR_VERSION_ID="$(latest_version_id "$ANCHOR_URI")"
 
 printf 'OSS_EXTERNAL_ANCHOR_URI=%s\n' "$ANCHOR_URI"

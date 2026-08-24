@@ -67,6 +67,7 @@ import importlib.util
 import json
 import pathlib
 import re
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -256,6 +257,35 @@ assert "toolgap_cuda12_restricted_startup" in runner
 assert "selector did not resolve exactly one test" in runner
 assert '"$RUNTIME_VENV/bin/python" -m unittest' not in runner
 assert "env -u PYTHONPATH" in runner
+assert '"$RUN_DIR/restricted-startup-runner.py"' in runner
+assert 'if __name__ == "__main__":' in runner
+assert '"$RUNTIME_VENV/bin/python" - \\' not in runner
+launcher_start = runner.index("source = '''") + len("source = '''")
+launcher_end = runner.index("'''\nfd = os.open", launcher_start)
+launcher_source = runner[launcher_start:launcher_end]
+compile(launcher_source, "restricted-startup-runner.py", "exec")
+with tempfile.TemporaryDirectory() as temp_dir:
+    temp_root = pathlib.Path(temp_dir)
+    launcher = temp_root / "restricted-startup-runner.py"
+    test_module = temp_root / "restricted-startup-test.py"
+    launcher.write_text(launcher_source, encoding="utf-8")
+    test_module.write_text(
+        """import multiprocessing\nimport os\nimport unittest\n\n\nclass TestG1PreflightStartup(unittest.TestCase):\n    def test_local_model_starts_without_runtime_script(self):\n        child = multiprocessing.get_context(\"spawn\").Process(target=os.getpid)\n        child.start()\n        child.join(10)\n        self.assertEqual(child.exitcode, 0)\n""",
+        encoding="utf-8",
+    )
+    replay = subprocess.run(
+        [
+            sys.executable,
+            str(launcher),
+            str(test_module),
+            "test.registered.scripted_runtime.test_toolgap_g1_forced_demote.TestG1PreflightStartup.test_local_model_starts_without_runtime_script",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert replay.returncode == 0, replay.stdout + replay.stderr
 assert "0003-cuda12-compat-packaging.patch" not in runner
 assert "CUDA12_COMPAT_RUNTIME_WHEEL" in runner
 assert "CUDA12_COMPAT_RUNTIME_WHEEL_PROVENANCE" in runner
@@ -473,12 +503,17 @@ assert '"$FINALIZER" verify --run-dir "$ATTEMPT_DIR"' in anchor
 assert "ossutil ls --all-versions" in anchor
 assert "CUDA12_COMPAT_001_EXTERNAL_OSS_ANCHOR" in anchor
 assert "raw and anchor prefixes must not overlap" in anchor
+assert anchor.count("ossutil -f cp ") == 4
+assert anchor.count("</dev/null") == 4
+assert 'ossutil cp "$local_path" "$object_uri"' not in anchor
 stager = stager_path.read_text(encoding="utf-8")
 assert "input-oss-receipt.json" in stager
 assert "ossutil ls --all-versions" in stager
 assert "refusing to overwrite existing receipt" in stager
 assert "version_id" in stager
 assert "version_id, latest, delete_marker, uri = fields[-4:]" in stager
+assert stager.count("ossutil -f cp ") == 2
+assert stager.count("</dev/null") == 2
 PY
 
 PATH="$(dirname -- "$PYTHON"):$PATH" bash "$ROOT/scripts/verify-g1-preflight-001-bundle.sh"

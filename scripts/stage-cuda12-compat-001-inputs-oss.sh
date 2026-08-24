@@ -148,7 +148,7 @@ while IFS=$'\t' read -r label local filename expected_sha expected_size; do
   [[ "$(shasum -a 256 "$local" | awk '{print $1}')" == "$expected_sha" ]] || die "input hash differs: $label"
   [[ "$(stat -f '%z' "$local")" == "$expected_size" ]] || die "input size differs: $label"
   object_uri="oss://$BUCKET/$PREFIX/$filename"
-  ossutil cp "$local" "$object_uri"
+  ossutil -f cp "$local" "$object_uri" </dev/null
   version_id="$(latest_version_id "$object_uri")" || die "cannot read uploaded object version: $label"
   printf '%s\t%s\t%s\t%s\t%s\n' "$label" "$object_uri" "$version_id" "$expected_sha" "$expected_size" >>"$RECORDS"
 done <"$PLAN"
@@ -178,6 +178,6 @@ os.chmod(receipt_path, 0o444)
 PY
 
 receipt_uri="oss://$BUCKET/$PREFIX/input-oss-receipt.json"
-ossutil cp "$RECEIPT" "$receipt_uri"
+ossutil -f cp "$RECEIPT" "$receipt_uri" </dev/null
 receipt_version="$(latest_version_id "$receipt_uri")" || die "cannot read receipt object version"
 printf 'CUDA12_COMPAT_001_INPUTS_STAGED receipt=%s version_id=%s\n' "$receipt_uri" "$receipt_version"
