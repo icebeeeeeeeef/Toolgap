@@ -51,6 +51,47 @@ declare -A SELECTORS=(
   [stock_eviction_liveness]="TestG1StockEvictionLiveness.test_stock_eviction_remains_reachable_after_bypass"
 )
 
+CURRENT_ARM_PID=""
+CURRENT_ARM_PGID=""
+CURRENT_SAMPLER_PID=""
+
+# BEGIN_SIGNAL_CLEANUP_HELPERS
+valid_runtime_pid() {
+  [[ "${1:-}" =~ ^[1-9][0-9]*$ ]]
+}
+stop_current_sampler() {
+  local sampler_pid="${CURRENT_SAMPLER_PID:-}"
+  if valid_runtime_pid "$sampler_pid"; then
+    if kill -0 "$sampler_pid" 2>/dev/null; then
+      kill -TERM "$sampler_pid" 2>/dev/null || true
+      sleep 1
+      if kill -0 "$sampler_pid" 2>/dev/null; then kill -KILL "$sampler_pid" 2>/dev/null || true; fi
+    fi
+    wait "$sampler_pid" 2>/dev/null || true
+  fi
+  CURRENT_SAMPLER_PID=""
+}
+stop_current_arm_group() {
+  local arm_pid="${CURRENT_ARM_PID:-}" pgid="${CURRENT_ARM_PGID:-}"
+  if valid_runtime_pid "$pgid" && kill -0 -- "-$pgid" 2>/dev/null; then
+    kill -TERM -- "-$pgid" 2>/dev/null || true
+    sleep 1
+    if kill -0 -- "-$pgid" 2>/dev/null; then kill -KILL -- "-$pgid" 2>/dev/null || true; fi
+  elif valid_runtime_pid "$arm_pid" && kill -0 "$arm_pid" 2>/dev/null; then
+    kill -TERM "$arm_pid" 2>/dev/null || true
+    sleep 1
+    if kill -0 "$arm_pid" 2>/dev/null; then kill -KILL "$arm_pid" 2>/dev/null || true; fi
+  fi
+  if valid_runtime_pid "$arm_pid"; then wait "$arm_pid" 2>/dev/null || true; fi
+  CURRENT_ARM_PID=""
+  CURRENT_ARM_PGID=""
+}
+cleanup_active_processes() {
+  stop_current_sampler
+  stop_current_arm_group
+}
+# END_SIGNAL_CLEANUP_HELPERS
+
 die() { printf 'g1-c-001: %s\n' "$*" >&2; exit 2; }
 require() { command -v "$1" >/dev/null || die "missing command: $1"; }
 copy_immutable() {
@@ -83,13 +124,16 @@ capture_environment() {
 }
 seal_invalid() {
   local code="$1"
-  trap - ERR HUP INT TERM
+  trap - EXIT ERR
+  trap '' HUP INT TERM
+  cleanup_active_processes
   if [[ -d "$RUN_DIR" && -f "$RUN_DIR/attempt-context.json" && -f "$RUN_DIR/environment.txt" && ! -e "$RUN_DIR/execution-status.json" ]]; then
     "$PYTHON" "$FINALIZER" invalid --run-dir "$RUN_DIR" --reason "runner failure at phase ${PHASE:-unclassified}, exit $code" || true
   fi
   exit "$code"
 }
 PHASE="bootstrap"
+trap 'seal_invalid "$?"' EXIT
 trap 'seal_invalid "$?"' ERR
 trap 'seal_invalid 129' HUP
 trap 'seal_invalid 130' INT
@@ -382,15 +426,20 @@ run_arm() {
       "$TREATMENT/test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py" "$selector"
   ) >"$arm_dir/$arm.log" 2>&1 &
   pid="$!"
+  CURRENT_ARM_PID="$pid"
+  CURRENT_ARM_PGID=""
   pgid="$(ps -o pgid= -p "$pid" | xargs)"
   [[ "$pgid" == "$pid" ]] || die "arm $arm did not form its own process group"
+  CURRENT_ARM_PGID="$pgid"
   printf '%s\n' "$pid" >"$arm_dir/$arm.pid"
   printf '%s\n' "$pgid" >"$arm_dir/$arm.pgid"
   "$PYTHON" "$GPU_SAMPLER" --arm-pid "$pid" --poll-seconds 0.25 \
     --samples "$arm_dir/$arm.gpu-samples.json" --union "$arm_dir/$arm.gpu-during.txt" &
   sampler_pid="$!"
+  CURRENT_SAMPLER_PID="$sampler_pid"
   if wait "$pid"; then status=0; else status=$?; fi
   if ! wait "$sampler_pid"; then die "arm $arm GPU sampler failed"; fi
+  CURRENT_SAMPLER_PID=""
   ps -eo pid=,pgid=,stat=,args= | awk -v group="$pgid" '$2 == group && $3 !~ /^Z/' >"$arm_dir/$arm.process-group-after.txt"
   gpu_pids >"$arm_dir/$arm.gpu-after.txt"
   ss -ltnH | LC_ALL=C sort -u >"$arm_dir/$arm.listeners-after.txt"
@@ -408,8 +457,11 @@ fd = os.open(out, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
 with os.fdopen(fd, "w", encoding="utf-8") as handle: handle.write(json.dumps(document, indent=2, sort_keys=True) + "\n")
 os.chmod(out, 0o444)
 PY
+  [[ ! -s "$arm_dir/$arm.process-group-after.txt" && ! -s "$arm_dir/$arm.gpu-leaked.txt" && ! -s "$arm_dir/$arm.listeners-leaked.txt" ]] || die "arm $arm cleanup evidence is not clean"
   [[ "$status" == 0 ]] || return "$status"
   "$PYTHON" "$EXTRACTOR" --expected-arm "$arm" --log "$arm_dir/$arm.log" --output "$arm_dir/$arm.record.json"
+  CURRENT_ARM_PID=""
+  CURRENT_ARM_PGID=""
 }
 for arm in "${ARMS[@]}"; do run_arm "$arm" "${SELECTORS[$arm]}"; done
 "$PYTHON" - "$RUN_DIR/arm-records.json" "$RUN_DIR/cleanup.json" "$RUN_DIR" "${ARMS[@]}" <<'PY'

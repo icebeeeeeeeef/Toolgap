@@ -74,8 +74,19 @@ def record(arm: str) -> dict[str, object]:
         value["route_counters"] = {**route, "checked_facade": 0, "checked_backend": 0, "stock_evict": 1}
         value["stock_eviction"] = {
             "candidate_ids_before": [7], "observed_calls": 1,
-            "results": [{"num_tokens_evicted": 1}],
-            "victims": [{"node_id": 7}],
+            "results": [{
+                "num_tokens_evicted": 1, "swa_num_tokens_evicted": 0,
+                "mamba_num_evicted": 0,
+            }],
+            "victims": [{
+                "node_id": 7,
+                "before": copy.deepcopy(observation),
+                "after": {
+                    **copy.deepcopy(observation), "device_ids": [], "device_leaf": False,
+                },
+                "capacity_before": {"available_size": 1, "is_not_in_free_group": True},
+                "capacity_after": {"available_size": 2, "is_not_in_free_group": True},
+            }],
         }
     else:
         reason = FINALIZE.REJECTION_REASONS[arm]
@@ -128,6 +139,18 @@ class G1C001TerminalTests(unittest.TestCase):
         value = records()
         value[0]["target"]["before"][0]["device_ids"] = [42, "bad"]
         self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_minimal_stock_victim_is_invalid(self) -> None:
+        value = records()
+        value[-1]["stock_eviction"]["victims"] = [{}]
+        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_stock_tombstone_victim_after_is_valid(self) -> None:
+        value = records()
+        value[-1]["stock_eviction"]["victims"][0]["after"] = {
+            "node_id": 7, "live": False,
+        }
+        self.assertEqual(FINALIZE.classify_records(value)[0], "PASS")
 
 
 if __name__ == "__main__":

@@ -387,8 +387,7 @@ def record_errors(record: object, expected_arm: str) -> list[str]:
         errors.append("capacity")
     else:
         for sample in capacity.values():
-            if not isinstance(sample, dict) or set(sample) != {"available_size", "is_not_in_free_group"} or not isinstance(sample["available_size"], int) or sample["available_size"] < 0 or sample["is_not_in_free_group"] is not True:
-                errors.append("capacity:sample")
+            errors.extend(f"capacity:{error}" for error in capacity_sample_errors(sample))
     if record["priority_release"] not in {"RELEASED", "NOT_RELEASED"}:
         errors.append("priority_release")
     if not isinstance(record["released_component_leaves"], int) or record["released_component_leaves"] < 0:
@@ -403,6 +402,8 @@ def record_errors(record: object, expected_arm: str) -> list[str]:
         errors.append("nodes")
     if not isinstance(record["freed_device_ids"], list) or not all(isinstance(value, int) for value in record["freed_device_ids"]):
         errors.append("freed_device_ids")
+    if expected_arm == "stock_eviction_liveness":
+        errors.extend(stock_eviction_errors(record))
     return errors
 
 
@@ -430,6 +431,82 @@ def observation_errors(observation: object) -> list[str]:
             return [f"{field}"]
     if type(observation["session_ref"]) is not int:
         return ["session_ref"]
+    return []
+
+
+def capacity_sample_errors(sample: object) -> list[str]:
+    if not isinstance(sample, dict) or set(sample) != {"available_size", "is_not_in_free_group"}:
+        return ["schema"]
+    if type(sample["available_size"]) is not int or sample["available_size"] < 0:
+        return ["available_size"]
+    if sample["is_not_in_free_group"] is not True:
+        return ["free_group"]
+    return []
+
+
+def stock_eviction_errors(record: dict[str, object]) -> list[str]:
+    stock = record.get("stock_eviction")
+    if not isinstance(stock, dict) or set(stock) != {
+        "candidate_ids_before", "observed_calls", "results", "victims",
+    }:
+        return ["stock_eviction:schema"]
+    candidates = stock["candidate_ids_before"]
+    if (
+        not isinstance(candidates, list)
+        or not candidates
+        or any(type(node_id) is not int for node_id in candidates)
+        or candidates != sorted(set(candidates))
+    ):
+        return ["stock_eviction:candidates"]
+    observed_calls, results, victims = stock["observed_calls"], stock["results"], stock["victims"]
+    if type(observed_calls) is not int or observed_calls < 1:
+        return ["stock_eviction:observed_calls"]
+    if not isinstance(results, list) or len(results) != observed_calls:
+        return ["stock_eviction:results"]
+    for index, result in enumerate(results):
+        if (
+            not isinstance(result, dict)
+            or set(result) != {"num_tokens_evicted", "swa_num_tokens_evicted", "mamba_num_evicted"}
+            or any(type(result[field]) is not int or result[field] < 0 for field in result)
+        ):
+            return [f"stock_eviction:results[{index}]"]
+    if not any(result["num_tokens_evicted"] > 0 for result in results):
+        return ["stock_eviction:no_token_reclaim"]
+    counters = record.get("route_counters")
+    if not isinstance(counters, dict) or counters.get("stock_evict") != observed_calls:
+        return ["stock_eviction:counter"]
+    if not isinstance(victims, list) or not victims:
+        return ["stock_eviction:victims"]
+    victim_ids = []
+    for index, victim in enumerate(victims):
+        if not isinstance(victim, dict) or set(victim) != {
+            "node_id", "before", "after", "capacity_before", "capacity_after",
+        }:
+            return [f"stock_eviction:victims[{index}]:schema"]
+        node_id = victim["node_id"]
+        if type(node_id) is not int or node_id not in candidates:
+            return [f"stock_eviction:victims[{index}]:candidate"]
+        before_errors = observation_errors(victim["before"])
+        after_errors = observation_errors(victim["after"])
+        if before_errors or after_errors:
+            return [f"stock_eviction:victims[{index}]:observation"]
+        before, after = victim["before"], victim["after"]
+        if (
+            before["node_id"] != node_id or before["live"] is not True
+            or before["device_leaf"] is not True or not before["device_ids"]
+            or after["node_id"] != node_id
+            or (after["live"] is True and after["device_ids"] != [])
+        ):
+            return [f"stock_eviction:victims[{index}]:transition"]
+        before_capacity_errors = capacity_sample_errors(victim["capacity_before"])
+        after_capacity_errors = capacity_sample_errors(victim["capacity_after"])
+        if before_capacity_errors or after_capacity_errors:
+            return [f"stock_eviction:victims[{index}]:capacity"]
+        if victim["capacity_after"]["available_size"] <= victim["capacity_before"]["available_size"]:
+            return [f"stock_eviction:victims[{index}]:no_allocator_reclaim"]
+        victim_ids.append(node_id)
+    if len(victim_ids) != len(set(victim_ids)):
+        return ["stock_eviction:duplicate_victim"]
     return []
 
 

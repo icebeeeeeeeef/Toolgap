@@ -14,9 +14,10 @@ FINALIZER="$ROOT/experiments/g1/commands/g1_c_001_finalize.py"
 TESTS="$ROOT/experiments/g1/commands/test_g1_c_001_finalize.py"
 GPU_SAMPLER="$ROOT/experiments/g1/commands/g1_c_001_gpu_sampler.py"
 GPU_SAMPLER_TESTS="$ROOT/experiments/g1/commands/test_g1_c_001_gpu_sampler.py"
+SIGNAL_CLEANUP_TESTS="$ROOT/experiments/g1/commands/test_g1_c_001_signal_cleanup.sh"
 ANCHOR="$ROOT/scripts/anchor-g1-c-001-oss.sh"
 
-for path in "$SPEC" "$TEMPLATE" "$BOOTSTRAP" "$RUNNER" "$BUILDER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS" "$ANCHOR"; do
+for path in "$SPEC" "$TEMPLATE" "$BOOTSTRAP" "$RUNNER" "$BUILDER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS" "$SIGNAL_CLEANUP_TESTS" "$ANCHOR"; do
   test -f "$path"
 done
 bash -n "$BOOTSTRAP"
@@ -25,6 +26,7 @@ bash -n "$ANCHOR"
 "$PYTHON" -m py_compile "$BUILDER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS"
 "$PYTHON" "$TESTS"
 "$PYTHON" "$GPU_SAMPLER_TESTS"
+bash "$SIGNAL_CLEANUP_TESTS"
 git -C "$ROOT" diff --check
 
 # G1-C-001 must not change predecessor evidence. This is intentionally a
@@ -99,6 +101,8 @@ assert "pip install --upgrade pip" not in runner
 assert "g1_c_001_gpu_sampler.py" in runner
 assert "--poll-seconds 0.25" in runner
 assert "gpu-samples.json" in runner and "gpu-during.txt" in runner and "gpu-attributable.txt" in runner
+assert "cleanup_active_processes" in runner and "CURRENT_ARM_PGID" in runner
+assert "trap 'seal_invalid \"$?\"' EXIT" in runner
 assert "scope scan requires every formal arm log" in runner
 assert "unapproved_index" in runner and "source_build" in runner
 for forbidden in (
@@ -145,5 +149,6 @@ assert "rejection contract" in finalizer and "stock eviction liveness" in finali
 assert "arm record aggregate differs from individual evidence" in finalizer
 assert "observation_errors" in finalizer and "LIVE_OBSERVATION_FIELDS" in finalizer
 assert "validate_gpu_samples" in finalizer and "GPU sampler union differs" in finalizer
+assert "stock_eviction_errors" in finalizer and "no_allocator_reclaim" in finalizer
 print("G1-C-001 static contract checks passed")
 PY

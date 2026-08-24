@@ -123,6 +123,8 @@ The terminal artifacts are immutable: `execution-status.json`,
 `verify` mode replays context/input/runtime provenance, selectors, per-arm
 PID/PGID/listener/GPU cleanup evidence, scope scan, raw records, and the
 classification oracle off-host using only the sealed directory. The
+runner terminates and waits for the active sampler and isolated arm process
+group before recording an `INVALID` after any error or termination signal.
 operator-only `scripts/anchor-g1-c-001-oss.sh` first performs that
 verification, uploads each indexed artifact to a versioned OSS prefix, and
 writes an external anchor that binds every OSS object version. The ECS role only
