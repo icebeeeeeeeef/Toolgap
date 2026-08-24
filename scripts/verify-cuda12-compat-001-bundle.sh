@@ -68,6 +68,8 @@ import json
 import pathlib
 import re
 import sys
+import tarfile
+import tempfile
 import tomllib
 
 root, pin_path, template_path, patch_one, patch_two, patch_three, runner_path, bootstrap_path, prereqs_path, builder_path, finalizer_path, wheelhouse_builder_path, repackager_path, anchor_path, stager_path = map(pathlib.Path, sys.argv[1:])
@@ -335,7 +337,18 @@ except ValueError:
     pass
 else:
     raise AssertionError("builder accepts missing runtime-wheel inputs")
-import tempfile
+with tempfile.TemporaryDirectory() as temp_dir:
+    bad_seed = pathlib.Path(temp_dir) / "bad-toolgap-seed.tar.gz"
+    with tarfile.open(bad_seed, "w:gz") as archive:
+        info = tarfile.TarInfo("._toolgap-source.git")
+        info.size = 0
+        archive.addfile(info)
+    try:
+        module.validate_toolgap_seed(bad_seed)
+    except ValueError as error:
+        assert "unsafe ToolGap seed member" in str(error)
+    else:
+        raise AssertionError("builder accepts an AppleDouble ToolGap seed member")
 with tempfile.TemporaryDirectory() as temp_dir:
     staged = pathlib.Path(temp_dir) / "ecs-download" / "runtime-wheel.whl"
     staged.parent.mkdir()

@@ -197,6 +197,29 @@ def archive_entry(path: Path, label: str) -> dict[str, object]:
     return {"path": path.name, "sha256": sha256(path), "size_bytes": path.stat().st_size}
 
 
+def validate_toolgap_seed(archive_path: Path) -> None:
+    names: set[str] = set()
+    try:
+        with tarfile.open(archive_path, "r:*") as archive:
+            for member in archive.getmembers():
+                pure = PurePosixPath(member.name)
+                name = member.name.rstrip("/")
+                if (
+                    pure.is_absolute()
+                    or ".." in pure.parts
+                    or not pure.parts
+                    or pure.parts[0] != "toolgap-source.git"
+                    or name in names
+                    or not (member.isdir() or member.isfile())
+                ):
+                    raise ValueError(f"unsafe ToolGap seed member: {member.name}")
+                names.add(name)
+    except tarfile.TarError as error:
+        raise ValueError("ToolGap seed is not a readable archive") from error
+    if not names:
+        raise ValueError("ToolGap seed is empty")
+
+
 def canonical_distribution(value: str) -> str:
     return re.sub(r"[-_.]+", "-", value).lower()
 
@@ -416,6 +439,7 @@ def expected(
     runtime_entry = archive_entry(runtime_wheel, "runtime wheel")
     provenance_entry = archive_entry(runtime_wheel_provenance, "runtime wheel provenance")
     cuda_wheelhouse_entry = archive_entry(cuda_wheelhouse, "CUDA wheelhouse")
+    validate_toolgap_seed(toolgap.resolve())
     validate_runtime_wheel_provenance(pin, runtime_wheel.resolve(), runtime_wheel_provenance.resolve())
     validate_cuda_wheelhouse(cuda_wheelhouse.resolve(), packaging)
     document = {
