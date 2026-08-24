@@ -42,6 +42,7 @@
     "cu13-distributions-before-removal.txt",
     "cu13-distributions-after-removal.txt",
     "dependency-lock.txt",
+    "installed-distributions.json",
     "runtime-install-report.json",
     "cuda-wheelhouse-install-report.json",
     "ordinary-dependency-requirements.txt",

@@ -1023,17 +1023,35 @@ run_bounded "$RUNTIME_VENV/bin/python" -m pip install --only-binary=:all: \
   awk -F'==' '($1 ~ /-cu13$/) || ($1 ~ /^nvidia-cuda-(cccl|nvcc|nvrtc|runtime)$/ && $2 ~ /^13([.]|$)/) {print $1}' >"$RUN_DIR/cu13-distributions-after-removal.txt"
 test ! -s "$RUN_DIR/cu13-distributions-after-removal.txt"
 "$RUNTIME_VENV/bin/python" -m pip freeze | LC_ALL=C sort >"$RUN_DIR/dependency-lock.txt"
-"$RUNTIME_VENV/bin/python" - "$RUN_DIR/dependency-lock.txt" <<'PY'
+"$RUNTIME_VENV/bin/python" -m pip list --format=json >"$RUN_DIR/installed-distributions.json"
+chmod 0444 "$RUN_DIR/installed-distributions.json"
+"$PYTHON" - "$RUN_DIR/installed-distributions.json" \
+  "$SGLANG_KERNEL_VERSION" "$DEEP_EP_VERSION" "$DEEP_GEMM_VERSION" \
+  "$TORCH_VERSION" "$TORCHVISION_VERSION" "$TORCHAUDIO_VERSION" <<'PY'
+import json
 import re
 import sys
 
-for line in open(sys.argv[1], encoding="utf-8"):
-    name, separator, version = line.strip().partition("==")
-    if not separator:
-        continue
-    canonical = re.sub(r"[-_.]+", "-", name).lower()
-    if canonical.endswith("-cu13") or (
-        canonical in {
+versions = sys.argv[2:]
+canonical = lambda value: re.sub(r"[-_.]+", "-", value).lower()
+locked = {}
+inventory = json.load(open(sys.argv[1], encoding="utf-8"))
+if not isinstance(inventory, list):
+    raise SystemExit("installed distribution inventory is not a list")
+for entry in inventory:
+    if not isinstance(entry, dict) or set(entry) != {"name", "version"}:
+        raise SystemExit("installed distribution inventory entry differs")
+    name = entry["name"]
+    version = entry["version"]
+    if not isinstance(name, str) or not isinstance(version, str) or not name or not version:
+        raise SystemExit("installed distribution inventory entry is invalid")
+    normalized = canonical(name)
+    if normalized in locked:
+        raise SystemExit(f"duplicate normalized distribution in installed inventory: {name}")
+    locked[normalized] = version
+for name, version in locked.items():
+    if name.endswith("-cu13") or (
+        name in {
             "nvidia-cuda-runtime",
             "nvidia-cuda-cccl",
             "nvidia-cuda-nvcc",
@@ -1041,16 +1059,25 @@ for line in open(sys.argv[1], encoding="utf-8"):
         }
         and re.fullmatch(r"13(?:[.].*)?", version)
     ):
-        raise SystemExit(f"CUDA 13 distribution remains in dependency lock: {line.strip()}")
+        raise SystemExit(f"CUDA 13 distribution remains in installed inventory: {name}=={version}")
+if "cuda-tile" in locked:
+    raise SystemExit("installed inventory unexpectedly contains cuda-tile")
+expected = {
+    "flashinfer-python": "0.6.17",
+    "sglang-kernel": f"{versions[0]}+cu129",
+    "sgl-deep-ep": f"{versions[1]}+cu129",
+    "sgl-deep-gemm": f"{versions[2]}+cu129",
+    "torch": f"{versions[3]}+cu129",
+    "torchvision": f"{versions[4]}+cu129",
+    "torchaudio": f"{versions[5]}+cu129",
+}
+for name, expected_version in expected.items():
+    actual_version = locked.get(name)
+    if actual_version != expected_version:
+        raise SystemExit(
+            f"installed inventory differs for {name}: {actual_version!r} != {expected_version!r}"
+        )
 PY
-! grep -Eiq '^cuda-tile==' "$RUN_DIR/dependency-lock.txt"
-grep -Eix 'flashinfer-python==0\.6\.17' "$RUN_DIR/dependency-lock.txt"
-grep -Fxi "sglang-kernel==${SGLANG_KERNEL_VERSION}+cu129" "$RUN_DIR/dependency-lock.txt"
-grep -Fxi "sgl-deep-ep==${DEEP_EP_VERSION}+cu129" "$RUN_DIR/dependency-lock.txt"
-grep -Fxi "sgl-deep-gemm==${DEEP_GEMM_VERSION}+cu129" "$RUN_DIR/dependency-lock.txt"
-grep -Eix "torch==${TORCH_VERSION}\\+cu129" "$RUN_DIR/dependency-lock.txt"
-grep -Eix "torchvision==${TORCHVISION_VERSION}\\+cu129" "$RUN_DIR/dependency-lock.txt"
-grep -Eix "torchaudio==${TORCHAUDIO_VERSION}\\+cu129" "$RUN_DIR/dependency-lock.txt"
 "$RUNTIME_VENV/bin/python" -m pip show sglang-kernel sgl-deep-ep sgl-deep-gemm torch torchvision torchaudio \
   >>"$RUN_DIR/resolver-install.log" 2>&1
 

@@ -62,6 +62,7 @@ SUCCESS_ARTIFACTS = (
     "cu13-distributions-before-removal.txt",
     "cu13-distributions-after-removal.txt",
     "dependency-lock.txt",
+    "installed-distributions.json",
     "runtime-install-report.json",
     "cuda-wheelhouse-install-report.json",
     "ordinary-dependency-requirements.txt",
@@ -104,6 +105,7 @@ RUNTIME_INPUTS = {
     "cuda_wheelhouse_validation": "cuda-wheelhouse-validation.json",
     "model_snapshot": "model-snapshot.json",
     "resolved_dependencies": "dependency-lock.txt",
+    "installed_distributions": "installed-distributions.json",
     "resolver_report": "runtime-install-report.json",
     "cuda_wheelhouse_install_report": "cuda-wheelhouse-install-report.json",
     "ordinary_dependency_report": "ordinary-dependency-report.json",
@@ -443,6 +445,29 @@ def validate_manifest_binding(run_dir: Path, context: dict[str, object]) -> dict
     return manifest
 
 
+def read_installed_distributions(run_dir: Path) -> dict[str, str]:
+    path = run_dir / "installed-distributions.json"
+    try:
+        inventory = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("installed distribution inventory is not valid JSON") from error
+    if not isinstance(inventory, list):
+        raise ValueError("installed distribution inventory is not a list")
+    distributions: dict[str, str] = {}
+    for entry in inventory:
+        if not isinstance(entry, dict) or set(entry) != {"name", "version"}:
+            raise ValueError("installed distribution inventory entry differs")
+        name = entry["name"]
+        version = entry["version"]
+        if not isinstance(name, str) or not isinstance(version, str) or not name or not version:
+            raise ValueError("installed distribution inventory entry is invalid")
+        canonical = re.sub(r"[-_.]+", "-", name).lower()
+        if canonical in distributions:
+            raise ValueError("installed distribution inventory has duplicate normalized names")
+        distributions[canonical] = version
+    return distributions
+
+
 def validate_omitted_dependency_exception(run_dir: Path) -> None:
     exception = load_json(
         run_dir / "omitted-dependency-exception.json", "omitted dependency exception"
@@ -454,22 +479,18 @@ def validate_omitted_dependency_exception(run_dir: Path) -> None:
         "success_scope": "restricted startup only; no claim that cuda-tile-dependent execution is compatible",
     }:
         raise ValueError("omitted dependency exception differs from the compatibility scope")
-    lock = (run_dir / "dependency-lock.txt").read_text(encoding="utf-8")
-    if re.search(r"(?im)^cuda-tile==", lock):
-        raise ValueError("dependency lock unexpectedly contains cuda-tile")
-    if not re.search(r"(?im)^flashinfer-python==0\.6\.17$", lock):
-        raise ValueError("dependency lock omits the fixed FlashInfer exception wheel")
+    distributions = read_installed_distributions(run_dir)
+    if "cuda-tile" in distributions:
+        raise ValueError("installed inventory unexpectedly contains cuda-tile")
+    if distributions.get("flashinfer-python") != "0.6.17":
+        raise ValueError("installed inventory omits the fixed FlashInfer exception wheel")
 
 
 def validate_cuda13_absence(run_dir: Path) -> None:
     cuda13 = (run_dir / "cu13-distributions-after-removal.txt").read_text(encoding="utf-8")
     if cuda13:
         raise ValueError("successful attempt retains CUDA13 distributions")
-    for line in (run_dir / "dependency-lock.txt").read_text(encoding="utf-8").splitlines():
-        name, separator, version = line.partition("==")
-        if not separator:
-            continue
-        canonical = re.sub(r"[-_.]+", "-", name).lower()
+    for canonical, version in read_installed_distributions(run_dir).items():
         if canonical.endswith("-cu13") or (
             canonical in {
                 "nvidia-cuda-runtime",
@@ -479,7 +500,7 @@ def validate_cuda13_absence(run_dir: Path) -> None:
             }
             and re.fullmatch(r"13(?:[.].*)?", version)
         ):
-            raise ValueError(f"successful dependency lock retains CUDA13 distribution: {line}")
+            raise ValueError(f"successful installed inventory retains CUDA13 distribution: {canonical}=={version}")
 
 
 def render(args: argparse.Namespace) -> int:

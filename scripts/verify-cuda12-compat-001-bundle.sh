@@ -225,7 +225,7 @@ artifacts = [
     "input-manifest.json", "input-oss-receipt.json", "bootstrap-receipt.json", "runtime-wheel.whl", "runtime-wheel-provenance.json",
     "runtime-wheel-validation.json", "cuda-wheelhouse-index.json", "cuda-wheelhouse-validation.json", "toolgap-seed-verify.log", "source-restore.log",
     "model-seed-prepare.log", "model-snapshot.json", "resolver-install.log", "cu13-distributions-before-removal.txt",
-    "cu13-distributions-after-removal.txt", "dependency-lock.txt",
+    "cu13-distributions-after-removal.txt", "dependency-lock.txt", "installed-distributions.json",
     "runtime-install-report.json", "cuda-wheelhouse-install-report.json", "ordinary-dependency-requirements.txt", "flashinfer-exception-install-report.json", "omitted-dependency-exception.json", "ordinary-dependency-report.json", "torch-cuda-probe.log", "cuda-sm86.cu", "cuda-sm86-build.log",
     "cuda-sm86-output.log", "sglang-provenance.json", "test-module-provenance.json", "runtime.env",
     "manifest.json", "manifest.sha256", "restricted-startup-command.txt", "restricted-startup.log",
@@ -266,8 +266,8 @@ assert "flashinfer-exception-install-report.json" in runner
 assert "omitted-dependency-exception.json" in runner
 assert '"flashinfer_python[cu12]==0.6.17"' in runner
 assert '"cuda-tile==1.6.0rc5"' in runner
-assert "! grep -Eiq '^cuda-tile=='" in runner
-assert "flashinfer-python==0\\.6\\.17" in runner
+assert 'pip list --format=json >"$RUN_DIR/installed-distributions.json"' in runner
+assert '"$RUN_DIR/installed-distributions.json"' in runner
 assert "http://mirrors.cloud.aliyuncs.com/pypi/simple/" in runner
 for blocked_special_index in (
     "github.com/sgl-project/whl", "docs.sglang.ai/whl", "download.pytorch.org/whl",
@@ -283,7 +283,7 @@ assert "cu13-distributions-after-removal.txt" in runner
 assert "test ! -s \"$RUN_DIR/cu13-distributions-after-removal.txt\"" in runner
 assert '"humming-kernels[cu12]==0.1.10"' in runner
 assert "nvidia-cuda-runtime" in runner
-assert "CUDA 13 distribution remains in dependency lock" in runner
+assert "CUDA 13 distribution remains in installed inventory" in runner
 assert "capture_environment" in runner
 assert runner.index("capture_environment\n\nconfig=") > runner.index("attempt-context.json")
 assert 'gpu_driver="$(xargs <<<"$gpu_driver")"' in runner
@@ -412,15 +412,19 @@ for terminal in terminals:
 assert "failure terminal requires best-effort environment evidence" in finalizer
 assert "successful attempt retains CUDA13 distributions" in finalizer
 assert "validate_cuda13_absence" in finalizer
-assert "successful dependency lock retains CUDA13 distribution" in finalizer
+assert "successful installed inventory retains CUDA13 distribution" in finalizer
 assert "validate_failure_evidence" in finalizer
 assert "dependency resolution terminal contains transport-failure evidence" in finalizer
 assert "startup JIT terminal lacks JIT/compiler evidence" in finalizer
 assert "invalid-scope terminal lacks scope=invalid evidence" in finalizer
 assert "omitted dependency exception differs" in finalizer
-assert "dependency lock unexpectedly contains cuda-tile" in finalizer
+assert "installed inventory unexpectedly contains cuda-tile" in finalizer
 assert "validate_input_oss_receipt" in finalizer
 assert "input OSS receipt objects do not share a prefix" in finalizer
+assert 'canonical = lambda value: re.sub(r"[-_.]+", "-", value).lower()' in runner
+assert "duplicate normalized distribution in installed inventory" in runner
+assert "installed inventory differs for {name}" in runner
+assert 'grep -Fxi "sgl-deep-gemm==${' not in runner
 finalizer_spec = importlib.util.spec_from_file_location("cuda12_finalizer", finalizer_path)
 assert finalizer_spec is not None and finalizer_spec.loader is not None
 finalizer_module = importlib.util.module_from_spec(finalizer_spec)
@@ -428,23 +432,23 @@ finalizer_spec.loader.exec_module(finalizer_module)
 with tempfile.TemporaryDirectory() as temp_dir:
     run_dir = pathlib.Path(temp_dir)
     after_cleanup = run_dir / "cu13-distributions-after-removal.txt"
-    lock = run_dir / "dependency-lock.txt"
+    inventory = run_dir / "installed-distributions.json"
     after_cleanup.write_text("", encoding="utf-8")
-    lock.write_text("nvidia-cuda-runtime==13.0.0\n", encoding="utf-8")
+    inventory.write_text('[{"name": "nvidia-cuda-runtime", "version": "13.0.0"}]', encoding="utf-8")
     try:
         finalizer_module.validate_cuda13_absence(run_dir)
     except ValueError as error:
         assert "nvidia-cuda-runtime==13.0.0" in str(error)
     else:
         raise AssertionError("finalizer accepts an unqualified CUDA 13 runtime package")
-    lock.write_text("nvidia-cuda-runtime-cu13==13.0.0\n", encoding="utf-8")
+    inventory.write_text('[{"name": "nvidia-cuda-runtime-cu13", "version": "13.0.0"}]', encoding="utf-8")
     try:
         finalizer_module.validate_cuda13_absence(run_dir)
     except ValueError as error:
         assert "nvidia-cuda-runtime-cu13==13.0.0" in str(error)
     else:
         raise AssertionError("finalizer accepts a CUDA 13 suffixed package")
-    lock.write_text("nvidia-cuda-runtime-cu12==12.8.0\n", encoding="utf-8")
+    inventory.write_text('[{"name": "nvidia-cuda-runtime-cu12", "version": "12.8.0"}]', encoding="utf-8")
     finalizer_module.validate_cuda13_absence(run_dir)
 repackager = repackager_path.read_text(encoding="utf-8")
 assert "G0_prebuilt_runtime_payload_plus_CUDA12_metadata_rewrite" in repackager
