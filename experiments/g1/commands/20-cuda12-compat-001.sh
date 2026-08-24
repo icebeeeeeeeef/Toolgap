@@ -1166,8 +1166,33 @@ gpu_pids >"$RUN_DIR/startup-gpu-pids-before.txt"
   cd "$TREATMENT"
   exec setsid timeout --signal=TERM --kill-after=30s "${LONG_COMMAND_TIMEOUT_SECONDS}s" \
     env -u PYTHONPATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
-    TOOLGAP_G1_MODEL_PATH="$MODEL_ROOT" "$RUNTIME_VENV/bin/python" -m unittest \
-    "$RESTRICTED_SELECTOR"
+    TOOLGAP_G1_MODEL_PATH="$MODEL_ROOT" "$RUNTIME_VENV/bin/python" - \
+    "$TREATMENT/test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py" \
+    "$RESTRICTED_SELECTOR" <<'PY'
+import importlib.util
+import pathlib
+import sys
+import unittest
+
+path = pathlib.Path(sys.argv[1])
+selector = sys.argv[2]
+module_name, class_name, method_name = selector.rsplit(".", 2)
+if module_name != "test.registered.scripted_runtime.test_toolgap_g1_forced_demote":
+    raise ValueError("restricted startup selector module differs")
+if not path.is_file():
+    raise ValueError("restricted startup test file is absent")
+spec = importlib.util.spec_from_file_location("toolgap_cuda12_restricted_startup", path)
+if spec is None or spec.loader is None:
+    raise ValueError("restricted startup test file cannot load")
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+suite = unittest.defaultTestLoader.loadTestsFromName(f"{class_name}.{method_name}", module)
+if suite.countTestCases() != 1:
+    raise ValueError("restricted startup selector did not resolve exactly one test")
+result = unittest.TextTestRunner(verbosity=2).run(suite)
+raise SystemExit(not result.wasSuccessful())
+PY
 ) >"$RUN_DIR/restricted-startup.log" 2>&1 &
 current_pid="$!"
 wait_for_startup_pgid

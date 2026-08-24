@@ -251,6 +251,11 @@ assert runner.count("TestG1PreflightStartup.test_local_model_starts_without_runt
 assert "restricted-startup-command.txt" in runner
 assert "scope-scan.log" in runner
 assert "INVALID_SCOPE" in runner
+assert "importlib.util.spec_from_file_location" in runner
+assert "toolgap_cuda12_restricted_startup" in runner
+assert "selector did not resolve exactly one test" in runner
+assert '"$RUNTIME_VENV/bin/python" -m unittest' not in runner
+assert "env -u PYTHONPATH" in runner
 assert "0003-cuda12-compat-packaging.patch" not in runner
 assert "CUDA12_COMPAT_RUNTIME_WHEEL" in runner
 assert "CUDA12_COMPAT_RUNTIME_WHEEL_PROVENANCE" in runner
