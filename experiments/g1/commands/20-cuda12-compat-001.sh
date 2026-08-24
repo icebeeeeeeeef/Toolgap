@@ -650,7 +650,7 @@ mkdir "$SOURCE_INPUT" "$TOOLGAP_INPUT"
 # only the four CUDA12 METADATA substitutions were made. The separate minimal
 # wheelhouse keeps CUDA wheels off the known-unreliable GitHub/SGLang/PyTorch
 # transport path; ordinary PyPI dependencies remain intentionally outside it.
-"$PYTHON" - "$RUN_DIR/runtime-wheel.whl" "$RUN_DIR/runtime-wheel-provenance.json" \
+"$PYTHON" - "$RUNTIME_WHEEL" "$RUNTIME_WHEEL_PROVENANCE" \
   "$INPUT_MANIFEST" "$PIN" "$CUDA_WHEELHOUSE_ARCHIVE" "$CUDA_WHEELHOUSE_ROOT" \
   "$RUN_DIR/runtime-wheel-validation.json" "$RUN_DIR/cuda-wheelhouse-validation.json" <<'PY'
 import hashlib
