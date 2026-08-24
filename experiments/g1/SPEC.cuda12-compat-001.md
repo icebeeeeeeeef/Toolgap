@@ -35,7 +35,7 @@ The local model identity remains the existing
 | Treatment order | `0001-atomic-checked-demote.patch`, then `0002-g1-scripted-forced-demote.patch`, then `0003-cuda12-compat-packaging.patch` |
 | Model | `Qwen/Qwen3-0.6B@c1899de289a04d12100db370d81485cdf75e47ca` |
 | Model source | verified local snapshot archive only |
-| Runtime wheel | A G0 treatment runtime wheel with a sidecar bearing `G0_prebuilt_runtime_payload_plus_CUDA12_metadata_rewrite`; its Python payload is bound to the three-patch tree where 0001 affects runtime, 0002 is test-only, and 0003 is metadata-only; only wheel `METADATA` and `RECORD` receive the three CUDA12 substitutions |
+| Runtime wheel | A G0 treatment runtime wheel with a sidecar bearing `G0_prebuilt_runtime_payload_plus_CUDA12_metadata_rewrite`; its Python payload is bound to the three-patch tree where 0001 affects runtime, 0002 is test-only, and 0003 is metadata-only; only wheel `METADATA` and `RECORD` receive the four CUDA12 substitutions |
 | CUDA wheelhouse | One hash-bound archive containing exactly `sglang-kernel`, `sgl-deep-ep`, `sgl-deep-gemm`, `torch`, `torchvision`, and `torchaudio` CUDA 12.9 wheels plus `wheelhouse-index.json` |
 | Host | Linux x86_64, Alibaba Cloud Ubuntu 24.04 NVIDIA GPU image, one A10, driver `580.126.09`, system CUDA `12.8`, Python `3.12.x` |
 | Device code | standalone fixed `sm_86` CUDA program compiled by `/usr/local/cuda-12.8/bin/nvcc` |
@@ -45,9 +45,10 @@ The local model identity remains the existing
 The pinned SGLang Dockerfile contains a CUDA 12 packaging route: it changes
 `cuda-python` to the CUDA 12 major range, selects the FlashInfer CUDA 12 extra,
 removes the CUDA-specific Cutlass extra, and resolves PyTorch through the
-`cu129` index. `0003` is exactly those three metadata substitutions. It does
-not change ToolGap lifecycle code, SGLang runtime behavior, tests, cache code,
-or model inputs.
+`cu129` index. Humming Kernels exposes a separate CUDA 12 extra, so `0003`
+also selects it instead of its CUDA 13 extra. `0003` is exactly those four
+metadata substitutions. It does not change ToolGap lifecycle code, SGLang
+runtime behavior, tests, cache code, or model inputs.
 
 That Dockerfile accepts CUDA 12.6.3 and 12.9.2, not 12.8. Consequently this
 host is a measured port probe, not an upstream-supported CUDA 12.8 image or a
@@ -67,7 +68,7 @@ privileged command. The runner receives absolute `CUDA12_COMPAT_RUNTIME_WHEEL`,
 `CUDA12_COMPAT_RUNTIME_WHEEL_PROVENANCE`, and
 `CUDA12_COMPAT_CUDA_WHEELHOUSE_ARCHIVE` paths, verifies each against the input
 manifest, preserves the wheel and provenance sidecar in the attempt, and
-rejects any wheel whose metadata is not exactly the three declared CUDA12
+rejects any wheel whose metadata is not exactly the four declared CUDA12
 substitutions.
 
 This is deliberately **not** a current-tree source rebuild. Patch 0001 changes
@@ -75,7 +76,7 @@ the Python runtime payload; patch 0002 adds only the named test file and is not
 part of that payload; patch 0003 changes only package metadata. The local
 repackaging helper therefore verifies the G0 prebuilt wheel payload against the
 three-patch source tree, permits only build-generated `sglang/_version.py` to
-differ, and rewrites only the three `METADATA` dependencies plus `RECORD`. The
+differ, and rewrites only the four `METADATA` dependencies plus `RECORD`. The
 GPU host must install that staged wheel; it must not install `$TREATMENT/python`
 or invoke a source/Cargo build route.
 
@@ -121,8 +122,11 @@ The runner may only:
    `cuda-tile` uninstalled and records the exception rather than
    source-building on ECS. A successful probe therefore says nothing about a
    path that imports `cuda-tile`. Record
-   the exact lock after the upstream CUDA12 route's `-cu13` cleanup and local
-   CUDA 12.9 wheelhouse reinstall, then import Torch and perform one
+   the exact lock after the upstream CUDA12 route's CUDA 13 cleanup, including
+   the four unqualified NVIDIA CUDA 13 packages selected by the Humming
+   Kernels CUDA 13 extra, and local CUDA 12.9 wheelhouse reinstall; the lock
+   must contain neither `-cu13` packages nor those unqualified packages at
+   version 13. Then import Torch and perform one
    synchronized CUDA tensor operation;
 4. compile and run one fixed standalone `sm_86` CUDA program with the declared
    `nvcc` executable; and

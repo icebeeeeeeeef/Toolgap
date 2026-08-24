@@ -18,7 +18,8 @@ index a773f66bc..afa298985 100755
 -  "flashinfer_python[cu13]==0.6.17", # keep it aligned with jit-cache version in Dockerfile
 +  "flashinfer_python[cu12]==0.6.17", # keep it aligned with jit-cache version in Dockerfile
    "gguf",
-   "humming-kernels[cu13]==0.1.10",
+-  "humming-kernels[cu13]==0.1.10",
++  "humming-kernels[cu12]==0.1.10",
    "interegular",
 @@ -47,6 +47,6 @@ dependencies = [
    "numba==0.65.1",

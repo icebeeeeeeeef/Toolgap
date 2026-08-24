@@ -108,7 +108,7 @@
       },
       {
         "path": "upstream/sglang/patches/0003-cuda12-compat-packaging.patch",
-        "sha256": "86e8fda2378c76ba0976527a813f5fa5b858ab321c2b7dada15b4f5dfada5ed1"
+        "sha256": "65c67694c4da74e0c5541930d786d74aa85f07d2abeb6f40e4ea3a0da8270ce3"
       }
     ],
     "remote": "https://github.com/sgl-project/sglang.git",

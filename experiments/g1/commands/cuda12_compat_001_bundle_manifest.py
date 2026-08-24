@@ -40,6 +40,7 @@ WHEELHOUSE_KEYS = (
 METADATA_REWRITE = (
     ("cuda-python>=13.0", "cuda-python>=12,<13"),
     ("flashinfer_python[cu13]", "flashinfer_python[cu12]"),
+    ("humming-kernels[cu13]==0.1.10", "humming-kernels[cu12]==0.1.10"),
     ("nvidia-cutlass-dsl[cu13]==4.6.2", "nvidia-cutlass-dsl==4.6.2"),
 )
 STATIC_PATHS = (

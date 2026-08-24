@@ -29,7 +29,7 @@ changed_paths = ["test/registered/scripted_runtime/test_toolgap_g1_forced_demote
 
 [[sglang.patches]]
 path = "upstream/sglang/patches/0003-cuda12-compat-packaging.patch"
-sha256 = "86e8fda2378c76ba0976527a813f5fa5b858ab321c2b7dada15b4f5dfada5ed1"
+sha256 = "65c67694c4da74e0c5541930d786d74aa85f07d2abeb6f40e4ea3a0da8270ce3"
 changed_paths = ["python/pyproject.toml"]
 
 [model]
@@ -64,7 +64,7 @@ evidence = "G0-C-011 attempt 005 resolved ordinary dependencies through this pro
 
 [cuda12_packaging]
 source_evidence = "pinned Dockerfile CUDA 12 branch; it accepts 12.6.3 and 12.9.2, not provider CUDA 12.8"
-metadata_patch = "only cuda-python major range, FlashInfer CUDA extra, and Cutlass extra substitutions"
+metadata_patch = "only cuda-python major range, FlashInfer CUDA extra, Humming Kernels CUDA extra, and Cutlass extra substitutions"
 torch_version = "2.13.0"
 torchvision_version = "0.28.0"
 torchaudio_version = "2.11.0"

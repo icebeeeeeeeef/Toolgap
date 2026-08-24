@@ -461,6 +461,27 @@ def validate_omitted_dependency_exception(run_dir: Path) -> None:
         raise ValueError("dependency lock omits the fixed FlashInfer exception wheel")
 
 
+def validate_cuda13_absence(run_dir: Path) -> None:
+    cuda13 = (run_dir / "cu13-distributions-after-removal.txt").read_text(encoding="utf-8")
+    if cuda13:
+        raise ValueError("successful attempt retains CUDA13 distributions")
+    for line in (run_dir / "dependency-lock.txt").read_text(encoding="utf-8").splitlines():
+        name, separator, version = line.partition("==")
+        if not separator:
+            continue
+        canonical = re.sub(r"[-_.]+", "-", name).lower()
+        if canonical.endswith("-cu13") or (
+            canonical in {
+                "nvidia-cuda-runtime",
+                "nvidia-cuda-cccl",
+                "nvidia-cuda-nvcc",
+                "nvidia-cuda-nvrtc",
+            }
+            and re.fullmatch(r"13(?:[.].*)?", version)
+        ):
+            raise ValueError(f"successful dependency lock retains CUDA13 distribution: {line}")
+
+
 def render(args: argparse.Namespace) -> int:
     output = args.output.resolve()
     if output.exists():
@@ -533,10 +554,9 @@ def finish(args: argparse.Namespace) -> int:
             raise ValueError(f"missing successful-attempt artifact: {name}")
     manifest = validate_manifest_binding(run_dir, context)
     validate_omitted_dependency_exception(run_dir)
+    validate_cuda13_absence(run_dir)
     if manifest["identity"]["attempt_id"] != context["attempt_id"]:
         raise ValueError("manifest attempt identity differs")
-    if (run_dir / "cu13-distributions-after-removal.txt").read_text(encoding="utf-8"):
-        raise ValueError("successful attempt retains CUDA13 distributions")
     startup = read_startup(run_dir / "restricted-startup.log")
     shutdown = (run_dir / "shutdown.log").read_text(encoding="utf-8", errors="replace")
     if "cleanup=true\n" not in shutdown or "startup_exit_status=0\n" not in shutdown:

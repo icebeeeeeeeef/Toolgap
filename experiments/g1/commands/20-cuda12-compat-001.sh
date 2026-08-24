@@ -646,7 +646,7 @@ mkdir "$SOURCE_INPUT" "$TOOLGAP_INPUT"
 
 # The staged G0 wheel is the only SGLang runtime build input. Its sidecar
 # binds the unmodified Python payload to the three-patch tree and proves that
-# only the three CUDA12 METADATA substitutions were made. The separate minimal
+# only the four CUDA12 METADATA substitutions were made. The separate minimal
 # wheelhouse keeps CUDA wheels off the known-unreliable GitHub/SGLang/PyTorch
 # transport path; ordinary PyPI dependencies remain intentionally outside it.
 "$PYTHON" - "$RUN_DIR/runtime-wheel.whl" "$RUN_DIR/runtime-wheel-provenance.json" \
@@ -667,6 +667,7 @@ top_level = "cuda-wheelhouse"
 expected_rewrites = (
     ("cuda-python>=13.0", "cuda-python>=12,<13"),
     ("flashinfer_python[cu13]", "flashinfer_python[cu12]"),
+    ("humming-kernels[cu13]==0.1.10", "humming-kernels[cu12]==0.1.10"),
     ("nvidia-cutlass-dsl[cu13]==4.6.2", "nvidia-cutlass-dsl==4.6.2"),
 )
 
@@ -746,7 +747,7 @@ with zipfile.ZipFile(wheel_path) as archive:
     metadata = archive.read(metadata_paths[0])
 for before, after in expected_rewrites:
     if metadata.count(before.encode("ascii")) != 0 or metadata.count(after.encode("ascii")) != 1:
-        raise ValueError("runtime wheel does not contain exactly the three CUDA12 metadata rewrites")
+        raise ValueError("runtime wheel does not contain exactly the four CUDA12 metadata rewrites")
 rewrite = provenance.get("metadata_rewrite", {}).get("exact_substitutions")
 if rewrite != [
     {"from": before, "to": after, "input_occurrences": 1, "output_occurrences": 1}
@@ -1002,10 +1003,11 @@ run_bounded "$RUNTIME_VENV/bin/python" -m pip install --only-binary=:all: \
   --index-url "$PYPI_INDEX_URL" --trusted-host "$PYPI_TRUSTED_HOST" --report "$RUN_DIR/ordinary-dependency-report.json" \
   -r "$RUN_DIR/ordinary-dependency-requirements.txt" >>"$RUN_DIR/resolver-install.log" 2>&1
 
-# Match the pinned Docker cleanup by removing only package names ending in
-# -cu13, then make the local CUDA wheelhouse the final special-package state.
+# Match the pinned Docker cleanup, including the four CUDA 13 packages selected
+# by Humming Kernels' unsuffixed CUDA 13 extra. Then make the local CUDA
+# wheelhouse the final special-package state.
 "$RUNTIME_VENV/bin/python" -m pip list --format=freeze | \
-  awk -F'==' '$1 ~ /-cu13$/ {print $1}' >"$RUN_DIR/cu13-distributions-before-removal.txt"
+  awk -F'==' '($1 ~ /-cu13$/) || ($1 ~ /^nvidia-cuda-(cccl|nvcc|nvrtc|runtime)$/ && $2 ~ /^13([.]|$)/) {print $1}' >"$RUN_DIR/cu13-distributions-before-removal.txt"
 if [[ -s "$RUN_DIR/cu13-distributions-before-removal.txt" ]]; then
   while IFS= read -r distribution; do
     run_bounded "$RUNTIME_VENV/bin/python" -m pip uninstall -y "$distribution" \
@@ -1017,9 +1019,29 @@ run_bounded "$RUNTIME_VENV/bin/python" -m pip install --only-binary=:all: \
   "${CUDA_WHEEL_FILES[@]}" \
   >>"$RUN_DIR/resolver-install.log" 2>&1
 "$RUNTIME_VENV/bin/python" -m pip list --format=freeze | \
-  awk -F'==' '$1 ~ /-cu13$/ {print $1}' >"$RUN_DIR/cu13-distributions-after-removal.txt"
+  awk -F'==' '($1 ~ /-cu13$/) || ($1 ~ /^nvidia-cuda-(cccl|nvcc|nvrtc|runtime)$/ && $2 ~ /^13([.]|$)/) {print $1}' >"$RUN_DIR/cu13-distributions-after-removal.txt"
 test ! -s "$RUN_DIR/cu13-distributions-after-removal.txt"
 "$RUNTIME_VENV/bin/python" -m pip freeze | LC_ALL=C sort >"$RUN_DIR/dependency-lock.txt"
+"$RUNTIME_VENV/bin/python" - "$RUN_DIR/dependency-lock.txt" <<'PY'
+import re
+import sys
+
+for line in open(sys.argv[1], encoding="utf-8"):
+    name, separator, version = line.strip().partition("==")
+    if not separator:
+        continue
+    canonical = re.sub(r"[-_.]+", "-", name).lower()
+    if canonical.endswith("-cu13") or (
+        canonical in {
+            "nvidia-cuda-runtime",
+            "nvidia-cuda-cccl",
+            "nvidia-cuda-nvcc",
+            "nvidia-cuda-nvrtc",
+        }
+        and re.fullmatch(r"13(?:[.].*)?", version)
+    ):
+        raise SystemExit(f"CUDA 13 distribution remains in dependency lock: {line.strip()}")
+PY
 ! grep -Eiq '^cuda-tile==' "$RUN_DIR/dependency-lock.txt"
 grep -Eix 'flashinfer-python==0\.6\.17' "$RUN_DIR/dependency-lock.txt"
 grep -Fxi "sglang-kernel==${SGLANG_KERNEL_VERSION}+cu129" "$RUN_DIR/dependency-lock.txt"

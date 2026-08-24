@@ -31,6 +31,7 @@ class RepackageError(RuntimeError):
 REPLACEMENTS = (
     (b"cuda-python>=13.0", b"cuda-python>=12,<13"),
     (b"flashinfer_python[cu13]", b"flashinfer_python[cu12]"),
+    (b"humming-kernels[cu13]==0.1.10", b"humming-kernels[cu12]==0.1.10"),
     (b"nvidia-cutlass-dsl[cu13]==4.6.2", b"nvidia-cutlass-dsl==4.6.2"),
 )
 ALLOWED_DIFFERENCE = "sglang/_version.py"
