@@ -69,7 +69,7 @@ process_group_members() {
 }
 
 emergency_cleanup() {
-  if [[ -n "$current_pgid" ]]; then
+  if [[ -n "$current_pgid" && "$current_pgid" = "$current_pid" ]]; then
     kill -TERM -- "-$current_pgid" 2>/dev/null || true
     sleep 2
     kill -KILL -- "-$current_pgid" 2>/dev/null || true
@@ -81,6 +81,21 @@ emergency_cleanup() {
   if [[ -n "$current_pid" ]]; then wait "$current_pid" 2>/dev/null || true; fi
   current_pid=""
   current_pgid=""
+}
+
+wait_for_smoke_pgid() {
+  local deadline=$((SECONDS + 10))
+  local observed
+  while kill -0 "$current_pid" 2>/dev/null; do
+    observed="$(ps -o pgid= -p "$current_pid" | xargs || true)"
+    if [[ "$observed" = "$current_pid" ]]; then
+      current_pgid="$observed"
+      return 0
+    fi
+    if (( SECONDS >= deadline )); then return 1; fi
+    sleep 1
+  done
+  return 1
 }
 
 wait_for_smoke() {
@@ -466,9 +481,7 @@ gpu_pids >"$RUN_DIR/smoke-gpu-pids-before.txt"
     test.registered.scripted_runtime.test_toolgap_g1_forced_demote.TestG1PreflightStartup.test_local_model_starts_without_runtime_script
 ) >"$RUN_DIR/smoke.log" 2>&1 &
 current_pid="$!"
-current_pgid="$(ps -o pgid= -p "$current_pid" | xargs)"
-test -n "$current_pgid"
-test "$current_pgid" = "$current_pid"
+wait_for_smoke_pgid
 printf '%s\n' "$current_pid" >"$RUN_DIR/smoke.pid"
 printf '%s\n' "$current_pgid" >"$RUN_DIR/smoke.pgid"
 if wait_for_smoke; then smoke_status=0; else smoke_status=$?; fi

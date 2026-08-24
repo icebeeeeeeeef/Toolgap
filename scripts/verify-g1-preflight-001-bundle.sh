@@ -54,6 +54,7 @@ rg -F 'TestG1PreflightStartup.test_local_model_starts_without_runtime_script' \
   "$ROOT/experiments/g1/commands/20-g1-preflight-001.sh" >/dev/null
 rg -F 'target_listener_rows' "$ROOT/experiments/g1/commands/20-g1-preflight-001.sh" >/dev/null
 rg -F 'smoke-listeners-after.txt' "$ROOT/experiments/g1/commands/20-g1-preflight-001.sh" >/dev/null
+rg -F 'wait_for_smoke_pgid' "$ROOT/experiments/g1/commands/20-g1-preflight-001.sh" >/dev/null
 
 if [[ -n "${G1_PREFLIGHT_SGLANG_CHECKOUT:-}" ]]; then
   test -e "$G1_PREFLIGHT_SGLANG_CHECKOUT/.git"
