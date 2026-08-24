@@ -471,6 +471,7 @@ IFS=',' read -r gpu_name gpu_memory gpu_driver < <(
 )
 gpu_name="$(xargs <<<"$gpu_name")"
 gpu_memory="$(xargs <<<"$gpu_memory")"
+gpu_driver="$(xargs <<<"$gpu_driver")"
 readonly gpu_name gpu_memory gpu_driver
 [[ "$gpu_driver" = "$EXPECTED_DRIVER" ]]
 [[ "$gpu_name" = "NVIDIA A10" ]]
@@ -854,7 +855,7 @@ PY
 copy_immutable "$CUDA_WHEELHOUSE_ROOT/wheelhouse-index.json" "$RUN_DIR/cuda-wheelhouse-index.json"
 
 validate_seed_archive "$TOOLGAP_SEED_ARCHIVE" toolgap-source.git
-tar -xzf "$TOOLGAP_SEED_ARCHIVE" -C "$TOOLGAP_INPUT"
+tar --no-same-owner -xzf "$TOOLGAP_SEED_ARCHIVE" -C "$TOOLGAP_INPUT"
 readonly TOOLGAP_REPOSITORY="$TOOLGAP_INPUT/toolgap-source.git"
 test "$(git -C "$TOOLGAP_REPOSITORY" rev-parse --is-bare-repository)" = true
 git -C "$TOOLGAP_REPOSITORY" fsck --full >"$RUN_DIR/toolgap-seed-verify.log" 2>&1

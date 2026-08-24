@@ -286,6 +286,8 @@ assert "nvidia-cuda-runtime" in runner
 assert "CUDA 13 distribution remains in dependency lock" in runner
 assert "capture_environment" in runner
 assert runner.index("capture_environment\n\nconfig=") > runner.index("attempt-context.json")
+assert 'gpu_driver="$(xargs <<<"$gpu_driver")"' in runner
+assert 'tar --no-same-owner -xzf "$TOOLGAP_SEED_ARCHIVE" -C "$TOOLGAP_INPUT"' in runner
 assert "read_startup_listener_port \"$listener_requirement\"" in runner
 assert "listener_requirement=optional" in runner
 for unsafe_selector in (
@@ -304,6 +306,7 @@ assert re.search(r"(?m)^\\s*(?:nvidia|cuda|cudnn|nccl)[A-Za-z0-9_.+-]*", prereqs
 bootstrap = bootstrap_path.read_text(encoding="utf-8")
 assert 'expected_path = "experiments/g1/commands/00-cuda12-compat-001-bootstrap.sh"' in bootstrap
 assert "bootstrap script differs from the sealed input manifest" in bootstrap
+assert 'tar --no-same-owner -xzf "$TOOLGAP_SEED_ARCHIVE" -C "$BOOTSTRAP_ROOT"' in bootstrap
 assert 'expected_path = "experiments/g1/commands/19-cuda12-compat-001-project-prereqs.sh"' in prereqs
 assert "prerequisite script differs from the sealed input manifest" in prereqs
 builder = builder_path.read_text(encoding="utf-8")

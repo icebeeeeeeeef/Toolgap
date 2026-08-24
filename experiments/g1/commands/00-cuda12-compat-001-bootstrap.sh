@@ -89,7 +89,7 @@ if not names:
 PY
 
 mkdir "$BOOTSTRAP_ROOT"
-tar -xzf "$TOOLGAP_SEED_ARCHIVE" -C "$BOOTSTRAP_ROOT"
+tar --no-same-owner -xzf "$TOOLGAP_SEED_ARCHIVE" -C "$BOOTSTRAP_ROOT"
 readonly BARE="$BOOTSTRAP_ROOT/toolgap-source.git"
 readonly CHECKOUT="$BOOTSTRAP_ROOT/toolgap"
 git -C "$BARE" fsck --full
