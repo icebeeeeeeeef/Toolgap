@@ -29,7 +29,10 @@ print(identity["toolgap_remote"])
 print(archive["sha256"])
 PY
 )"
-mapfile -t values <<<"$expected"
+values=()
+while IFS= read -r value; do
+  values+=("$value")
+done <<<"$expected"
 readonly EXPECTED_COMMIT="${values[0]}"
 readonly EXPECTED_TREE="${values[1]}"
 readonly EXPECTED_REMOTE="${values[2]}"

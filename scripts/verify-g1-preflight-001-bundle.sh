@@ -9,7 +9,7 @@ PATCH_0002="$ROOT/upstream/sglang/patches/0002-g1-scripted-forced-demote.patch"
 test "$(sha256sum "$PATCH_0001" | awk '{print $1}')" = \
   e69776678909b4ee49b1c0fa4a8e208666893b659c0508387c83fcdf11e82a9a
 test "$(sha256sum "$PATCH_0002" | awk '{print $1}')" = \
-  2a1715555c7adac71f368a9a8210f219f3869ac038ca4fb07fb18255fa9007d1
+  e4ca3377abab478c97a9a3c1296cf449e9c6a97a7bb288c76a04fae4406d24f7
 bash -n "$ROOT/experiments/g1/commands/20-g1-preflight-001.sh"
 bash -n "$ROOT/experiments/g1/commands/00-g1-preflight-001-bootstrap.sh"
 python3 -m py_compile \
@@ -42,6 +42,7 @@ for forbidden in ("execute_script", "generate", "checked_demote_session", "relea
     assert forbidden not in smoke, forbidden
 assert '"skip_server_warmup": True' in smoke
 assert "G1_PREFLIGHT_SERVER_STARTED" in smoke
+assert '"base_url": self.server._base_url' in smoke
 PY
 
 for disallowed in TestG1EnabledArm TestG1BypassArm TestG1WriteThroughPending TestG1LoadBackPending TestG1NonTargetCoverage TestG1DeviceLocked TestG1StaleGeneration TestG1StockEvictionLiveness; do
@@ -51,17 +52,25 @@ rg -F 'HF_HUB_OFFLINE=1' "$ROOT/experiments/g1/commands/20-g1-preflight-001.sh" 
 rg -F 'TRANSFORMERS_OFFLINE=1' "$ROOT/experiments/g1/commands/20-g1-preflight-001.sh" >/dev/null
 rg -F 'TestG1PreflightStartup.test_local_model_starts_without_runtime_script' \
   "$ROOT/experiments/g1/commands/20-g1-preflight-001.sh" >/dev/null
+rg -F 'target_listener_rows' "$ROOT/experiments/g1/commands/20-g1-preflight-001.sh" >/dev/null
+rg -F 'smoke-listeners-after.txt' "$ROOT/experiments/g1/commands/20-g1-preflight-001.sh" >/dev/null
 
 if [[ -n "${G1_PREFLIGHT_SGLANG_CHECKOUT:-}" ]]; then
   test -e "$G1_PREFLIGHT_SGLANG_CHECKOUT/.git"
-  test "$(git -C "$G1_PREFLIGHT_SGLANG_CHECKOUT" rev-parse HEAD)" = \
+  replay_root="$(mktemp -d "${TMPDIR:-/tmp}/toolgap-g1-static-replay.XXXXXX")"
+  trap 'rm -rf "$replay_root"' EXIT
+  git clone --no-local --no-checkout "$G1_PREFLIGHT_SGLANG_CHECKOUT" "$replay_root/sglang"
+  replay_checkout="$replay_root/sglang"
+  git -C "$replay_checkout" checkout --detach \
     92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2
-  git -C "$G1_PREFLIGHT_SGLANG_CHECKOUT" apply --check "$PATCH_0001"
-  git -C "$G1_PREFLIGHT_SGLANG_CHECKOUT" apply "$PATCH_0001"
-  git -C "$G1_PREFLIGHT_SGLANG_CHECKOUT" apply --check "$PATCH_0002"
-  git -C "$G1_PREFLIGHT_SGLANG_CHECKOUT" apply "$PATCH_0002"
+  test "$(git -C "$replay_checkout" rev-parse HEAD)" = \
+    92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2
+  git -C "$replay_checkout" apply --check "$PATCH_0001"
+  git -C "$replay_checkout" apply "$PATCH_0001"
+  git -C "$replay_checkout" apply --check "$PATCH_0002"
+  git -C "$replay_checkout" apply "$PATCH_0002"
   python3 -m py_compile \
-    "$G1_PREFLIGHT_SGLANG_CHECKOUT/test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py"
+    "$replay_checkout/test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py"
 fi
 
 echo "VERIFIED_G1_PREFLIGHT_001_STATIC_BUNDLE"

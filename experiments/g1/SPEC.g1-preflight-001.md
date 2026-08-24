@@ -101,9 +101,20 @@ Before runtime start, the runner must retain:
 
 Successful completion requires a zero-status schema check, a zero-status
 startup test with one `G1_PREFLIGHT_SERVER_STARTED` record asserting disabled
-generation warmup, and process-group/attributable-GPU-PID teardown quiescence.
-A failure leaves an immutable terminal receipt and raw logs. It does not
+generation warmup and identifying its loopback HTTP listener, and teardown
+quiescence of the process group, attributable GPU PIDs, and that listener. A
+failure leaves an immutable terminal receipt and raw logs. It does not
 authorize a retry under the same attempt ID.
+
+The finalizer's local `verify` command is an **internal-consistency** check: it
+rechecks the exact context, input manifest, bootstrap receipt, rendered
+manifest, artifact index, and terminal bindings, but cannot defend against an
+actor that can rewrite the whole attempt directory and recompute every hash.
+Before any completed preflight is cited as retained evidence, the operator must
+place the sealed directory under a unique, versioned OSS object prefix and
+record the completion-receipt SHA-256 together with the immutable object
+version outside that directory. This external anchoring step is an evidence
+retention requirement, not a model/runtime network dependency.
 
 ## 6. Progression
 

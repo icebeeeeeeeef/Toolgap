@@ -47,6 +47,18 @@ SUCCESS_ARTIFACTS = (
     "shutdown.log",
 )
 TERMINALS = {"artifact-index.json", "completion-receipt.json", "execution-status.json"}
+RUNTIME_INPUTS = {
+    "environment": "environment.txt",
+    "input_manifest": "input-manifest.json",
+    "input_manifest_verification": "input-manifest-verify.log",
+    "bootstrap_receipt": "bootstrap-receipt.json",
+    "toolgap_seed_verification": "toolgap-seed-verify.log",
+    "model_snapshot": "model-snapshot.json",
+    "provenance": "sglang-provenance.json",
+    "runtime_env": "runtime.env",
+    "test_module_provenance": "test-module-provenance.json",
+}
+ARCHIVE_NAMES = {"model_snapshot", "sglang_source_seed", "toolgap_source_seed"}
 
 
 def now() -> str:
@@ -105,6 +117,10 @@ def read_smoke(path: Path) -> dict[str, object]:
         raise ValueError("smoke log must contain exactly one startup record")
     if records[0].get("skip_server_warmup") is not True:
         raise ValueError("smoke startup did not disable generation warmup")
+    if not isinstance(records[0].get("base_url"), str) or not re.fullmatch(
+        r"http://127\.0\.0\.1:[1-9][0-9]{0,4}", records[0]["base_url"]
+    ):
+        raise ValueError("smoke startup did not identify its listener")
     return records[0]
 
 
@@ -144,6 +160,99 @@ def validate_context(run_dir: Path) -> dict[str, object]:
         ):
             raise ValueError(f"invalid {field}")
     return context
+
+
+def validate_input_manifest(
+    run_dir: Path, context: dict[str, object]
+) -> tuple[dict[str, object], dict[str, object]]:
+    input_manifest_path = run_dir / "input-manifest.json"
+    document = load_json(input_manifest_path, "input manifest")
+    if set(document) != {"archives", "identity", "model", "schema_version", "static_inputs"}:
+        raise ValueError("input manifest fields differ")
+    identity = document["identity"]
+    if not isinstance(identity, dict) or identity != {
+        "bundle_id": "G1-PREFLIGHT-001",
+        "claim_state": "roadmap",
+        "gate": "G1",
+        "gate_decision": "N/A: preformal runtime validation only",
+        "toolgap_commit": context["toolgap_commit"],
+        "toolgap_remote": identity.get("toolgap_remote"),
+        "toolgap_tree": context["toolgap_tree"],
+    } or not isinstance(identity["toolgap_remote"], str):
+        raise ValueError("input manifest identity differs")
+    if document["schema_version"] != 1:
+        raise ValueError("input manifest schema differs")
+    archives = document["archives"]
+    if not isinstance(archives, dict) or set(archives) != ARCHIVE_NAMES:
+        raise ValueError("input manifest archive set differs")
+    for name, archive in archives.items():
+        if (
+            not isinstance(archive, dict)
+            or set(archive) != {"path", "sha256", "size_bytes"}
+            or not isinstance(archive["path"], str)
+            or Path(archive["path"]).name != archive["path"]
+            or not re.fullmatch(r"[0-9a-f]{64}", str(archive["sha256"]))
+            or not isinstance(archive["size_bytes"], int)
+            or archive["size_bytes"] < 1
+        ):
+            raise ValueError(f"invalid input manifest archive: {name}")
+    return document, identity
+
+
+def validate_manifest_binding(run_dir: Path, context: dict[str, object]) -> dict[str, object]:
+    manifest = load_json(run_dir / "manifest.json", "manifest")
+    input_manifest, input_identity = validate_input_manifest(run_dir, context)
+    expected_identity = {
+        "attempt_id": context["attempt_id"],
+        "bundle_id": "G1-PREFLIGHT-001",
+        "claim_state": "roadmap",
+        "gate": "G1",
+        "gate_decision": "N/A",
+        "kind": "preformal_runtime_validation",
+        "spec_path": "experiments/g1/SPEC.g1-preflight-001.md",
+        "spec_sha256": context["spec_sha256"],
+        "toolgap_commit": context["toolgap_commit"],
+        "toolgap_tree": context["toolgap_tree"],
+    }
+    if manifest.get("identity") != expected_identity:
+        raise ValueError("manifest identity differs from attempt context")
+    if manifest.get("outcome") != {
+        "claim_state": "roadmap",
+        "gate_decision": "N/A: preformal runtime admission only",
+    }:
+        raise ValueError("manifest outcome exceeds the preformal contract")
+    runtime_inputs = manifest.get("runtime_inputs")
+    if not isinstance(runtime_inputs, dict) or set(runtime_inputs) != set(RUNTIME_INPUTS):
+        raise ValueError("manifest runtime input set differs")
+    for label, filename in RUNTIME_INPUTS.items():
+        path = run_dir / filename
+        if runtime_inputs[label] != {"path": filename, "sha256": sha256(path)}:
+            raise ValueError(f"manifest runtime input differs: {label}")
+    if manifest.get("offline_archives") != input_manifest["archives"]:
+        raise ValueError("manifest offline archives differ from input manifest")
+    receipt = load_json(run_dir / "bootstrap-receipt.json", "bootstrap receipt")
+    if set(receipt) != {
+        "input_manifest_path", "input_manifest_sha256", "toolgap_checkout",
+        "toolgap_commit", "toolgap_remote", "toolgap_seed_path",
+        "toolgap_seed_sha256", "toolgap_tree",
+    }:
+        raise ValueError("bootstrap receipt fields differ")
+    if (
+        receipt["input_manifest_sha256"] != sha256(run_dir / "input-manifest.json")
+        or receipt["toolgap_seed_sha256"] != input_manifest["archives"]["toolgap_source_seed"]["sha256"]
+        or receipt["toolgap_commit"] != input_identity["toolgap_commit"]
+        or receipt["toolgap_tree"] != input_identity["toolgap_tree"]
+        or receipt["toolgap_remote"] != input_identity["toolgap_remote"]
+        or any(
+            not isinstance(receipt[field], str) or not Path(receipt[field]).is_absolute()
+            for field in ("input_manifest_path", "toolgap_checkout", "toolgap_seed_path")
+        )
+    ):
+        raise ValueError("bootstrap receipt differs from input manifest")
+    checksum = (run_dir / "manifest.sha256").read_text(encoding="utf-8").split()
+    if not checksum or checksum[0] != sha256(run_dir / "manifest.json"):
+        raise ValueError("manifest checksum differs")
+    return manifest
 
 
 def render(args: argparse.Namespace) -> int:
@@ -221,13 +330,9 @@ def finish(args: argparse.Namespace) -> int:
     for name in SUCCESS_ARTIFACTS:
         if not (run_dir / name).is_file():
             raise ValueError(f"missing successful-attempt artifact: {name}")
-    manifest = load_json(run_dir / "manifest.json", "manifest")
+    manifest = validate_manifest_binding(run_dir, context)
     if manifest.get("identity", {}).get("attempt_id") != context["attempt_id"]:
         raise ValueError("manifest attempt identity differs")
-    expected_manifest_sha = sha256(run_dir / "manifest.json")
-    checksum = (run_dir / "manifest.sha256").read_text(encoding="utf-8").split()
-    if not checksum or checksum[0] != expected_manifest_sha:
-        raise ValueError("manifest checksum differs")
     if "OK" not in (run_dir / "schema.log").read_text(encoding="utf-8", errors="replace"):
         raise ValueError("schema test did not report OK")
     smoke = read_smoke(run_dir / "smoke.log")
@@ -253,7 +358,6 @@ def finish(args: argparse.Namespace) -> int:
             "claim_state": "roadmap",
             "execution_status_sha256": sha256(run_dir / "execution-status.json"),
             "gate_decision": "N/A",
-            "sealed_at": now(),
             "status": "PREFORMAL_RUNTIME_ADMISSION_COMPLETE",
         },
     )
@@ -339,6 +443,7 @@ def verify(args: argparse.Namespace) -> int:
             or not isinstance(status["recorded_at"], str)
         ):
             raise ValueError("successful status exceeds the preformal contract")
+        validate_manifest_binding(run_dir, validate_context(run_dir))
         smoke = read_smoke(run_dir / "smoke.log")
         if status["smoke"] != smoke:
             raise ValueError("successful status smoke record differs")
@@ -346,7 +451,7 @@ def verify(args: argparse.Namespace) -> int:
         receipt = load_json(receipt_path, "completion receipt")
         expected_receipt = {
             "artifact_index_sha256", "claim_state", "execution_status_sha256",
-            "gate_decision", "sealed_at", "status",
+            "gate_decision", "status",
         }
         if (
             set(receipt) != expected_receipt
@@ -355,7 +460,6 @@ def verify(args: argparse.Namespace) -> int:
             or receipt["status"] != "PREFORMAL_RUNTIME_ADMISSION_COMPLETE"
             or receipt["artifact_index_sha256"] != sha256(run_dir / "artifact-index.json")
             or receipt["execution_status_sha256"] != sha256(status_path)
-            or not isinstance(receipt["sealed_at"], str)
         ):
             raise ValueError("completion receipt does not bind the terminal")
     elif terminal in {"BLOCKED_BEFORE_RUNTIME", "RUNTIME_FAILED"}:
@@ -376,7 +480,7 @@ def verify(args: argparse.Namespace) -> int:
         raise ValueError("unknown terminal status")
     if "execution-status.json" not in indexed:
         raise ValueError("artifact index omits execution status")
-    print(f"VERIFIED_PREFLIGHT_TERMINAL: {run_dir}")
+    print(f"VERIFIED_PREFLIGHT_TERMINAL_INTERNAL: {run_dir}")
     return 0
 
 

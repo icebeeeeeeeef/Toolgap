@@ -8,7 +8,7 @@ readonly BASE_TREE="25e9bf86d04c27fe380024d9c8c421c3b5b51f3c"
 readonly SGLANG_REMOTE="https://github.com/sgl-project/sglang.git"
 readonly SOURCE_SEED_SHA256="2d40db92ff1a21cb78e95f4da98352f1fa17086e1a16a82e95070f05e1460400"
 readonly PATCH_0001_SHA256="e69776678909b4ee49b1c0fa4a8e208666893b659c0508387c83fcdf11e82a9a"
-readonly PATCH_0002_SHA256="2a1715555c7adac71f368a9a8210f219f3869ac038ca4fb07fb18255fa9007d1"
+readonly PATCH_0002_SHA256="e4ca3377abab478c97a9a3c1296cf449e9c6a97a7bb288c76a04fae4406d24f7"
 readonly LONG_COMMAND_TIMEOUT_SECONDS=1800
 
 REPO_ROOT="$(cd -- "$(dirname -- "$BASH_SOURCE")/../../.." && pwd)"
@@ -24,6 +24,7 @@ BOOTSTRAP_RECEIPT="${G1_PREFLIGHT_BOOTSTRAP_RECEIPT:-}"
 PHASE="preflight"
 current_pid=""
 current_pgid=""
+smoke_port=""
 
 readonly FINALIZE="$REPO_ROOT/experiments/g1/commands/g1_preflight_001_finalize.py"
 readonly BUNDLE_MANIFEST="$REPO_ROOT/experiments/g1/commands/g1_preflight_001_bundle_manifest.py"
@@ -55,6 +56,10 @@ run_bounded() {
 gpu_pids() {
   nvidia-smi --query-compute-apps=pid --format=csv,noheader,nounits 2>/dev/null |
     awk 'NF && $1 ~ /^[0-9]+$/ {print $1}' | LC_ALL=C sort -n -u
+}
+
+target_listener_rows() {
+  ss -ltnH | awk -v port="$smoke_port" '$4 ~ (":" port "$") {print}'
 }
 
 process_group_members() {
@@ -104,12 +109,13 @@ verify_smoke_cleanup() {
   fi
   while true; do
     process_group_members "$current_pgid" >"$RUN_DIR/smoke-process-group-after.txt"
-    ss -ltnp >"$RUN_DIR/smoke-listeners-after.txt" 2>&1 || true
+    target_listener_rows >"$RUN_DIR/smoke-listeners-after.txt"
     gpu_pids >"$RUN_DIR/smoke-gpu-pids-after.txt"
     comm -12 "$RUN_DIR/smoke-gpu-pids-attributable.txt" "$RUN_DIR/smoke-gpu-pids-after.txt" \
       >"$RUN_DIR/smoke-gpu-pids-leaked.txt"
     if [[ ! -s "$RUN_DIR/smoke-process-group-after.txt" &&
-      ! -s "$RUN_DIR/smoke-gpu-pids-leaked.txt" ]]; then
+      ! -s "$RUN_DIR/smoke-gpu-pids-leaked.txt" &&
+      ! -s "$RUN_DIR/smoke-listeners-after.txt" ]]; then
       break
     fi
     if (( SECONDS >= deadline )); then
@@ -401,9 +407,10 @@ run_bounded "$PYTHON" "$MODEL_HELPER" prepare \
 "$PYTHON" -m venv "$RESOLVER_VENV"
 run_bounded "$RESOLVER_VENV/bin/python" -m pip install --upgrade pip >"$RUN_DIR/build-install.log" 2>&1
 run_bounded "$RESOLVER_VENV/bin/python" -m pip wheel --no-deps --wheel-dir "$WHEEL_ROOT" "$TREATMENT/python" >>"$RUN_DIR/build-install.log" 2>&1
-mapfile -t wheels < <(find "$WHEEL_ROOT" -maxdepth 1 -name 'sglang-*.whl' -print)
+wheels=("$WHEEL_ROOT"/sglang-*.whl)
 test "${#wheels[@]}" = 1
 readonly WHEEL="${wheels[0]}"
+test -f "$WHEEL"
 run_bounded "$RESOLVER_VENV/bin/python" -m pip install "$WHEEL" >>"$RUN_DIR/build-install.log" 2>&1
 "$RESOLVER_VENV/bin/python" -m pip freeze | awk 'tolower($0) !~ /^sglang([ =@]|$)/' >"$RUN_DIR/dependency-lock.txt"
 test -s "$RUN_DIR/dependency-lock.txt"
@@ -465,6 +472,25 @@ test "$current_pgid" = "$current_pid"
 printf '%s\n' "$current_pid" >"$RUN_DIR/smoke.pid"
 printf '%s\n' "$current_pgid" >"$RUN_DIR/smoke.pgid"
 if wait_for_smoke; then smoke_status=0; else smoke_status=$?; fi
+smoke_port="$($PYTHON - "$RUN_DIR/smoke.log" <<'PY'
+import json, re, sys
+
+records = []
+for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
+    try:
+        record = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+    if isinstance(record, dict) and record.get("kind") == "G1_PREFLIGHT_SERVER_STARTED":
+        records.append(record)
+if len(records) != 1 or not isinstance(records[0].get("base_url"), str):
+    raise ValueError("missing unique G1 preflight listener record")
+match = re.fullmatch(r"http://127\.0\.0\.1:([1-9][0-9]{0,4})", records[0]["base_url"])
+if not match:
+    raise ValueError("invalid G1 preflight listener URL")
+print(match.group(1))
+PY
+)"
 verify_smoke_cleanup "$smoke_status"
 "$PYTHON" "$FINALIZE" finish --run-dir "$RUN_DIR"
 "$PYTHON" "$FINALIZE" verify --run-dir "$RUN_DIR"

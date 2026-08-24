@@ -72,7 +72,7 @@
       },
       {
         "path": "upstream/sglang/patches/0002-g1-scripted-forced-demote.patch",
-        "sha256": "2a1715555c7adac71f368a9a8210f219f3869ac038ca4fb07fb18255fa9007d1"
+        "sha256": "e4ca3377abab478c97a9a3c1296cf449e9c6a97a7bb288c76a04fae4406d24f7"
       }
     ],
     "remote": "https://github.com/sgl-project/sglang.git",

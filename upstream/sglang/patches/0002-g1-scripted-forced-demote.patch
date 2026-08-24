@@ -3,7 +3,7 @@ new file mode 100644
 index 000000000..54e16471c
 --- /dev/null
 +++ b/test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py
-@@ -0,0 +1,1184 @@
+@@ -0,0 +1,1185 @@
 +"""G1 test-only forced Host-tier reclamation protocol for the pinned SGLang tree.
 +
 +This module is intentionally a scripted-runtime test. It has no production HTTP
@@ -552,6 +552,7 @@ index 000000000..54e16471c
 +        print(
 +            json.dumps(
 +                {
++                    "base_url": self.server._base_url,
 +                    "kind": "G1_PREFLIGHT_SERVER_STARTED",
 +                    "skip_server_warmup": self.ENGINE_KWARGS["skip_server_warmup"],
 +                },
