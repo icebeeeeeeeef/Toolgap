@@ -52,7 +52,7 @@ if not isinstance(archives, dict) or set(archives) != required:
 PY
 
 needs_apt=false
-for command in curl git ss python3; do
+for command in curl git ninja python3 ss; do
   command -v "$command" >/dev/null || needs_apt=true
 done
 if ! python3 -c 'import ensurepip, venv' >/dev/null 2>&1; then
@@ -62,10 +62,10 @@ fi
 if [[ "$needs_apt" == true ]]; then
   sudo apt-get update
   sudo apt-get install -y --no-install-recommends \
-    curl git iproute2 python3-venv
+    curl git iproute2 ninja-build python3-venv
 fi
 
-for command in curl git ss python3; do
+for command in curl git ninja python3 ss; do
   command -v "$command" >/dev/null
 done
 python3 -c 'import ensurepip, venv'

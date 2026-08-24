@@ -81,6 +81,13 @@ capture_environment() {
     printf 'nvcc_path='; command -v nvcc || true
     nvcc --version || true
     if [[ -x /usr/local/cuda-12.8/bin/nvcc ]]; then /usr/local/cuda-12.8/bin/nvcc --version || true; fi
+    if command -v ninja >/dev/null; then
+      printf 'ninja_path='; command -v ninja
+      printf 'ninja_version='; ninja --version || printf 'unavailable\n'
+    else
+      printf 'ninja_path=absent\n'
+      printf 'ninja_version=absent\n'
+    fi
   } >"$RUN_DIR/environment.txt" 2>&1
 }
 
@@ -446,7 +453,7 @@ if [[ ! -f /etc/os-release ]] || ! grep -Eq '^ID=ubuntu$' /etc/os-release ||
   echo "requires Alibaba Cloud Ubuntu 24.04 GPU image" >&2
   exit 78
 fi
-for command in curl git nvidia-smi nvcc sha256sum ss tar timeout; do require "$command"; done
+for command in curl git ninja nvidia-smi nvcc sha256sum ss tar timeout; do require "$command"; done
 [[ "$CUDA_HOME" = "$CUDA_HOME_EXPECTED" && -x "$CUDA_HOME/bin/nvcc" ]]
 "$CUDA_HOME/bin/nvcc" --version | grep -Eq 'release 12\.8([,.]|$)'
 "$PYTHON" -c 'import ensurepip, venv; import sys; assert sys.version_info[:2] == (3, 12), sys.version'

@@ -61,7 +61,8 @@ sidecar, and the minimal CUDA wheelhouse. The operator runs
 `19-cuda12-compat-001-project-prereqs.sh` first, then
 `00-cuda12-compat-001-bootstrap.sh`, and only then
 `20-cuda12-compat-001.sh`. The prerequisite script may install ordinary build
-commands only. It must not install, replace, or alter the NVIDIA driver, CUDA,
+commands only, including Ubuntu `ninja-build` for FlashInfer's first CUDA JIT.
+It must not install, replace, or alter the NVIDIA driver, CUDA,
 cuDNN, or NCCL substrate; it instead rejects a host without the declared
 provider GPU/CUDA paths. It validates its own static-input binding before any
 privileged command. The runner receives absolute `CUDA12_COMPAT_RUNTIME_WHEEL`,

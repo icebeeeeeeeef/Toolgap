@@ -340,8 +340,17 @@ prereqs = prereqs_path.read_text(encoding="utf-8")
 assert "expected Ubuntu 24.04 x86_64" in prereqs
 assert "nvidia-smi" in prereqs
 assert "/usr/local/cuda-12.8/bin/nvcc" in prereqs
-assert "curl git iproute2 python3-venv" in prereqs
+assert "curl git iproute2 ninja-build python3-venv" in prereqs
+assert "curl git ninja python3 ss" in prereqs
 assert "Rust" not in prereqs and "cargo" not in prereqs.lower()
+assert "curl git ninja nvidia-smi nvcc sha256sum ss tar timeout" in runner
+capture_start = runner.index("capture_environment() {")
+capture_end = runner.index("\n}\n\ngpu_pids()", capture_start)
+capture = runner[capture_start:capture_end]
+assert "ninja_path=absent" in capture
+assert "ninja_version=absent" in capture
+assert "ninja --version" in capture
+assert runner.index("ninja --version") < runner.index("for command in curl git ninja nvidia-smi nvcc sha256sum ss tar timeout")
 assert re.search(r"(?m)^\\s*(?:nvidia|cuda|cudnn|nccl)[A-Za-z0-9_.+-]*", prereqs) is None
 bootstrap = bootstrap_path.read_text(encoding="utf-8")
 assert 'expected_path = "experiments/g1/commands/00-cuda12-compat-001-bootstrap.sh"' in bootstrap
