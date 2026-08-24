@@ -289,6 +289,8 @@ assert runner.index("capture_environment\n\nconfig=") > runner.index("attempt-co
 assert 'gpu_driver="$(xargs <<<"$gpu_driver")"' in runner
 assert 'tar --no-same-owner -xzf "$TOOLGAP_SEED_ARCHIVE" -C "$TOOLGAP_INPUT"' in runner
 assert '"$PYTHON" - "$RUNTIME_WHEEL" "$RUNTIME_WHEEL_PROVENANCE" \\' in runner
+assert '--report "$RUN_DIR/runtime-install-report.json" "$RUNTIME_WHEEL"' in runner
+assert '"$PYTHON" - "$RUNTIME_WHEEL" "$RUN_DIR/ordinary-dependency-requirements.txt"' in runner
 assert "read_startup_listener_port \"$listener_requirement\"" in runner
 assert "listener_requirement=optional" in runner
 for unsafe_selector in (

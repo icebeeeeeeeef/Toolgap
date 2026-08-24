@@ -942,9 +942,9 @@ run_bounded "$RUNTIME_VENV/bin/python" -m pip install --only-binary=:all: \
 # identity. Install its fixed, already-validated payload without asking pip to
 # solve that incompatible source-era metadata graph.
 run_bounded "$RUNTIME_VENV/bin/python" -m pip install --no-index --no-deps --force-reinstall \
-  --report "$RUN_DIR/runtime-install-report.json" "$RUN_DIR/runtime-wheel.whl" \
+  --report "$RUN_DIR/runtime-install-report.json" "$RUNTIME_WHEEL" \
   >>"$RUN_DIR/resolver-install.log" 2>&1
-"$PYTHON" - "$RUN_DIR/runtime-wheel.whl" "$RUN_DIR/ordinary-dependency-requirements.txt" <<'PY'
+"$PYTHON" - "$RUNTIME_WHEEL" "$RUN_DIR/ordinary-dependency-requirements.txt" <<'PY'
 from email.parser import BytesParser
 import os
 import pathlib
@@ -1120,7 +1120,7 @@ PY
   printf 'TOOLGAP_G1_MODEL_PATH=%q\n' "$MODEL_ROOT"
   printf 'TREATMENT=%q\n' "$TREATMENT"
   printf 'RUNTIME_PYTHON=%q\n' "$RUNTIME_VENV/bin/python"
-  printf 'RUNTIME_WHEEL=%q\n' "$RUN_DIR/runtime-wheel.whl"
+  printf 'RUNTIME_WHEEL=%q\n' "$RUNTIME_WHEEL"
   printf 'RUNTIME_WHEEL_PROVENANCE=%q\n' "$RUN_DIR/runtime-wheel-provenance.json"
   printf 'CUDA_WHEELHOUSE_INDEX=%q\n' "$RUN_DIR/cuda-wheelhouse-index.json"
   printf 'ORDINARY_PYPI_INDEX=%q\n' "$PYPI_INDEX_URL"
