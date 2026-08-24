@@ -622,11 +622,11 @@ STARTUP_JIT_FAILURE_PATTERN = re.compile(
 
 def startup_log_has_jit_failure(text: str) -> bool:
     last_traceback = text.rfind("Traceback (most recent call last):")
-    failure = text[last_traceback:] if last_traceback >= 0 else text
+    failure = text[last_traceback:] if last_traceback >= 0 else ""
     return bool(STARTUP_JIT_FAILURE_PATTERN.search(failure))
 
 
-def validate_failure_evidence(run_dir: Path, status: dict[str, object]) -> None:
+def validate_failure_shape(run_dir: Path, status: dict[str, object]) -> None:
     terminal = status["attempt_status"]
     phase = status["phase"]
     exit_code = status["exit_code"]
@@ -642,6 +642,18 @@ def validate_failure_evidence(run_dir: Path, status: dict[str, object]) -> None:
     required_log = required_logs.get(phase)
     if required_log and not (run_dir / required_log).is_file():
         raise ValueError(f"failure terminal omits {required_log}")
+    if phase == "scope":
+        scope_log = (run_dir / "scope-scan.log").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "scope=invalid\n" not in scope_log:
+            raise ValueError("invalid-scope terminal lacks scope=invalid evidence")
+
+
+def validate_failure_evidence(run_dir: Path, status: dict[str, object]) -> None:
+    validate_failure_shape(run_dir, status)
+    terminal = status["attempt_status"]
+    phase = status["phase"]
     if phase == "resolver":
         resolver_log = (run_dir / "resolver-install.log").read_text(
             encoding="utf-8", errors="replace"
@@ -660,12 +672,6 @@ def validate_failure_evidence(run_dir: Path, status: dict[str, object]) -> None:
             raise ValueError("startup JIT terminal lacks JIT/compiler evidence")
         if terminal == "SGLANG_STARTUP_FAILED_OTHER" and has_jit_evidence:
             raise ValueError("other startup terminal contains JIT/compiler evidence")
-    if phase == "scope":
-        scope_log = (run_dir / "scope-scan.log").read_text(
-            encoding="utf-8", errors="replace"
-        )
-        if "scope=invalid\n" not in scope_log:
-            raise ValueError("invalid-scope terminal lacks scope=invalid evidence")
 
 
 def fail(args: argparse.Namespace) -> int:
@@ -760,7 +766,7 @@ def verify(args: argparse.Namespace) -> int:
             raise ValueError("failure status exceeds compatibility scope")
         if not (run_dir / "environment.txt").is_file():
             raise ValueError("failure terminal omits best-effort environment evidence")
-        validate_failure_evidence(run_dir, status)
+        validate_failure_shape(run_dir, status)
     else:
         raise ValueError("unknown compatibility terminal status")
     receipt = load_json(run_dir / "completion-receipt.json", "completion receipt")

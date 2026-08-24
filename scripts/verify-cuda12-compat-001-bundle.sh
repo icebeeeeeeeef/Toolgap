@@ -468,6 +468,11 @@ assert not finalizer_module.startup_log_has_jit_failure(
 assert not finalizer_module.startup_log_has_jit_failure(
     "Traceback (most recent call last):\\nflashinfer/jit/core.py\\nValueError: UnifiedRadixCache required"
 )
+assert not finalizer_module.startup_log_has_jit_failure(
+    "cuda.nvrtc warning\\nValueError: UnifiedRadixCache required"
+)
+assert "validate_failure_shape(run_dir, status)" in finalizer
+assert "validate_failure_evidence(run_dir, status)" in finalizer
 for required in ("runtime-wheel.whl", "runtime-wheel-provenance.json", "cuda-wheelhouse-validation.json"):
     assert required in finalizer, required
 for terminal in terminals:

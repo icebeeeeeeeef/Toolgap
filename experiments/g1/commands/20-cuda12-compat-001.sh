@@ -77,7 +77,7 @@ import sys
 
 text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
 last_traceback = text.rfind("Traceback (most recent call last):")
-failure = text[last_traceback:] if last_traceback >= 0 else text
+failure = text[last_traceback:] if last_traceback >= 0 else ""
 pattern = re.compile(
     r"(^|[^a-z])(nvrtc|nvcc)([^a-z]|$)|"
     r"cuda[^a-z]*(compile|compiler)|FileNotFoundError:.*ninja",
