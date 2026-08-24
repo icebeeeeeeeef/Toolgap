@@ -421,6 +421,8 @@ def repackage(args: argparse.Namespace) -> dict[str, object]:
     provenance = args.provenance.absolute()
     if output_wheel == base_wheel:
         raise RepackageError("output wheel must not overwrite the base wheel")
+    if output_wheel.name != base_wheel.name:
+        raise RepackageError("output wheel filename must preserve the pinned base filename")
     require_new_output(output_wheel, "output wheel")
     require_new_output(provenance, "provenance")
 

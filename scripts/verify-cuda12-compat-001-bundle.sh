@@ -327,6 +327,8 @@ assert "G0_prebuilt_runtime_payload_plus_CUDA12_metadata_rewrite" in builder
 assert "wheelhouse-index.json" in builder
 assert "static inputs must match the frozen ToolGap commit" in builder
 assert '"status", "--porcelain"' not in builder
+assert 'runtime_wheel.name != runtime["base_wheel_filename"]' in builder
+assert "output wheel filename must preserve the pinned base filename" in repackager_path.read_text(encoding="utf-8")
 module_spec = importlib.util.spec_from_file_location("cuda12_bundle_manifest", builder_path)
 assert module_spec is not None and module_spec.loader is not None
 module = importlib.util.module_from_spec(module_spec)
@@ -360,7 +362,7 @@ with tempfile.TemporaryDirectory() as temp_dir:
     else:
         raise AssertionError("builder accepts an AppleDouble ToolGap seed member")
 with tempfile.TemporaryDirectory() as temp_dir:
-    staged = pathlib.Path(temp_dir) / "ecs-download" / "runtime-wheel.whl"
+    staged = pathlib.Path(temp_dir) / "ecs-download" / pin["runtime_wheel"]["base_wheel_filename"]
     staged.parent.mkdir()
     staged.write_bytes(b"runtime wheel copied through OSS")
     staged_digest = sha256(staged)
@@ -390,6 +392,18 @@ with tempfile.TemporaryDirectory() as temp_dir:
     module.validate_runtime_wheel_provenance(
         module.read_pin(root), staged, provenance
     )
+    bad_name = staged.with_name("runtime-wheel.whl")
+    bad_name.write_bytes(staged.read_bytes())
+    provenance_value = json.loads(provenance.read_text(encoding="utf-8"))
+    provenance_value["output_wheel"]["filename"] = bad_name.name
+    bad_provenance = provenance.with_name("bad-runtime-wheel-provenance.json")
+    bad_provenance.write_text(json.dumps(provenance_value), encoding="utf-8")
+    try:
+        module.validate_runtime_wheel_provenance(module.read_pin(root), bad_name, bad_provenance)
+    except ValueError as error:
+        assert "pinned wheel filename" in str(error)
+    else:
+        raise AssertionError("builder accepts a renamed runtime wheel")
 finalizer = finalizer_path.read_text(encoding="utf-8")
 for required in ("runtime-wheel.whl", "runtime-wheel-provenance.json", "cuda-wheelhouse-validation.json"):
     assert required in finalizer, required

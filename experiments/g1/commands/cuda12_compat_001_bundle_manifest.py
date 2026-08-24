@@ -356,12 +356,13 @@ def validate_runtime_wheel_provenance(
         raise ValueError("runtime wheel provenance output differs")
     if (
         not isinstance(output["filename"], str)
+        or runtime_wheel.name != runtime["base_wheel_filename"]
         or output["filename"] != runtime_wheel.name
         or output["sha256"] != sha256(runtime_wheel)
         or output["size_bytes"] != runtime_wheel.stat().st_size
         or not all(re.fullmatch(r"[0-9a-f]{64}", str(output[field])) for field in ("sha256", "metadata_sha256", "record_sha256"))
     ):
-        raise ValueError("runtime wheel provenance does not bind the staged wheel")
+        raise ValueError("runtime wheel provenance does not bind the pinned wheel filename")
     base = provenance.get("base_wheel")
     if (
         not isinstance(base, dict)
