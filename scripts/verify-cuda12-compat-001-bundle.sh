@@ -65,6 +65,7 @@ bash -n "$STAGER"
 import hashlib
 import importlib.util
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -514,6 +515,86 @@ assert "version_id" in stager
 assert "version_id, latest, delete_marker, uri = fields[-4:]" in stager
 assert stager.count("ossutil -f cp ") == 2
 assert stager.count("</dev/null") == 2
+with tempfile.TemporaryDirectory() as temp_dir:
+    temp_root = pathlib.Path(temp_dir)
+    fake_bin = temp_root / "bin"
+    fake_bin.mkdir()
+    fake_ossutil = fake_bin / "ossutil"
+    fake_ossutil.write_text(
+        """#!/bin/sh
+if [ "$1" = "-f" ]; then shift; fi
+case "$1" in
+  cp)
+    if IFS= read -r unexpected; then
+      echo "cp consumed unexpected stdin: $unexpected" >&2
+      exit 97
+    fi
+    ;;
+  ls)
+    last=""
+    for value in "$@"; do last="$value"; done
+    printf 'a b c d e f g version-test true false %s\\n' "$last"
+    ;;
+  *)
+    echo "unexpected fake ossutil command: $*" >&2
+    exit 98
+    ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    fake_ossutil.chmod(0o755)
+    inputs = temp_root / "inputs"
+    inputs.mkdir()
+    files = {}
+    for label in (
+        "cuda_wheelhouse", "model_snapshot", "runtime_wheel",
+        "runtime_wheel_provenance", "sglang_source_seed", "toolgap_source_seed",
+    ):
+        path = inputs / f"{label}.bin"
+        path.write_text(label + "\\n", encoding="utf-8")
+        files[label] = path
+    bootstrap_input = inputs / "bootstrap.sh"
+    prereqs_input = inputs / "prereqs.sh"
+    bootstrap_input.write_text("#!/bin/sh\\n", encoding="utf-8")
+    prereqs_input.write_text("#!/bin/sh\\n", encoding="utf-8")
+    def fixture_entry(path):
+        return {"sha256": sha256(path), "size_bytes": path.stat().st_size}
+    manifest = {
+        "schema_version": 1,
+        "identity": {"bundle_id": "CUDA12-COMPAT-001"},
+        "model": {},
+        "archives": {
+            label: {"path": path.name, **fixture_entry(path)}
+            for label, path in files.items()
+        },
+        "static_inputs": {
+            "experiments/g1/commands/00-cuda12-compat-001-bootstrap.sh": fixture_entry(bootstrap_input),
+            "experiments/g1/commands/19-cuda12-compat-001-project-prereqs.sh": fixture_entry(prereqs_input),
+        },
+    }
+    manifest_path = inputs / "input-manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    environment = dict(os.environ, PATH=f"{fake_bin}{os.pathsep}{os.environ['PATH']}")
+    staged = subprocess.run(
+        [
+            "bash", str(stager_path),
+            "--input-manifest", str(manifest_path),
+            "--input-dir", str(inputs),
+            "--bootstrap", str(bootstrap_input),
+            "--prereqs", str(prereqs_input),
+            "--bucket", "fixture-bucket",
+            "--prefix", "fixture-prefix",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+        env=environment,
+    )
+    assert staged.returncode == 0, staged.stdout + staged.stderr
+    assert "CUDA12_COMPAT_001_INPUTS_STAGED" in staged.stdout
+    assert (inputs / "input-oss-receipt.json").is_file()
 PY
 
 PATH="$(dirname -- "$PYTHON"):$PATH" bash "$ROOT/scripts/verify-g1-preflight-001-bundle.sh"
