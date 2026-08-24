@@ -59,7 +59,8 @@ BASE_ARTIFACTS = (
     "cuda-wheelhouse-index.json", "cuda-wheelhouse-validation.json",
     "source-restore.log", "sglang-provenance.json", "model-seed-prepare.log",
     "model-snapshot.json", "resolver-install.log", "installed-distributions.json",
-    "omitted-dependency-exception.json", "runtime.env", "arm-plan.json", "arm-records.json", "cleanup.json",
+    "omitted-dependency-exception.json", "sglang-package-provenance.json",
+    "runtime.env", "arm-plan.json", "arm-records.json", "cleanup.json",
     "scope-scan.log", "manifest.json", "manifest.sha256",
 )
 TERMINAL_ARTIFACTS = {"execution-status.json", "artifact-index.json", "completion-receipt.json"}
@@ -288,6 +289,57 @@ def validate_plan(run_dir: Path) -> None:
             raise ValueError("invalid arm plan row")
 
 
+def validate_sglang_provenance(run_dir: Path, manifest: dict[str, object]) -> None:
+    source = load_json(run_dir / "sglang-provenance.json", "SGLang source provenance")
+    required = {"base_commit", "base_tree", "patched_commit", "patched_tree", "patches"}
+    if set(source) != required:
+        raise ValueError("SGLang source provenance schema differs")
+    identity = manifest["identity"]
+    if source["base_commit"] != identity["sglang_base_commit"] or source["base_tree"] != identity["sglang_base_tree"]:
+        raise ValueError("SGLang source provenance base differs")
+    if not valid_digest(source["patched_commit"], 40) or not valid_digest(source["patched_tree"], 40):
+        raise ValueError("SGLang patched identity is invalid")
+    patches = source["patches"]
+    expected = manifest["patches"]
+    if not isinstance(patches, list) or not isinstance(expected, list) or len(patches) != 3 or len(expected) != 3:
+        raise ValueError("SGLang source patch set differs")
+    for index, (observed, binding) in enumerate(zip(patches, expected), start=1):
+        if (
+            not isinstance(observed, dict) or not isinstance(binding, dict)
+            or observed.get("label") != f"patch_{index}"
+            or not isinstance(observed.get("path"), str) or not Path(observed["path"]).is_absolute()
+            or observed.get("sha256") != binding.get("sha256")
+        ):
+            raise ValueError("SGLang source patch binding differs")
+
+    package = load_json(run_dir / "sglang-package-provenance.json", "installed SGLang package provenance")
+    required_package = {
+        "expected_interpreter", "install_root", "interpreter", "interpreter_matches", "modules",
+        "package_path", "package_under_install_root", "passed", "source_root", "sys_path",
+    }
+    if set(package) != required_package or package["passed"] is not True:
+        raise ValueError("installed SGLang package provenance does not pass")
+    if package["interpreter_matches"] is not True or package["package_under_install_root"] is not True:
+        raise ValueError("installed SGLang package is not bound to the runtime venv")
+    if any(not isinstance(package.get(field), str) or not Path(package[field]).is_absolute() for field in (
+        "expected_interpreter", "install_root", "interpreter", "package_path", "source_root",
+    )):
+        raise ValueError("installed SGLang package provenance path differs")
+    modules = package["modules"]
+    if not isinstance(modules, dict) or set(modules) != {
+        "session_ref_tracker", "unified_tree_core", "unified_tree_core_interface", "unified_radix_cache",
+    }:
+        raise ValueError("installed SGLang module provenance set differs")
+    for item in modules.values():
+        if (
+            not isinstance(item, dict)
+            or item.get("hash_matches_source") is not True
+            or item.get("installed_under_root") is not True
+            or item.get("outside_source_checkout") is not True
+        ):
+            raise ValueError("installed SGLang module provenance differs")
+
+
 def record_errors(record: object, expected_arm: str) -> list[str]:
     errors = []
     allowed = RECORD_FIELDS | ({"stock_eviction"} if expected_arm == "stock_eviction_liveness" else set())
@@ -308,7 +360,11 @@ def record_errors(record: object, expected_arm: str) -> list[str]:
         for key in ("requested_node_ids", "eligible_node_ids", "scheduled_node_ids", "completed_node_ids"):
             if not isinstance(target[key], list) or not all(isinstance(value, int) for value in target[key]):
                 errors.append(f"target:{key}")
-        if not isinstance(target["before"], list) or not isinstance(target["after"], list):
+        if (
+            not isinstance(target["before"], list)
+            or not isinstance(target["after"], list)
+            or not all(isinstance(item, dict) for item in target["before"] + target["after"])
+        ):
             errors.append("target:observations")
     counters = record["route_counters"]
     if not isinstance(counters, dict) or set(counters) != COUNTER_FIELDS or any(
@@ -325,55 +381,103 @@ def record_errors(record: object, expected_arm: str) -> list[str]:
                 errors.append("capacity:sample")
     if record["priority_release"] not in {"RELEASED", "NOT_RELEASED"}:
         errors.append("priority_release")
+    if not isinstance(record["released_component_leaves"], int) or record["released_component_leaves"] < 0:
+        errors.append("released_component_leaves")
+    if (
+        not isinstance(record["facade"], dict)
+        or set(record["facade"]) != {"disposition", "reason"}
+        or not all(isinstance(record["facade"].get(field), str) for field in ("disposition", "reason"))
+    ):
+        errors.append("facade")
+    if not isinstance(record["nodes"], list) or not all(isinstance(item, dict) for item in record["nodes"]):
+        errors.append("nodes")
     if not isinstance(record["freed_device_ids"], list) or not all(isinstance(value, int) for value in record["freed_device_ids"]):
         errors.append("freed_device_ids")
     return errors
 
 
-def no_physical(record: dict[str, object], *, release: str) -> bool:
-    counters = record["route_counters"]
-    capacity = record["capacity"]
-    return (
-        record["priority_release"] == release
-        and record["freed_device_ids"] == []
-        and counters["physical_demote"] == 0
-        and counters["cache_owned_drain"] == 0
-        and counters["stock_evict"] == 0
-        and capacity["before"]["available_size"] == capacity["after"]["available_size"]
+def device_ids(observations: list[dict[str, object]]) -> list[int]:
+    return sorted(
+        value for observation in observations for value in observation.get("device_ids", [])
+        if isinstance(value, int)
     )
 
 
-def enabled_passes(record: dict[str, object]) -> bool:
+def enabled_context_errors(record: dict[str, object]) -> list[str]:
+    target, counters = record["target"], record["route_counters"]
+    before = target["before"]
+    errors = []
+    if record["priority_release"] != "RELEASED":
+        errors.append("enabled priority release differs")
+    if record["facade"] != {"disposition": "ACCEPTED", "reason": "ACCEPTED"}:
+        errors.append("enabled facade differs")
+    if not before or not all(
+        item.get("host_committed") is True and item.get("device_leaf") is True
+        and isinstance(item.get("device_ids"), list) and item["device_ids"]
+        for item in before
+    ):
+        errors.append("enabled does not begin with committed Full device tails")
+    if len(before) != len(target["after"]):
+        errors.append("enabled target observation count differs")
+    if counters["checked_facade"] != 1 or counters["checked_backend"] < 1 or counters["stock_evict"] != 0:
+        errors.append("enabled route is not the checked non-stock route")
+    if not target["requested_node_ids"]:
+        errors.append("enabled target is empty")
+    return errors
+
+
+def enabled_stop_reasons(record: dict[str, object]) -> list[str]:
     target, counters, capacity = record["target"], record["route_counters"], record["capacity"]
-    before, after = target["before"], target["after"]
-    if not before or len(before) != len(after):
-        return False
-    expected_ids = sorted(
-        value for observation in before if isinstance(observation, dict)
-        for value in observation.get("device_ids", []) if isinstance(value, int)
-    )
-    return (
-        record["priority_release"] == "RELEASED"
-        and record["facade"] == {"disposition": "ACCEPTED", "reason": "ACCEPTED"}
-        and bool(expected_ids)
-        and sorted(record["freed_device_ids"]) == expected_ids
-        and all(isinstance(item, dict) and item.get("host_committed") is True and item.get("device_leaf") is True for item in before)
-        and all(isinstance(item, dict) and item.get("live") is True and item.get("device_ids") == [] for item in after)
-        and counters["checked_facade"] == 1 and counters["checked_backend"] >= 1
-        and counters["physical_demote"] >= 1 and counters["cache_owned_drain"] >= 1
-        and counters["stock_evict"] == 0
-        and sorted(counters["physical_demote_node_ids"]) == sorted(target["requested_node_ids"])
-        and capacity["after"]["available_size"] > capacity["before"]["available_size"]
-    )
+    expected_ids = device_ids(target["before"])
+    reasons = []
+    if sorted(record["freed_device_ids"]) != expected_ids:
+        reasons.append("enabled freed IDs do not exactly cover the original device tail")
+    if counters["physical_demote"] < 1 or counters["cache_owned_drain"] < 1:
+        reasons.append("enabled did not take the physical checked-demote route")
+    if sorted(counters["physical_demote_node_ids"]) != sorted(target["requested_node_ids"]):
+        reasons.append("enabled physical target differs from the requested tail")
+    if not all(item.get("live") is True and item.get("device_ids") == [] for item in target["after"]):
+        reasons.append("enabled tail still retains device KV")
+    if capacity["after"]["available_size"] <= capacity["before"]["available_size"]:
+        reasons.append("enabled lacks allocator-visible reclaim")
+    return reasons
 
 
-def bypass_passes(record: dict[str, object]) -> bool:
-    return (
-        record["facade"] == {"disposition": "BYPASSED", "reason": "PRIORITY_RELEASE_ONLY"}
-        and record["route_counters"]["checked_facade"] == 0
-        and record["route_counters"]["checked_backend"] == 0
-        and no_physical(record, release="RELEASED")
-    )
+def bypass_context_errors(record: dict[str, object]) -> list[str]:
+    counters, capacity = record["route_counters"], record["capacity"]
+    errors = []
+    if record["priority_release"] != "RELEASED":
+        errors.append("bypass priority release differs")
+    if record["facade"] != {"disposition": "BYPASSED", "reason": "PRIORITY_RELEASE_ONLY"}:
+        errors.append("bypass facade differs")
+    if counters["checked_facade"] != 0 or counters["checked_backend"] != 0 or counters["stock_evict"] != 0:
+        errors.append("bypass route differs")
+    if capacity["after"]["available_size"] < capacity["before"]["available_size"]:
+        errors.append("bypass allocator capacity regressed")
+    before, after = record["target"]["before"], record["target"]["after"]
+    if len(before) != len(after):
+        errors.append("bypass target observation count differs")
+    elif any(set(item.get("device_ids", [])) - set(before[index].get("device_ids", [])) for index, item in enumerate(after)):
+        errors.append("bypass gained an unaccounted device ID")
+    return errors
+
+
+def bypass_stop_reasons(record: dict[str, object]) -> list[str]:
+    counters, capacity = record["route_counters"], record["capacity"]
+    before, after = record["target"]["before"], record["target"]["after"]
+    reasons = []
+    if record["freed_device_ids"]:
+        reasons.append("bypass reported freed device IDs")
+    if counters["physical_demote"] != 0 or counters["cache_owned_drain"] != 0:
+        reasons.append("bypass took a physical checked-demote route")
+    if capacity["after"]["available_size"] > capacity["before"]["available_size"]:
+        reasons.append("bypass increased allocator capacity")
+    if len(before) == len(after) and any(
+        set(item.get("device_ids", [])) < set(before[index].get("device_ids", []))
+        for index, item in enumerate(after)
+    ):
+        reasons.append("bypass removed device KV")
+    return reasons
 
 
 def rejection_passes(record: dict[str, object], reason: str) -> bool:
@@ -385,7 +489,11 @@ def rejection_passes(record: dict[str, object], reason: str) -> bool:
         and record["priority_release"] == required_release
         and counters["checked_facade"] == 1
         and (counters["checked_backend"] == 0 if expected_backend == 0 else counters["checked_backend"] >= 1)
-        and no_physical(record, release=required_release)
+        and record["freed_device_ids"] == []
+        and counters["physical_demote"] == 0
+        and counters["cache_owned_drain"] == 0
+        and counters["stock_evict"] == 0
+        and record["capacity"]["before"]["available_size"] == record["capacity"]["after"]["available_size"]
     )
 
 
@@ -395,7 +503,13 @@ def liveness_passes(record: dict[str, object]) -> bool:
         return False
     victims, results = stock.get("victims"), stock.get("results")
     return (
-        bypass_passes({**record, "route_counters": {**record["route_counters"], "stock_evict": 0}})
+        record["priority_release"] == "RELEASED"
+        and record["facade"] == {"disposition": "BYPASSED", "reason": "PRIORITY_RELEASE_ONLY"}
+        and record["route_counters"]["checked_facade"] == 0
+        and record["route_counters"]["checked_backend"] == 0
+        and record["route_counters"]["physical_demote"] == 0
+        and record["route_counters"]["cache_owned_drain"] == 0
+        and record["freed_device_ids"] == []
         and isinstance(stock.get("candidate_ids_before"), list) and bool(stock["candidate_ids_before"])
         and isinstance(stock.get("observed_calls"), int) and stock["observed_calls"] > 0
         and isinstance(victims, list) and bool(victims)
@@ -423,11 +537,10 @@ def classify_records(records: object) -> tuple[str, list[str]]:
     if structural:
         return "INVALID", structural
     enabled, bypass = by_arm["enabled"], by_arm["bypass"]
-    causal_stop = []
-    if not enabled_passes(enabled):
-        causal_stop.append("enabled lacks checked allocator-visible reclaim")
-    if not bypass_passes(bypass):
-        causal_stop.append("bypass is not priority-only")
+    formal_errors = enabled_context_errors(enabled) + bypass_context_errors(bypass)
+    if formal_errors:
+        return "INVALID", formal_errors
+    causal_stop = enabled_stop_reasons(enabled) + bypass_stop_reasons(bypass)
     if causal_stop:
         return "STOP", causal_stop
     failures = []
@@ -447,15 +560,52 @@ def validate_cleanup(run_dir: Path) -> None:
     if not isinstance(arms, list) or [item.get("arm") for item in arms if isinstance(item, dict)] != list(ARMS):
         raise ValueError("cleanup arm set differs")
     for item in arms:
-        if not isinstance(item, dict) or set(item) != {"arm", "listener_clean", "pgid_clean", "gpu_delta_clean"}:
+        if not isinstance(item, dict) or set(item) != {"arm", "pid", "pgid", "listener_clean", "pgid_clean", "gpu_delta_clean"}:
             raise ValueError("cleanup row differs")
+        if not isinstance(item["pid"], int) or item["pid"] < 1 or item["pgid"] != item["pid"]:
+            raise ValueError("cleanup PID/PGID binding differs")
         if not all(item[key] is True for key in ("listener_clean", "pgid_clean", "gpu_delta_clean")):
             raise ValueError("an arm leaked a runtime resource")
+        arm = item["arm"]
+        arm_root = run_dir / "arms"
+        for suffix, expected in (("pid", str(item["pid"])), ("pgid", str(item["pgid"]))):
+            source = arm_root / f"{arm}.{suffix}"
+            absolute_regular(source, f"{arm} {suffix}")
+            if source.read_text(encoding="utf-8") != expected + "\n":
+                raise ValueError(f"{arm} {suffix} evidence differs")
+        for suffix in (
+            "gpu-before.txt", "gpu-during.txt", "gpu-attributable.txt", "gpu-after.txt", "gpu-leaked.txt",
+            "listeners-before.txt", "listeners-after.txt", "listeners-leaked.txt", "process-group-after.txt",
+        ):
+            absolute_regular(arm_root / f"{arm}.{suffix}", f"{arm} cleanup evidence")
+        pids = {
+            suffix: [int(value) for value in (arm_root / f"{arm}.{suffix}").read_text(encoding="utf-8").split()]
+            for suffix in ("gpu-before.txt", "gpu-during.txt", "gpu-attributable.txt", "gpu-after.txt", "gpu-leaked.txt")
+        }
+        if any(values != sorted(set(values)) or any(value < 1 for value in values) for values in pids.values()):
+            raise ValueError(f"{arm} GPU PID evidence differs")
+        if pids["gpu-attributable.txt"] != sorted(set(pids["gpu-during.txt"]) - set(pids["gpu-before.txt"])):
+            raise ValueError(f"{arm} attributable GPU PID evidence differs")
+        if pids["gpu-leaked.txt"] != sorted(set(pids["gpu-attributable.txt"]) & set(pids["gpu-after.txt"])):
+            raise ValueError(f"{arm} leaked GPU PID evidence differs")
+        listeners_before = (arm_root / f"{arm}.listeners-before.txt").read_text(encoding="utf-8").splitlines()
+        listeners_after = (arm_root / f"{arm}.listeners-after.txt").read_text(encoding="utf-8").splitlines()
+        listeners_leaked = (arm_root / f"{arm}.listeners-leaked.txt").read_text(encoding="utf-8").splitlines()
+        if listeners_before != sorted(set(listeners_before)) or listeners_after != sorted(set(listeners_after)):
+            raise ValueError(f"{arm} listener evidence is not canonical")
+        if listeners_leaked != sorted(set(listeners_after) - set(listeners_before)):
+            raise ValueError(f"{arm} listener leak evidence differs")
+        if (arm_root / f"{arm}.process-group-after.txt").read_text(encoding="utf-8"):
+            raise ValueError(f"{arm} process group survived cleanup")
 
 
 def required_artifacts(run_dir: Path) -> tuple[str, ...]:
     dynamic = tuple(
-        f"arms/{arm}.{suffix}" for arm in ARMS for suffix in ("command.txt", "log", "record.json", "cleanup.json")
+        f"arms/{arm}.{suffix}" for arm in ARMS for suffix in (
+            "command.txt", "log", "record.json", "cleanup.json", "pid", "pgid",
+            "gpu-before.txt", "gpu-during.txt", "gpu-attributable.txt", "gpu-after.txt", "gpu-leaked.txt",
+            "listeners-before.txt", "listeners-after.txt", "listeners-leaked.txt", "process-group-after.txt",
+        )
     )
     return BASE_ARTIFACTS + dynamic
 
@@ -514,10 +664,12 @@ def index(run_dir: Path) -> Path:
     return output
 
 
-def seal(run_dir: Path, terminal: str, reasons: list[str]) -> None:
+def seal(run_dir: Path, terminal: str, reasons: list[str], *, evidence_scope: str) -> None:
+    if evidence_scope not in {"formal_runtime", "pre_execution"}:
+        raise ValueError("invalid evidence scope")
     write_exclusive(run_dir / "execution-status.json", {
         "attempt_status": terminal, "claim_state": "roadmap", "gate": "G1",
-        "kind": KIND, "recorded_at": now(), "reasons": reasons,
+        "evidence_scope": evidence_scope, "kind": KIND, "recorded_at": now(), "reasons": reasons,
     })
     artifact_index = index(run_dir)
     write_exclusive(run_dir / "completion-receipt.json", {
@@ -528,15 +680,12 @@ def seal(run_dir: Path, terminal: str, reasons: list[str]) -> None:
     })
 
 
-def finish(args: argparse.Namespace) -> int:
-    run_dir = args.run_dir.resolve()
-    if any((run_dir / item).exists() for item in TERMINAL_ARTIFACTS):
-        raise ValueError("attempt is already sealed")
-    context = validate_context(run_dir)
+def validate_full_evidence(run_dir: Path, context: dict[str, object]) -> tuple[str, list[str]]:
     manifest = validate_input_manifest(run_dir, context)
     validate_input_oss_receipt(run_dir, manifest)
     validate_bootstrap(run_dir, manifest)
     validate_runtime_inputs(run_dir, manifest)
+    validate_sglang_provenance(run_dir, manifest)
     exception = load_json(run_dir / "omitted-dependency-exception.json", "omitted dependency exception")
     if exception != {
         "allowed_uninstalled_requirement": "cuda-tile==1.6.0rc5",
@@ -545,13 +694,20 @@ def finish(args: argparse.Namespace) -> int:
     }:
         raise ValueError("omitted dependency exception differs")
     validate_plan(run_dir)
-    validate_cleanup(run_dir)
     for path in required_artifacts(run_dir):
         absolute_regular(run_dir / path, f"required artifact {path}")
+    validate_cleanup(run_dir)
+    for arm in ARMS:
+        command = (run_dir / "arms" / f"{arm}.command.txt").read_text(encoding="utf-8")
+        if command != SELECTORS[arm] + "\n":
+            raise ValueError(f"{arm} selector evidence differs")
     scope = (run_dir / "scope-scan.log").read_text(encoding="utf-8", errors="replace")
-    if "scope=clean\n" not in scope:
-        raise ValueError("scope scanner did not pass")
-    records = json.loads((run_dir / "arm-records.json").read_text(encoding="utf-8"))
+    if scope != "scope=clean\n":
+        raise ValueError("runtime scope scanner did not prove clean scope")
+    try:
+        records = json.loads((run_dir / "arm-records.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("arm records are not valid JSON") from error
     if not isinstance(records, list):
         raise ValueError("arm records must be a list")
     individual_records = [
@@ -560,9 +716,17 @@ def finish(args: argparse.Namespace) -> int:
     ]
     if records != individual_records:
         raise ValueError("arm record aggregate differs from individual evidence")
-    terminal, reasons = classify_records(records)
+    return classify_records(records)
+
+
+def finish(args: argparse.Namespace) -> int:
+    run_dir = args.run_dir.resolve()
+    if any((run_dir / item).exists() for item in TERMINAL_ARTIFACTS):
+        raise ValueError("attempt is already sealed")
+    context = validate_context(run_dir)
+    terminal, reasons = validate_full_evidence(run_dir, context)
     validate_rendered_manifest(run_dir, context, terminal)
-    seal(run_dir, terminal, reasons)
+    seal(run_dir, terminal, reasons, evidence_scope="formal_runtime")
     verify(argparse.Namespace(run_dir=run_dir))
     return 0
 
@@ -574,7 +738,7 @@ def invalid(args: argparse.Namespace) -> int:
     validate_context(run_dir)
     if not (run_dir / "environment.txt").is_file():
         raise ValueError("invalid terminal requires environment evidence")
-    seal(run_dir, "INVALID", [args.reason])
+    seal(run_dir, "INVALID", [args.reason], evidence_scope="pre_execution")
     verify(argparse.Namespace(run_dir=run_dir))
     return 0
 
@@ -582,9 +746,9 @@ def invalid(args: argparse.Namespace) -> int:
 def verify(args: argparse.Namespace) -> int:
     run_dir = args.run_dir.resolve()
     status = load_json(run_dir / "execution-status.json", "execution status")
-    if set(status) != {"attempt_status", "claim_state", "gate", "kind", "recorded_at", "reasons"}:
+    if set(status) != {"attempt_status", "claim_state", "evidence_scope", "gate", "kind", "recorded_at", "reasons"}:
         raise ValueError("execution status schema differs")
-    if status["attempt_status"] not in {"PASS", "STOP", "INVALID"} or status["claim_state"] != "roadmap" or status["gate"] != "G1" or status["kind"] != KIND:
+    if status["attempt_status"] not in {"PASS", "STOP", "INVALID"} or status["claim_state"] != "roadmap" or status["gate"] != "G1" or status["kind"] != KIND or status["evidence_scope"] not in {"formal_runtime", "pre_execution"}:
         raise ValueError("execution status identity differs")
     receipt = load_json(run_dir / "completion-receipt.json", "completion receipt")
     if receipt.get("gate_decision") != status["attempt_status"] or receipt.get("status") != "G1_C_001_TERMINAL_SEALED":
@@ -608,6 +772,14 @@ def verify(args: argparse.Namespace) -> int:
         raise ValueError("artifact index omits execution status")
     if receipt.get("artifact_index_sha256") != sha256(run_dir / "artifact-index.json") or receipt.get("execution_status_sha256") != sha256(run_dir / "execution-status.json"):
         raise ValueError("completion receipt checksums differ")
+    context = validate_context(run_dir)
+    if status["evidence_scope"] == "formal_runtime":
+        terminal, reasons = validate_full_evidence(run_dir, context)
+        if status["attempt_status"] != terminal or status["reasons"] != reasons:
+            raise ValueError("execution status differs from offline classification")
+        validate_rendered_manifest(run_dir, context, terminal)
+    elif status["attempt_status"] != "INVALID":
+        raise ValueError("pre-execution evidence cannot produce a Gate terminal")
     print(f"VERIFIED_G1_C_001_ATTEMPT: {run_dir}")
     return 0
 

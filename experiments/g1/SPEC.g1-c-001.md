@@ -105,16 +105,20 @@ rejection reason with no physical free or capacity increase, and observed stock
 eviction with a real victim. This is an execution result only; the project
 claim remains `roadmap` until the canonical Gate process accepts it.
 
-`STOP` is permitted only for a well-formed enabled/bypass comparison that
-directly contradicts the causal G1 predicate: enabled has no allocator-visible
-physical reclaim or bypass exhibits one. Bad input binding, host mismatch,
-resolver failure, malformed/missing records, test failure, unsafe scope,
-cleanup failure, or any non-causal observation is `INVALID`. `INVALID` never
-becomes evidence for a G1 rejection.
+`STOP` is permitted only after the enabled and bypass records are formally
+complete, and only for the two causal counterexamples: enabled lacks
+allocator-visible physical reclaim, or bypass exhibits one. A wrong bypass
+priority-release result, wrong facade, wrong checked-route counter, malformed
+record, or any other non-causal anomaly is `INVALID`, even if it also lacks
+reclaim. Bad input binding, host mismatch, resolver failure, test failure,
+unsafe scope, or cleanup failure is also `INVALID`. `INVALID` never becomes
+evidence for a G1 rejection.
 
 The terminal artifacts are immutable: `execution-status.json`,
 `artifact-index.json`, and `completion-receipt.json`. The finalizer's
-`verify` mode checks them off-host using only the sealed directory. The
+`verify` mode replays context/input/runtime provenance, selectors, per-arm
+PID/PGID/listener/GPU cleanup evidence, scope scan, raw records, and the
+classification oracle off-host using only the sealed directory. The
 operator-only `scripts/anchor-g1-c-001-oss.sh` first performs that
 verification, uploads each indexed artifact to a versioned OSS prefix, and
 writes an external anchor that binds every OSS object version. The ECS role only

@@ -92,6 +92,10 @@ assert "fresh_process_per_arm" in runner
 assert "exec setsid timeout" in runner
 assert "G1_C_001_INPUT_OSS_RECEIPT" in runner
 assert "--find-links" in runner and "mirrors.cloud.aliyuncs.com" in runner
+assert "pip install --upgrade pip" not in runner
+assert "gpu-during.txt" in runner and "gpu-attributable.txt" in runner
+assert "scope scan requires every formal arm log" in runner
+assert "unapproved_index" in runner and "source_build" in runner
 for forbidden in (
     "cargo ", "rustc ", "maturin ", "pip install \"$TREATMENT/python\"",
     "download.pytorch.org", "docs.sglang.ai", "github.com/sgl-project",
@@ -100,6 +104,7 @@ for forbidden in (
 assert "G1_C_001_EXTERNAL_OSS_ANCHOR" in anchor
 assert "ossutil ls --all-versions" in anchor
 assert "python3 \"$FINALIZER\" verify" in anchor
+assert "CONTEXT_ATTEMPT_ID" in anchor and "CONTEXT_SHA256" in anchor
 
 # Builder independently binds patch bytes, immutable runtime provenance, the
 # six-wheel index, and every static formal script.
@@ -124,10 +129,12 @@ for patch in (
 ):
     assert re.fullmatch(r"[0-9a-f]{64}", hashlib.sha256(patch.read_bytes()).hexdigest())
 
-# The terminal classifier reserves STOP for enabled/bypass causal evidence;
-# malformed and rejection/liveness faults are INVALID.
+# The terminal classifier validates formal arm context before evaluating only
+# the two causal STOP predicates; malformed/rejection/liveness faults are INVALID.
 assert "return \"STOP\", causal_stop" in finalizer
 assert "return \"INVALID\", structural" in finalizer
+assert "enabled_context_errors" in finalizer and "bypass_context_errors" in finalizer
+assert "validate_full_evidence" in finalizer and "sglang-package-provenance.json" in finalizer
 assert "rejection contract" in finalizer and "stock eviction liveness" in finalizer
 assert "arm record aggregate differs from individual evidence" in finalizer
 print("G1-C-001 static contract checks passed")

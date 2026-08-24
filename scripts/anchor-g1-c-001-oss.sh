@@ -42,6 +42,18 @@ FINALIZER="$ROOT/experiments/g1/commands/g1_c_001_finalize.py"
 ATTEMPT_DIR="$(cd "$ATTEMPT_DIR" && pwd -P)"
 python3 "$FINALIZER" verify --run-dir "$ATTEMPT_DIR"
 
+read -r CONTEXT_ATTEMPT_ID CONTEXT_SHA256 < <(python3 - "$ATTEMPT_DIR/attempt-context.json" <<'PY'
+import hashlib, json, sys
+path = sys.argv[1]
+document = json.load(open(path, encoding="utf-8"))
+attempt_id = document.get("attempt_id")
+if not isinstance(attempt_id, str) or not attempt_id:
+    raise SystemExit("sealed attempt context lacks an attempt ID")
+print(attempt_id, hashlib.sha256(open(path, "rb").read()).hexdigest())
+PY
+)
+[[ "$CONTEXT_ATTEMPT_ID" == "$ATTEMPT_ID" ]] || die '--attempt-id does not match sealed attempt context'
+
 read -r STATUS CLAIM GATE < <(python3 - "$ATTEMPT_DIR/execution-status.json" <<'PY'
 import json, sys
 document = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -56,7 +68,7 @@ PY
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/g1-c-001-anchor.XXXXXXXX")"
 trap 'rm -rf -- "$TMP"' EXIT
-RAW_ROOT="oss://$BUCKET/$RAW_PREFIX/$ATTEMPT_ID"
+RAW_ROOT="oss://$BUCKET/$RAW_PREFIX/$CONTEXT_ATTEMPT_ID"
 PLAN="$TMP/plan.tsv"
 RECORDS="$TMP/records.tsv"
 python3 - "$ATTEMPT_DIR" "$RAW_ROOT" >"$PLAN" <<'PY'
@@ -134,16 +146,17 @@ for terminal in artifact-index.json completion-receipt.json; do
 done
 
 ANCHOR="$TMP/external-anchor.json"
-python3 - "$ANCHOR" "$ATTEMPT_DIR" "$ATTEMPT_ID" "$RAW_ROOT" "$STATUS" "$RECORDS" <<'PY'
+python3 - "$ANCHOR" "$ATTEMPT_DIR" "$CONTEXT_ATTEMPT_ID" "$CONTEXT_SHA256" "$RAW_ROOT" "$STATUS" "$RECORDS" <<'PY'
 import json, os, sys
 from datetime import datetime, timezone
 from pathlib import Path
 out = Path(sys.argv[1])
 attempt_dir = Path(sys.argv[2])
 attempt_id = sys.argv[3]
-raw = sys.argv[4]
-terminal = sys.argv[5]
-records_file = Path(sys.argv[6])
+context_sha256 = sys.argv[4]
+raw = sys.argv[5]
+terminal = sys.argv[6]
+records_file = Path(sys.argv[7])
 index = json.loads((attempt_dir / "artifact-index.json").read_text(encoding="utf-8"))
 records = {}
 for line in records_file.read_text(encoding="utf-8").splitlines():
@@ -154,7 +167,7 @@ indexed = [records[item["path"]] for item in index["files"]]
 if len(indexed) != len(index["files"]): raise SystemExit("missing indexed upload")
 document = {
     "anchor_kind": "G1_C_001_EXTERNAL_OSS_ANCHOR",
-    "attempt": {"attempt_id": attempt_id, "raw_object_prefix": raw},
+    "attempt": {"attempt_id": attempt_id, "context_sha256": context_sha256, "raw_object_prefix": raw},
     "claim_state": "roadmap", "gate": "G1", "gate_decision": terminal,
     "indexed_artifacts": indexed,
     "terminal_objects": {"artifact_index": records["artifact-index.json"], "completion_receipt": records["completion-receipt.json"], "execution_status": records["execution-status.json"]},
@@ -166,6 +179,6 @@ with os.fdopen(fd, "w", encoding="utf-8") as handle: handle.write(json.dumps(doc
 os.chmod(out, 0o444)
 PY
 ANCHOR_SHA="$(metadata "$ANCHOR" | awk '{print $1}')"
-ANCHOR_URI="oss://$BUCKET/$ANCHOR_PREFIX/$ATTEMPT_ID/external-anchor-$ANCHOR_SHA.json"
+ANCHOR_URI="oss://$BUCKET/$ANCHOR_PREFIX/$CONTEXT_ATTEMPT_ID/external-anchor-$ANCHOR_SHA.json"
 ossutil -f cp "$ANCHOR" "$ANCHOR_URI" </dev/null
 printf 'OSS_EXTERNAL_ANCHOR_URI=%s\nOSS_EXTERNAL_ANCHOR_VERSION_ID=%s\nOSS_EXTERNAL_ANCHOR_SHA256=%s\n' "$ANCHOR_URI" "$(latest_version "$ANCHOR_URI")" "$ANCHOR_SHA"

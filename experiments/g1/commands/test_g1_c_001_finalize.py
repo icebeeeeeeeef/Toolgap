@@ -93,6 +93,11 @@ class G1C001TerminalTests(unittest.TestCase):
         value[1]["route_counters"]["physical_demote"] = 1
         self.assertEqual(FINALIZE.classify_records(value)[0], "STOP")
 
+    def test_bypass_priority_release_fault_is_invalid_not_stop(self) -> None:
+        value = records()
+        value[1]["priority_release"] = "NOT_RELEASED"
+        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
     def test_rejection_failure_is_invalid_not_stop(self) -> None:
         value = records()
         value[2]["facade"]["reason"] = "ACCEPTED"

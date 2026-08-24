@@ -241,7 +241,7 @@ MODEL_ROOT="$WORK_ROOT/model-input/model-snapshot"
 PHASE="resolver"
 RUNTIME_VENV="$WORK_ROOT/runtime-venv"
 "$PYTHON" -m venv "$RUNTIME_VENV"
-"$RUNTIME_VENV/bin/python" -m pip install --upgrade pip >"$RUN_DIR/resolver-install.log" 2>&1
+"$RUNTIME_VENV/bin/python" -m pip --version >"$RUN_DIR/resolver-install.log" 2>&1
 WHEELHOUSE_ROOT="$WORK_ROOT/cuda-wheelhouse"
 mkdir "$WHEELHOUSE_ROOT"
 "$PYTHON" - "$CUDA_WHEELHOUSE_ARCHIVE" "$WHEELHOUSE_ROOT" "$RUN_DIR/cuda-wheelhouse-index.json" "$RUN_DIR/cuda-wheelhouse-validation.json" <<'PY'
@@ -372,7 +372,7 @@ run_arm() {
   local arm_dir="$RUN_DIR/arms"
   printf '%s\n' "$selector" >"$arm_dir/$arm.command.txt"
   gpu_pids >"$arm_dir/$arm.gpu-before.txt"
-  ss -ltnH | LC_ALL=C sort >"$arm_dir/$arm.listeners-before.txt"
+  ss -ltnH | LC_ALL=C sort -u >"$arm_dir/$arm.listeners-before.txt"
   (
     cd "$TREATMENT"
     exec setsid timeout --signal=TERM --kill-after=30s "${LONG_TIMEOUT_SECONDS}s" \
@@ -383,18 +383,28 @@ run_arm() {
   pid="$!"
   pgid="$(ps -o pgid= -p "$pid" | xargs)"
   [[ "$pgid" == "$pid" ]] || die "arm $arm did not form its own process group"
+  printf '%s\n' "$pid" >"$arm_dir/$arm.pid"
+  printf '%s\n' "$pgid" >"$arm_dir/$arm.pgid"
+  : >"$arm_dir/$arm.gpu-during.txt"
+  for _ in 1 2 3 4 5; do
+    if kill -0 "$pid" 2>/dev/null; then gpu_pids >>"$arm_dir/$arm.gpu-during.txt"; else break; fi
+    sleep 1
+  done
+  LC_ALL=C sort -n -u -o "$arm_dir/$arm.gpu-during.txt" "$arm_dir/$arm.gpu-during.txt"
   if wait "$pid"; then status=0; else status=$?; fi
   ps -eo pid=,pgid=,stat=,args= | awk -v group="$pgid" '$2 == group && $3 !~ /^Z/' >"$arm_dir/$arm.process-group-after.txt"
   gpu_pids >"$arm_dir/$arm.gpu-after.txt"
-  ss -ltnH | LC_ALL=C sort >"$arm_dir/$arm.listeners-after.txt"
-  comm -12 "$arm_dir/$arm.gpu-before.txt" "$arm_dir/$arm.gpu-after.txt" >"$arm_dir/$arm.gpu-leaked.txt"
+  ss -ltnH | LC_ALL=C sort -u >"$arm_dir/$arm.listeners-after.txt"
+  comm -13 "$arm_dir/$arm.gpu-before.txt" "$arm_dir/$arm.gpu-during.txt" >"$arm_dir/$arm.gpu-attributable.txt"
+  comm -12 "$arm_dir/$arm.gpu-attributable.txt" "$arm_dir/$arm.gpu-after.txt" >"$arm_dir/$arm.gpu-leaked.txt"
   comm -13 "$arm_dir/$arm.listeners-before.txt" "$arm_dir/$arm.listeners-after.txt" >"$arm_dir/$arm.listeners-leaked.txt"
-  "$PYTHON" - "$arm_dir/$arm.cleanup.json" "$arm" "$arm_dir/$arm.process-group-after.txt" "$arm_dir/$arm.gpu-leaked.txt" "$arm_dir/$arm.listeners-leaked.txt" <<'PY'
+  "$PYTHON" - "$arm_dir/$arm.cleanup.json" "$arm" "$pid" "$pgid" "$arm_dir/$arm.process-group-after.txt" "$arm_dir/$arm.gpu-leaked.txt" "$arm_dir/$arm.listeners-leaked.txt" <<'PY'
 import json, os, pathlib, sys
 out = pathlib.Path(sys.argv[1])
 arm = sys.argv[2]
-group, gpu, listeners = map(pathlib.Path, sys.argv[3:])
-document = {"arm": arm, "listener_clean": not listeners.read_text(), "pgid_clean": not group.read_text(), "gpu_delta_clean": not gpu.read_text()}
+pid, pgid = map(int, sys.argv[3:5])
+group, gpu, listeners = map(pathlib.Path, sys.argv[5:])
+document = {"arm": arm, "pid": pid, "pgid": pgid, "listener_clean": not listeners.read_text(), "pgid_clean": not group.read_text(), "gpu_delta_clean": not gpu.read_text()}
 fd = os.open(out, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
 with os.fdopen(fd, "w", encoding="utf-8") as handle: handle.write(json.dumps(document, indent=2, sort_keys=True) + "\n")
 os.chmod(out, 0o444)
@@ -418,16 +428,19 @@ for out, document in ((records_out, records), (cleanup_out, {"all_clean": all(al
 PY
 
 PHASE="scope"
-"$PYTHON" - "$RUN_DIR/scope-scan.log" "$RUN_DIR/resolver-install.log" "$RUN_DIR/source-restore.log" <<'PY'
+"$PYTHON" - "$RUN_DIR/scope-scan.log" "$RUN_DIR/resolver-install.log" "$RUN_DIR/source-restore.log" "$RUN_DIR/arms" <<'PY'
 import os, pathlib, re, sys
-out, resolver, restore = map(pathlib.Path, sys.argv[1:])
+out, resolver, restore, arms_root = map(pathlib.Path, sys.argv[1:])
 forbidden = {
-    "special_upstream_index": r"(github\.com|download\.pytorch\.org|docs\.sglang\.ai)",
-    "source_build": r"\b(cargo|rustc|maturin)\b",
+    "unapproved_index": r"(pypi\.org|github\.com|download\.pytorch\.org|docs\.sglang\.ai)",
+    "source_build": r"\b(cargo|rustc|maturin|building wheel|build backend)\b",
     "treatment_source_install": r"pip install .*sglang/python",
 }
 hits = []
-for path in (resolver, restore):
+arm_logs = sorted(arms_root.glob("*.log"))
+if len(arm_logs) != 7:
+    raise ValueError("scope scan requires every formal arm log")
+for path in (resolver, restore, *arm_logs):
     text = path.read_text(encoding="utf-8", errors="replace")
     for label, pattern in forbidden.items():
         if re.search(pattern, text, re.IGNORECASE):
