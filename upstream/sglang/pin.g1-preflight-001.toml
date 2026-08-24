@@ -1,0 +1,43 @@
+schema_version = 1
+
+[bundle]
+id = "G1-PREFLIGHT-001"
+kind = "preformal_runtime_validation"
+claim_state = "roadmap"
+gate_decision = "N/A: this bundle cannot produce a G1 PASS or STOP"
+
+[sglang]
+remote = "https://github.com/sgl-project/sglang.git"
+base_commit = "92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2"
+base_tree = "25e9bf86d04c27fe380024d9c8c421c3b5b51f3c"
+source_seed_sha256 = "2d40db92ff1a21cb78e95f4da98352f1fa17086e1a16a82e95070f05e1460400"
+
+[[sglang.patches]]
+path = "upstream/sglang/patches/0001-atomic-checked-demote.patch"
+sha256 = "e69776678909b4ee49b1c0fa4a8e208666893b659c0508387c83fcdf11e82a9a"
+changed_paths = [
+  "python/sglang/srt/mem_cache/unified_cache/session_ref_tracker.py",
+  "python/sglang/srt/mem_cache/unified_cache/unified_tree_core.py",
+  "python/sglang/srt/mem_cache/unified_cache/unified_tree_core_interface.py",
+  "python/sglang/srt/mem_cache/unified_radix_cache.py",
+]
+
+[[sglang.patches]]
+path = "upstream/sglang/patches/0002-g1-scripted-forced-demote.patch"
+sha256 = "2a1715555c7adac71f368a9a8210f219f3869ac038ca4fb07fb18255fa9007d1"
+changed_paths = ["test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py"]
+
+[model]
+repository = "Qwen/Qwen3-0.6B"
+revision = "c1899de289a04d12100db370d81485cdf75e47ca"
+inventory = "experiments/g1/artifacts/model-files.g1-preflight-001.json"
+local_only = true
+supports_swa = false
+
+[capability_envelope]
+os = "Linux x86_64"
+provider_image = "Alibaba Cloud official Ubuntu 24.04 NVIDIA GPU image"
+gpu = "one NVIDIA A10 with 22-25 GiB"
+cuda = "provider CUDA 13.0"
+python = "3.12.x"
+runtime = "patched SGLang scripted runtime; local model path only"

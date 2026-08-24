@@ -1,0 +1,81 @@
+{
+  "identity": {
+    "attempt_id": "__GENERATED__",
+    "bundle_id": "G1-PREFLIGHT-001",
+    "claim_state": "roadmap",
+    "gate": "G1",
+    "gate_decision": "N/A",
+    "kind": "preformal_runtime_validation",
+    "spec_path": "experiments/g1/SPEC.g1-preflight-001.md",
+    "spec_sha256": "__GENERATED__",
+    "toolgap_commit": "__GENERATED__",
+    "toolgap_tree": "__GENERATED__"
+  },
+  "model": {
+    "inventory_path": "experiments/g1/artifacts/model-files.g1-preflight-001.json",
+    "local_only": true,
+    "repository": "Qwen/Qwen3-0.6B",
+    "revision": "c1899de289a04d12100db370d81485cdf75e47ca"
+  },
+  "outcome": {
+    "claim_state": "roadmap",
+    "gate_decision": "N/A: preformal runtime admission only"
+  },
+  "planned_success_artifacts": [
+    "attempt-context.json",
+    "environment.txt",
+    "source-seed.txt",
+    "input-manifest-verify.log",
+    "input-manifest.json",
+    "bootstrap-receipt.json",
+    "toolgap-seed-verify.log",
+    "source-restore.log",
+    "model-seed-prepare.log",
+    "model-snapshot.json",
+    "build-install.log",
+    "dependency-lock.txt",
+    "runtime-install-report.json",
+    "sglang-provenance.json",
+    "test-module-provenance.json",
+    "runtime.env",
+    "manifest.json",
+    "manifest.sha256",
+    "schema.log",
+    "smoke.log",
+    "smoke.pid",
+    "smoke.pgid",
+    "smoke-gpu-pids-before.txt",
+    "smoke-gpu-pids-during.txt",
+    "smoke-gpu-pids-attributable.txt",
+    "smoke-gpu-pids-after.txt",
+    "smoke-gpu-pids-leaked.txt",
+    "smoke-process-group-after.txt",
+    "smoke-listeners-after.txt",
+    "shutdown.log"
+  ],
+  "prohibited_operations": [
+    "generate",
+    "checked_demote_session",
+    "release_session_priority",
+    "demote",
+    "evict",
+    "G1_PASS",
+    "G1_STOP"
+  ],
+  "source": {
+    "base_commit": "92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2",
+    "base_tree": "25e9bf86d04c27fe380024d9c8c421c3b5b51f3c",
+    "patches": [
+      {
+        "path": "upstream/sglang/patches/0001-atomic-checked-demote.patch",
+        "sha256": "e69776678909b4ee49b1c0fa4a8e208666893b659c0508387c83fcdf11e82a9a"
+      },
+      {
+        "path": "upstream/sglang/patches/0002-g1-scripted-forced-demote.patch",
+        "sha256": "2a1715555c7adac71f368a9a8210f219f3869ac038ca4fb07fb18255fa9007d1"
+      }
+    ],
+    "remote": "https://github.com/sgl-project/sglang.git",
+    "source_seed_sha256": "2d40db92ff1a21cb78e95f4da98352f1fa17086e1a16a82e95070f05e1460400"
+  }
+}

@@ -67,6 +67,20 @@ variable. A local action oracle may choose the best observed QoS-feasible action
 at one state, but it is a local regret reference, not a global sequential-policy
 upper bound.
 
+For G1, G2, and the primary causal comparison in G3, `write_through` is the
+qualification/reference mode. It separates Publication from later reclamation
+and gives both arms the same committed Host copy. This is an attribution choice,
+not evidence that `write_through` is the best production write policy.
+
+Before making an end-to-end production optimization claim, run a separate
+configuration-level challenge against tuned stock `write_through_selective` and
+`write_back` under the same workload and joint SLO. This challenge does not
+replace the same-Publication causal comparison. If checked reclamation beats its
+causal baseline but not the best stock write policy, report only the narrower
+mechanism result. ToolGap-triggered on-demand Publication requires measured
+evidence that eager Publication is the blocking cost plus a separate accepted
+contract; this evaluation decision does not authorize it.
+
 ## 4. Primary Metric
 
 Report maximum sustainable arrival rate `lambda` subject to all declared

@@ -4,8 +4,9 @@
 >
 > D001-D019 are `accepted` design decisions. D020 records the owner's D0
 > closure. D021 preserves the historical evidence-backed G0 `RESHAPE`; D032
-> records the accepted successor G0 `PASS`. Decision status remains distinct
-> from project claim state.
+> records the accepted successor G0 `PASS`; D033 bounds `write_through` to the
+> qualification/reference role rather than a production-optimality claim.
+> Decision status remains distinct from project claim state.
 
 ## Decision Status
 
@@ -808,6 +809,75 @@ Affected documents and experiments:
 `DECISIONS.md`, `ROADMAP.md`, `README.md`,
 `../experiments/g0/RESULTS.md`, `../experiments/g0/SPEC.g0-c-017.md`, and
 `../experiments/g0/artifacts/g0-c-017-independent-review.md`.
+
+## 2026-08-22 — D033: Keep write-through as the qualification mode, not the production optimum
+
+Status: accepted
+
+Context:
+
+D021 selected `write_through` as the only Host semantic branch for the G0
+source contract because it produces a settled Host duplicate before a later
+demotion. Subsequent steelman review separated that experimental attribution
+choice from the production question. Eager Publication may consume D2H
+bandwidth and Host capacity for one-hit or low-reuse KV, while fixed-pin
+`write_through_selective` and `write_back` trade immediate demotion readiness
+for lower I/O or lower-tier occupancy.
+
+Decision:
+
+Retain `write_through` for G1, G2, and the primary G3 causal comparison. The
+release-only and checked-reclamation arms must share the same committed Host
+copy so the independent variable remains immediate checked reclamation.
+
+Do not treat `write_through` as the proven production-optimal policy. Before an
+end-to-end production optimization claim, compare against tuned stock
+`write_through_selective` and `write_back` configurations under the same
+workload and joint SLO. If checked reclamation beats only its same-Publication
+baseline but not the best stock policy, retain the narrow mechanism result and
+withhold the production optimization claim. ToolGap-triggered on-demand
+Publication requires measured evidence that eager Publication is the blocking
+cost and a separate accepted contract; this decision does not authorize it.
+
+Alternatives considered:
+
+- promote `write_through` from the proof mode to the unconditional production
+  policy;
+- replace the first G1 mechanism slice with hit-count-dependent
+  `write_through_selective`;
+- couple first Publication and demotion by using `write_back` in G1;
+- implement a dynamic multi-policy or ToolGap-triggered Publication controller
+  before the checked-reclamation premise is measured.
+
+Evidence:
+
+The fixed source sets `write_through` and `write_through_selective` publication
+thresholds separately and couples unbacked `write_back` eviction to backup plus
+demotion. G0's host-mode artifact binds a committed duplicate to D2H completion
+and both pending markers clear. The evaluation contract already requires the
+same committed Host copy for the strongest causal baseline. No runtime policy
+comparison or production result exists.
+
+Consequences:
+
+Frozen G0 specifications and evidence remain unchanged. G1 execution remains
+unauthorized, Gate order is unchanged, and the overall project remains
+`roadmap`. `write_through_selective` and `write_back` are production-level
+challengers, not replacements for the first causal proof. Dynamic policy stays
+blocked on G5.
+
+Reopen condition:
+
+Reopen if fixed-pin policy semantics change, a stronger conforming causal
+baseline is found, or measured G3/G4 evidence identifies eager Publication as
+the decisive production cost and supports a separate on-demand-Publication
+review.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `EVALUATION.md`, and
+`../worklog/reviews/2026-08-22/write-policy-scope-steelman-review.md`. No frozen
+experiment artifact changes.
 
 ## Decision Template
 
