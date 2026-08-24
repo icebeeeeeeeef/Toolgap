@@ -330,6 +330,10 @@ assert '--report "$RUN_DIR/runtime-install-report.json" "$RUNTIME_WHEEL"' in run
 assert '"$PYTHON" - "$RUNTIME_WHEEL" "$RUN_DIR/ordinary-dependency-requirements.txt"' in runner
 assert "read_startup_listener_port \"$listener_requirement\"" in runner
 assert "listener_requirement=optional" in runner
+assert "SGLANG_ENABLE_UNIFIED_RADIX_TREE=1" in runner
+assert "unified_radix_tree=true" in runner
+assert "startup_log_has_jit_failure" in runner
+assert "printf 'SGLANG_ENABLE_UNIFIED_RADIX_TREE=1\\n'" in runner
 for unsafe_selector in (
     "TestG1RecordSchema", "TestG1EnabledArm", "TestG1BypassArm", "TestG1WriteThroughPending",
     "TestG1LoadBackPending", "TestG1NonTargetCoverage", "TestG1DeviceLocked",
@@ -451,6 +455,19 @@ with tempfile.TemporaryDirectory() as temp_dir:
     else:
         raise AssertionError("builder accepts a renamed runtime wheel")
 finalizer = finalizer_path.read_text(encoding="utf-8")
+finalizer_spec = importlib.util.spec_from_file_location("cuda12_finalizer", finalizer_path)
+assert finalizer_spec is not None and finalizer_spec.loader is not None
+finalizer_module = importlib.util.module_from_spec(finalizer_spec)
+finalizer_spec.loader.exec_module(finalizer_module)
+assert finalizer_module.startup_log_has_jit_failure(
+    "Traceback (most recent call last):\\nflashinfer/jit/core.py\\nFileNotFoundError: ninja"
+)
+assert not finalizer_module.startup_log_has_jit_failure(
+    "flashinfer JIT completed\\nTraceback (most recent call last):\\nValueError: UnifiedRadixCache required"
+)
+assert not finalizer_module.startup_log_has_jit_failure(
+    "Traceback (most recent call last):\\nflashinfer/jit/core.py\\nValueError: UnifiedRadixCache required"
+)
 for required in ("runtime-wheel.whl", "runtime-wheel-provenance.json", "cuda-wheelhouse-validation.json"):
     assert required in finalizer, required
 for terminal in terminals:

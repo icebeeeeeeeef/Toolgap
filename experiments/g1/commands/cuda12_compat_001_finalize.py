@@ -613,10 +613,17 @@ TRANSPORT_FAILURE_PATTERN = re.compile(
     r"(connection (reset|refused|timed out)|connecttimeout|readtimeout|httpsconnectionpool|proxyerror|sslerror|temporary failure|name or service not known|network is unreachable|failed to establish a new connection|could not fetch url|http error [45][0-9]{2}|[45][0-9]{2} (client|server) error|timed out|timeout)",
     re.IGNORECASE,
 )
-STARTUP_JIT_PATTERN = re.compile(
-    r"(^|[^a-z])(jit|nvrtc|nvcc)([^a-z]|$)|cuda[^a-z]*(compile|compiler)",
+STARTUP_JIT_FAILURE_PATTERN = re.compile(
+    r"(^|[^a-z])(nvrtc|nvcc)([^a-z]|$)|"
+    r"cuda[^a-z]*(compile|compiler)|FileNotFoundError:.*ninja",
     re.IGNORECASE,
 )
+
+
+def startup_log_has_jit_failure(text: str) -> bool:
+    last_traceback = text.rfind("Traceback (most recent call last):")
+    failure = text[last_traceback:] if last_traceback >= 0 else text
+    return bool(STARTUP_JIT_FAILURE_PATTERN.search(failure))
 
 
 def validate_failure_evidence(run_dir: Path, status: dict[str, object]) -> None:
@@ -648,7 +655,7 @@ def validate_failure_evidence(run_dir: Path, status: dict[str, object]) -> None:
         startup_log = (run_dir / "restricted-startup.log").read_text(
             encoding="utf-8", errors="replace"
         )
-        has_jit_evidence = bool(STARTUP_JIT_PATTERN.search(startup_log))
+        has_jit_evidence = startup_log_has_jit_failure(startup_log)
         if terminal == "SGLANG_STARTUP_JIT_FAILED" and not has_jit_evidence:
             raise ValueError("startup JIT terminal lacks JIT/compiler evidence")
         if terminal == "SGLANG_STARTUP_FAILED_OTHER" and has_jit_evidence:

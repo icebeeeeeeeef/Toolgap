@@ -58,8 +58,7 @@ failure_terminal() {
     compiler) printf '%s\n' TOOLKIT_COMPILER_FAILED ;;
     scope) printf '%s\n' INVALID_SCOPE ;;
     startup)
-      if [[ -f "$RUN_DIR/restricted-startup.log" ]] &&
-        grep -Eiq '(^|[^[:alpha:]])(jit|nvrtc|nvcc)([^[:alpha:]]|$)|cuda[^[:alpha:]]*(compile|compiler)' "$RUN_DIR/restricted-startup.log"; then
+      if startup_log_has_jit_failure; then
         printf '%s\n' SGLANG_STARTUP_JIT_FAILED
       else
         printf '%s\n' SGLANG_STARTUP_FAILED_OTHER
@@ -67,6 +66,25 @@ failure_terminal() {
       ;;
     *) printf '%s\n' BLOCKED_HOST_IDENTITY ;;
   esac
+}
+
+startup_log_has_jit_failure() {
+  [[ -f "$RUN_DIR/restricted-startup.log" ]] || return 1
+  "$PYTHON" - "$RUN_DIR/restricted-startup.log" <<'PY'
+import pathlib
+import re
+import sys
+
+text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+last_traceback = text.rfind("Traceback (most recent call last):")
+failure = text[last_traceback:] if last_traceback >= 0 else text
+pattern = re.compile(
+    r"(^|[^a-z])(nvrtc|nvcc)([^a-z]|$)|"
+    r"cuda[^a-z]*(compile|compiler)|FileNotFoundError:.*ninja",
+    re.IGNORECASE,
+)
+raise SystemExit(0 if pattern.search(failure) else 1)
+PY
 }
 
 capture_environment() {
@@ -1151,6 +1169,7 @@ PY
 {
   printf 'HF_HUB_OFFLINE=1\n'
   printf 'TRANSFORMERS_OFFLINE=1\n'
+  printf 'SGLANG_ENABLE_UNIFIED_RADIX_TREE=1\n'
   printf 'TOOLGAP_G1_MODEL_PATH=%q\n' "$MODEL_ROOT"
   printf 'TREATMENT=%q\n' "$TREATMENT"
   printf 'RUNTIME_PYTHON=%q\n' "$RUNTIME_VENV/bin/python"
@@ -1164,7 +1183,7 @@ chmod 0444 "$RUN_DIR/runtime.env"
 (cd "$RUN_DIR" && sha256sum manifest.json >manifest.sha256)
 chmod 0444 "$RUN_DIR/manifest.sha256"
 
-printf 'selector=%s\noffline=true\nwarmup_disabled=true\n' "$RESTRICTED_SELECTOR" \
+printf 'selector=%s\noffline=true\nwarmup_disabled=true\nunified_radix_tree=true\n' "$RESTRICTED_SELECTOR" \
   >"$RUN_DIR/restricted-startup-command.txt"
 chmod 0444 "$RUN_DIR/restricted-startup-command.txt"
 PHASE="startup"
@@ -1213,7 +1232,7 @@ gpu_pids >"$RUN_DIR/startup-gpu-pids-before.txt"
 (
   cd "$TREATMENT"
   exec setsid timeout --signal=TERM --kill-after=30s "${LONG_COMMAND_TIMEOUT_SECONDS}s" \
-    env -u PYTHONPATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+    env -u PYTHONPATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 SGLANG_ENABLE_UNIFIED_RADIX_TREE=1 \
     TOOLGAP_G1_MODEL_PATH="$MODEL_ROOT" "$RUNTIME_VENV/bin/python" "$RUN_DIR/restricted-startup-runner.py" \
     "$TREATMENT/test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py" \
     "$RESTRICTED_SELECTOR"

@@ -39,7 +39,7 @@ The local model identity remains the existing
 | CUDA wheelhouse | One hash-bound archive containing exactly `sglang-kernel`, `sgl-deep-ep`, `sgl-deep-gemm`, `torch`, `torchvision`, and `torchaudio` CUDA 12.9 wheels plus `wheelhouse-index.json` |
 | Host | Linux x86_64, Alibaba Cloud Ubuntu 24.04 NVIDIA GPU image, one A10, driver `580.126.09`, system CUDA `12.8`, Python `3.12.x` |
 | Device code | standalone fixed `sm_86` CUDA program compiled by `/usr/local/cuda-12.8/bin/nvcc` |
-| Network policy during model startup | `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1` |
+| Startup environment | `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`, `SGLANG_ENABLE_UNIFIED_RADIX_TREE=1` |
 | Timeout | each dependency, compiler, and startup command at most 1,800 seconds |
 
 The pinned SGLang Dockerfile contains a CUDA 12 packaging route: it changes
