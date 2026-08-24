@@ -1160,6 +1160,7 @@ chmod 0444 "$RUN_DIR/manifest.sha256"
 printf 'selector=%s\noffline=true\nwarmup_disabled=true\n' "$RESTRICTED_SELECTOR" \
   >"$RUN_DIR/restricted-startup-command.txt"
 chmod 0444 "$RUN_DIR/restricted-startup-command.txt"
+PHASE="startup"
 "$PYTHON" - "$RUN_DIR/restricted-startup-runner.py" <<'PY'
 import os
 import pathlib
@@ -1201,7 +1202,6 @@ with os.fdopen(fd, "w", encoding="utf-8") as handle:
     handle.write(source)
 os.chmod(output, 0o444)
 PY
-PHASE="startup"
 gpu_pids >"$RUN_DIR/startup-gpu-pids-before.txt"
 (
   cd "$TREATMENT"

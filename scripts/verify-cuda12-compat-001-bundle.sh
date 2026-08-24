@@ -261,6 +261,7 @@ assert "env -u PYTHONPATH" in runner
 assert '"$RUN_DIR/restricted-startup-runner.py"' in runner
 assert 'if __name__ == "__main__":' in runner
 assert '"$RUNTIME_VENV/bin/python" - \\' not in runner
+assert runner.index('PHASE="startup"') < runner.index('"$RUN_DIR/restricted-startup-runner.py"')
 launcher_start = runner.index("source = '''") + len("source = '''")
 launcher_end = runner.index("'''\nfd = os.open", launcher_start)
 launcher_source = runner[launcher_start:launcher_end]

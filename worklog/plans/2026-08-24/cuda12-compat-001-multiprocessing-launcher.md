@@ -11,3 +11,5 @@ direct test-module loader and an `if __name__ == "__main__"` guard. Invoke it
 through the installed runtime interpreter without adding `TREATMENT/python` to
 `PYTHONPATH`. The resulting runner file is indexed with the attempt evidence;
 a replacement attempt requires a new frozen ToolGap seed, receipt, and ID.
+Set `PHASE=startup` before creating that runner so a creation failure is not
+misattributed to the completed CUDA compiler phase.
