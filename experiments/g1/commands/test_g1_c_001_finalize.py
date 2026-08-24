@@ -20,6 +20,17 @@ def record(arm: str) -> dict[str, object]:
         "checked_facade": 1, "checked_backend": 1, "physical_demote": 0,
         "cache_owned_drain": 0, "stock_evict": 0, "physical_demote_node_ids": [],
     }
+    observation = {
+        "node_id": 7,
+        "live": True,
+        "host_committed": True,
+        "write_through_pending": False,
+        "load_back_pending": False,
+        "lock_refs": [0],
+        "session_ref": 1,
+        "device_leaf": True,
+        "device_ids": [42],
+    }
     value: dict[str, object] = {
         "arm": arm,
         "operation": {"session_id": arm, "supplied_generation": 1},
@@ -40,8 +51,8 @@ def record(arm: str) -> dict[str, object]:
         "target": {
             "requested_node_ids": [7], "eligible_node_ids": [7],
             "scheduled_node_ids": [], "completed_node_ids": [],
-            "before": [{"node_id": 7, "live": True, "host_committed": True, "device_leaf": True, "device_ids": [42]}],
-            "after": [{"node_id": 7, "live": True, "host_committed": True, "device_leaf": True, "device_ids": [42]}],
+            "before": [copy.deepcopy(observation)],
+            "after": [copy.deepcopy(observation)],
         },
     }
     if arm == "enabled":
@@ -106,6 +117,16 @@ class G1C001TerminalTests(unittest.TestCase):
     def test_malformed_record_is_invalid(self) -> None:
         value = copy.deepcopy(records())
         value[0].pop("capacity")
+        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_after_observation_missing_device_ids_is_invalid(self) -> None:
+        value = records()
+        value[0]["target"]["after"][0].pop("device_ids")
+        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_before_observation_with_noninteger_device_id_is_invalid(self) -> None:
+        value = records()
+        value[0]["target"]["before"][0]["device_ids"] = [42, "bad"]
         self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
 

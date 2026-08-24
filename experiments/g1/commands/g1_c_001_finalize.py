@@ -52,6 +52,12 @@ TARGET_FIELDS = {
     "requested_node_ids", "eligible_node_ids", "scheduled_node_ids",
     "completed_node_ids", "before", "after",
 }
+LIVE_OBSERVATION_FIELDS = {
+    "node_id", "live", "device_ids", "host_committed",
+    "write_through_pending", "load_back_pending", "lock_refs",
+    "session_ref", "device_leaf",
+}
+MISSING_OBSERVATION_FIELDS = {"node_id", "live"}
 BASE_ARTIFACTS = (
     "attempt-context.json", "environment.txt", "input-manifest.json",
     "input-manifest-verify.log", "input-oss-receipt.json", "bootstrap-receipt.json",
@@ -358,14 +364,18 @@ def record_errors(record: object, expected_arm: str) -> list[str]:
         errors.append("target")
     else:
         for key in ("requested_node_ids", "eligible_node_ids", "scheduled_node_ids", "completed_node_ids"):
-            if not isinstance(target[key], list) or not all(isinstance(value, int) for value in target[key]):
+            if not isinstance(target[key], list) or not all(type(value) is int for value in target[key]):
                 errors.append(f"target:{key}")
-        if (
-            not isinstance(target["before"], list)
-            or not isinstance(target["after"], list)
-            or not all(isinstance(item, dict) for item in target["before"] + target["after"])
-        ):
-            errors.append("target:observations")
+        for phase in ("before", "after"):
+            observations = target[phase]
+            if not isinstance(observations, list):
+                errors.append(f"target:{phase}")
+                continue
+            for index, observation in enumerate(observations):
+                errors.extend(
+                    f"target:{phase}[{index}]:{error}"
+                    for error in observation_errors(observation)
+                )
     counters = record["route_counters"]
     if not isinstance(counters, dict) or set(counters) != COUNTER_FIELDS or any(
         not isinstance(counters.get(key), int) or counters[key] < 0
@@ -397,10 +407,30 @@ def record_errors(record: object, expected_arm: str) -> list[str]:
 
 
 def device_ids(observations: list[dict[str, object]]) -> list[int]:
-    return sorted(
-        value for observation in observations for value in observation.get("device_ids", [])
-        if isinstance(value, int)
+    return sorted(value for observation in observations for value in observation["device_ids"])
+
+
+def observation_errors(observation: object) -> list[str]:
+    if not isinstance(observation, dict):
+        return ["not_object"]
+    if type(observation.get("node_id")) is not int or type(observation.get("live")) is not bool:
+        return ["node_id_or_live"]
+    if observation["live"] is False:
+        return [] if set(observation) == MISSING_OBSERVATION_FIELDS else ["missing_node_schema"]
+    if set(observation) != LIVE_OBSERVATION_FIELDS:
+        return ["live_node_schema"]
+    bool_fields = (
+        "host_committed", "write_through_pending", "load_back_pending", "device_leaf",
     )
+    if any(type(observation[field]) is not bool for field in bool_fields):
+        return ["live_node_bool"]
+    for field in ("device_ids", "lock_refs"):
+        value = observation[field]
+        if not isinstance(value, list) or not all(type(item) is int for item in value):
+            return [f"{field}"]
+    if type(observation["session_ref"]) is not int:
+        return ["session_ref"]
+    return []
 
 
 def enabled_context_errors(record: dict[str, object]) -> list[str]:
@@ -552,6 +582,39 @@ def classify_records(records: object) -> tuple[str, list[str]]:
     return ("INVALID", failures) if failures else ("PASS", ["all formal G1 predicates observed"])
 
 
+def validate_gpu_samples(path: Path, arm_pid: int, expected_union: list[int], arm: str) -> None:
+    document = load_json(path, f"{arm} GPU samples")
+    if set(document) != {"arm_pid", "poll_seconds", "samples"}:
+        raise ValueError(f"{arm} GPU sample schema differs")
+    if document["arm_pid"] != arm_pid or type(document["poll_seconds"]) not in {int, float} or document["poll_seconds"] != 0.25:
+        raise ValueError(f"{arm} GPU sampler binding differs")
+    samples = document["samples"]
+    if not isinstance(samples, list) or not samples:
+        raise ValueError(f"{arm} GPU samples are absent")
+    observed_union: set[int] = set()
+    previous = None
+    for sample in samples:
+        if not isinstance(sample, dict) or set(sample) != {"captured_at", "pids"} or not isinstance(sample["captured_at"], str):
+            raise ValueError(f"{arm} GPU sample differs")
+        try:
+            captured = datetime.fromisoformat(sample["captured_at"].replace("Z", "+00:00"))
+        except ValueError as error:
+            raise ValueError(f"{arm} GPU sample timestamp differs") from error
+        if captured.tzinfo is None or (previous is not None and captured < previous):
+            raise ValueError(f"{arm} GPU sample order differs")
+        previous = captured
+        pids = sample["pids"]
+        if (
+            not isinstance(pids, list)
+            or any(type(pid) is not int or pid < 1 for pid in pids)
+            or pids != sorted(set(pids))
+        ):
+            raise ValueError(f"{arm} GPU sample PIDs differ")
+        observed_union.update(pids)
+    if sorted(observed_union) != expected_union:
+        raise ValueError(f"{arm} GPU sampler union differs")
+
+
 def validate_cleanup(run_dir: Path) -> None:
     cleanup = load_json(run_dir / "cleanup.json", "cleanup")
     if set(cleanup) != {"arms", "all_clean"} or cleanup["all_clean"] is not True:
@@ -574,7 +637,7 @@ def validate_cleanup(run_dir: Path) -> None:
             if source.read_text(encoding="utf-8") != expected + "\n":
                 raise ValueError(f"{arm} {suffix} evidence differs")
         for suffix in (
-            "gpu-before.txt", "gpu-during.txt", "gpu-attributable.txt", "gpu-after.txt", "gpu-leaked.txt",
+            "gpu-before.txt", "gpu-samples.json", "gpu-during.txt", "gpu-attributable.txt", "gpu-after.txt", "gpu-leaked.txt",
             "listeners-before.txt", "listeners-after.txt", "listeners-leaked.txt", "process-group-after.txt",
         ):
             absolute_regular(arm_root / f"{arm}.{suffix}", f"{arm} cleanup evidence")
@@ -584,6 +647,7 @@ def validate_cleanup(run_dir: Path) -> None:
         }
         if any(values != sorted(set(values)) or any(value < 1 for value in values) for values in pids.values()):
             raise ValueError(f"{arm} GPU PID evidence differs")
+        validate_gpu_samples(arm_root / f"{arm}.gpu-samples.json", item["pid"], pids["gpu-during.txt"], arm)
         if pids["gpu-attributable.txt"] != sorted(set(pids["gpu-during.txt"]) - set(pids["gpu-before.txt"])):
             raise ValueError(f"{arm} attributable GPU PID evidence differs")
         if pids["gpu-leaked.txt"] != sorted(set(pids["gpu-attributable.txt"]) & set(pids["gpu-after.txt"])):
@@ -603,7 +667,7 @@ def required_artifacts(run_dir: Path) -> tuple[str, ...]:
     dynamic = tuple(
         f"arms/{arm}.{suffix}" for arm in ARMS for suffix in (
             "command.txt", "log", "record.json", "cleanup.json", "pid", "pgid",
-            "gpu-before.txt", "gpu-during.txt", "gpu-attributable.txt", "gpu-after.txt", "gpu-leaked.txt",
+            "gpu-before.txt", "gpu-samples.json", "gpu-during.txt", "gpu-attributable.txt", "gpu-after.txt", "gpu-leaked.txt",
             "listeners-before.txt", "listeners-after.txt", "listeners-leaked.txt", "process-group-after.txt",
         )
     )

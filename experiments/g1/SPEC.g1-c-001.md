@@ -79,7 +79,11 @@ from that mirror but no special upstream wheel index is contacted.
 Every selector is executed once in a separate process group and fresh SGLang
 runtime. The runner records a distinct command, PID/PGID, log, extracted JSON
 record, process-group cleanup observation, listener cleanup observation, and
-GPU-PID delta for each arm. The only accepted selector set is:
+GPU-PID delta for each arm. GPU PID samples begin immediately after the arm
+PID is known and continue at 0.25-second intervals until that arm exits; the
+immutable sample ledger is replayed into `during`, with
+`attributable = during - before` and `leaked = attributable intersection after`.
+The only accepted selector set is:
 
 | Arm | Selector | Required observation |
 | --- | --- | --- |

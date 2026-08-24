@@ -12,16 +12,19 @@ BUILDER="$ROOT/experiments/g1/commands/g1_c_001_bundle_manifest.py"
 EXTRACTOR="$ROOT/experiments/g1/commands/g1_c_001_extract_records.py"
 FINALIZER="$ROOT/experiments/g1/commands/g1_c_001_finalize.py"
 TESTS="$ROOT/experiments/g1/commands/test_g1_c_001_finalize.py"
+GPU_SAMPLER="$ROOT/experiments/g1/commands/g1_c_001_gpu_sampler.py"
+GPU_SAMPLER_TESTS="$ROOT/experiments/g1/commands/test_g1_c_001_gpu_sampler.py"
 ANCHOR="$ROOT/scripts/anchor-g1-c-001-oss.sh"
 
-for path in "$SPEC" "$TEMPLATE" "$BOOTSTRAP" "$RUNNER" "$BUILDER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$ANCHOR"; do
+for path in "$SPEC" "$TEMPLATE" "$BOOTSTRAP" "$RUNNER" "$BUILDER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS" "$ANCHOR"; do
   test -f "$path"
 done
 bash -n "$BOOTSTRAP"
 bash -n "$RUNNER"
 bash -n "$ANCHOR"
-"$PYTHON" -m py_compile "$BUILDER" "$EXTRACTOR" "$FINALIZER" "$TESTS"
+"$PYTHON" -m py_compile "$BUILDER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS"
 "$PYTHON" "$TESTS"
+"$PYTHON" "$GPU_SAMPLER_TESTS"
 git -C "$ROOT" diff --check
 
 # G1-C-001 must not change predecessor evidence. This is intentionally a
@@ -93,7 +96,9 @@ assert "exec setsid timeout" in runner
 assert "G1_C_001_INPUT_OSS_RECEIPT" in runner
 assert "--find-links" in runner and "mirrors.cloud.aliyuncs.com" in runner
 assert "pip install --upgrade pip" not in runner
-assert "gpu-during.txt" in runner and "gpu-attributable.txt" in runner
+assert "g1_c_001_gpu_sampler.py" in runner
+assert "--poll-seconds 0.25" in runner
+assert "gpu-samples.json" in runner and "gpu-during.txt" in runner and "gpu-attributable.txt" in runner
 assert "scope scan requires every formal arm log" in runner
 assert "unapproved_index" in runner and "source_build" in runner
 for forbidden in (
@@ -119,6 +124,7 @@ for relative in (
     "experiments/g1/SPEC.g1-c-001.md",
     "experiments/g1/commands/20-g1-c-001.sh",
     "experiments/g1/commands/g1_c_001_finalize.py",
+    "experiments/g1/commands/g1_c_001_gpu_sampler.py",
     "scripts/anchor-g1-c-001-oss.sh",
 ):
     assert relative in builder
@@ -137,5 +143,7 @@ assert "enabled_context_errors" in finalizer and "bypass_context_errors" in fina
 assert "validate_full_evidence" in finalizer and "sglang-package-provenance.json" in finalizer
 assert "rejection contract" in finalizer and "stock eviction liveness" in finalizer
 assert "arm record aggregate differs from individual evidence" in finalizer
+assert "observation_errors" in finalizer and "LIVE_OBSERVATION_FIELDS" in finalizer
+assert "validate_gpu_samples" in finalizer and "GPU sampler union differs" in finalizer
 print("G1-C-001 static contract checks passed")
 PY

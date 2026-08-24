@@ -26,6 +26,7 @@ CUDA_HOME="${G1_C_001_CUDA_HOME:-/usr/local/cuda-12.8}"
 
 readonly FINALIZER="$REPO_ROOT/experiments/g1/commands/g1_c_001_finalize.py"
 readonly EXTRACTOR="$REPO_ROOT/experiments/g1/commands/g1_c_001_extract_records.py"
+readonly GPU_SAMPLER="$REPO_ROOT/experiments/g1/commands/g1_c_001_gpu_sampler.py"
 readonly TEMPLATE="$REPO_ROOT/experiments/g1/manifest.g1-c-001.template.json"
 readonly MODEL_HELPER="$REPO_ROOT/experiments/g0/commands/g0_c_016_model_seed.py"
 readonly PROVENANCE="$REPO_ROOT/experiments/g0/commands/g0_c_008_package_provenance.py"
@@ -368,7 +369,7 @@ chmod 0444 "$RUN_DIR/runtime.env"
 
 PHASE="formal_arms"
 run_arm() {
-  local arm="$1" selector="$2" pid pgid status
+  local arm="$1" selector="$2" pid pgid sampler_pid status
   local arm_dir="$RUN_DIR/arms"
   printf '%s\n' "$selector" >"$arm_dir/$arm.command.txt"
   gpu_pids >"$arm_dir/$arm.gpu-before.txt"
@@ -385,13 +386,11 @@ run_arm() {
   [[ "$pgid" == "$pid" ]] || die "arm $arm did not form its own process group"
   printf '%s\n' "$pid" >"$arm_dir/$arm.pid"
   printf '%s\n' "$pgid" >"$arm_dir/$arm.pgid"
-  : >"$arm_dir/$arm.gpu-during.txt"
-  for _ in 1 2 3 4 5; do
-    if kill -0 "$pid" 2>/dev/null; then gpu_pids >>"$arm_dir/$arm.gpu-during.txt"; else break; fi
-    sleep 1
-  done
-  LC_ALL=C sort -n -u -o "$arm_dir/$arm.gpu-during.txt" "$arm_dir/$arm.gpu-during.txt"
+  "$PYTHON" "$GPU_SAMPLER" --arm-pid "$pid" --poll-seconds 0.25 \
+    --samples "$arm_dir/$arm.gpu-samples.json" --union "$arm_dir/$arm.gpu-during.txt" &
+  sampler_pid="$!"
   if wait "$pid"; then status=0; else status=$?; fi
+  if ! wait "$sampler_pid"; then die "arm $arm GPU sampler failed"; fi
   ps -eo pid=,pgid=,stat=,args= | awk -v group="$pgid" '$2 == group && $3 !~ /^Z/' >"$arm_dir/$arm.process-group-after.txt"
   gpu_pids >"$arm_dir/$arm.gpu-after.txt"
   ss -ltnH | LC_ALL=C sort -u >"$arm_dir/$arm.listeners-after.txt"
