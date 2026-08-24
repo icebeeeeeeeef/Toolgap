@@ -1,0 +1,455 @@
+#!/usr/bin/env bash
+# Execute one sealed formal G1-C-001 runtime revision on the pinned A10/CUDA12 host.
+set -Eeuo pipefail
+
+readonly BUNDLE_ID="G1-C-001"
+readonly LONG_TIMEOUT_SECONDS=2400
+readonly BASE_COMMIT="92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2"
+readonly BASE_TREE="25e9bf86d04c27fe380024d9c8c421c3b5b51f3c"
+readonly PYPI_INDEX_URL="http://mirrors.cloud.aliyuncs.com/pypi/simple/"
+readonly PYPI_TRUSTED_HOST="mirrors.cloud.aliyuncs.com"
+
+REPO_ROOT="$(cd -- "$(dirname -- "$BASH_SOURCE")/../../.." && pwd -P)"
+ATTEMPT_ID="${G1_C_001_ATTEMPT_ID:-}"
+PYTHON="${G1_C_001_PYTHON:-python3}"
+RUN_DIR="${G1_C_001_RUN_DIR:-$REPO_ROOT/experiments/g1/raw/g1-c-001/$ATTEMPT_ID}"
+WORK_ROOT="${G1_C_001_WORK_ROOT:-/tmp/toolgap-g1-c-001-$ATTEMPT_ID}"
+SOURCE_SEED_ARCHIVE="${G1_C_001_SOURCE_SEED_ARCHIVE:-}"
+MODEL_SEED_ARCHIVE="${G1_C_001_MODEL_SEED_ARCHIVE:-}"
+RUNTIME_WHEEL="${G1_C_001_RUNTIME_WHEEL:-}"
+RUNTIME_WHEEL_PROVENANCE="${G1_C_001_RUNTIME_WHEEL_PROVENANCE:-}"
+CUDA_WHEELHOUSE_ARCHIVE="${G1_C_001_CUDA_WHEELHOUSE_ARCHIVE:-}"
+INPUT_MANIFEST="${G1_C_001_INPUT_MANIFEST:-}"
+INPUT_OSS_RECEIPT="${G1_C_001_INPUT_OSS_RECEIPT:-}"
+BOOTSTRAP_RECEIPT="${G1_C_001_BOOTSTRAP_RECEIPT:-}"
+CUDA_HOME="${G1_C_001_CUDA_HOME:-/usr/local/cuda-12.8}"
+
+readonly FINALIZER="$REPO_ROOT/experiments/g1/commands/g1_c_001_finalize.py"
+readonly EXTRACTOR="$REPO_ROOT/experiments/g1/commands/g1_c_001_extract_records.py"
+readonly TEMPLATE="$REPO_ROOT/experiments/g1/manifest.g1-c-001.template.json"
+readonly MODEL_HELPER="$REPO_ROOT/experiments/g0/commands/g0_c_016_model_seed.py"
+readonly PROVENANCE="$REPO_ROOT/experiments/g0/commands/g0_c_008_package_provenance.py"
+readonly INVENTORY="$REPO_ROOT/experiments/g1/artifacts/model-files.g1-preflight-001.json"
+
+declare -a ARMS=(
+  enabled
+  bypass
+  reject_write_through_pending
+  reject_non_target_session_coverage
+  reject_device_locked
+  reject_stale_generation
+  stock_eviction_liveness
+)
+declare -A SELECTORS=(
+  [enabled]="TestG1EnabledArm.test_enabled_checked_demotion_records_allocator_visible_release"
+  [bypass]="TestG1BypassArm.test_bypass_releases_priority_without_physical_reclamation"
+  [reject_write_through_pending]="TestG1WriteThroughPending.test_uncommitted_host_copy_is_deferred_without_physical_free"
+  [reject_non_target_session_coverage]="TestG1NonTargetCoverage.test_shared_target_is_deferred_for_the_other_session"
+  [reject_device_locked]="TestG1DeviceLocked.test_active_request_is_deferred_at_the_device_lock_check"
+  [reject_stale_generation]="TestG1StaleGeneration.test_stale_generation_is_rejected_before_priority_release"
+  [stock_eviction_liveness]="TestG1StockEvictionLiveness.test_stock_eviction_remains_reachable_after_bypass"
+)
+
+die() { printf 'g1-c-001: %s\n' "$*" >&2; exit 2; }
+require() { command -v "$1" >/dev/null || die "missing command: $1"; }
+copy_immutable() {
+  "$PYTHON" - "$1" "$2" <<'PY'
+import os, pathlib, shutil, sys
+source, output = map(pathlib.Path, sys.argv[1:])
+if output.exists() or source.is_symlink() or not source.is_file():
+    raise ValueError("immutable copy input or destination differs")
+fd = os.open(output, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+with source.open("rb") as reader, os.fdopen(fd, "wb") as writer:
+    shutil.copyfileobj(reader, writer, length=1024 * 1024)
+os.chmod(output, 0o444)
+PY
+}
+gpu_pids() {
+  nvidia-smi --query-compute-apps=pid --format=csv,noheader,nounits 2>/dev/null |
+    awk 'NF && $1 ~ /^[0-9]+$/ {print $1}' | LC_ALL=C sort -n -u
+}
+capture_environment() {
+  {
+    printf 'captured_at=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    uname -a
+    cat /etc/os-release
+    "$PYTHON" --version
+    nvidia-smi -L
+    nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv,noheader
+    "$CUDA_HOME/bin/nvcc" --version
+  } >"$RUN_DIR/environment.txt" 2>&1
+  chmod 0444 "$RUN_DIR/environment.txt"
+}
+seal_invalid() {
+  local code="$1"
+  trap - ERR HUP INT TERM
+  if [[ -d "$RUN_DIR" && -f "$RUN_DIR/attempt-context.json" && -f "$RUN_DIR/environment.txt" && ! -e "$RUN_DIR/execution-status.json" ]]; then
+    "$PYTHON" "$FINALIZER" invalid --run-dir "$RUN_DIR" --reason "runner failure at phase ${PHASE:-unclassified}, exit $code" || true
+  fi
+  exit "$code"
+}
+PHASE="bootstrap"
+trap 'seal_invalid "$?"' ERR
+trap 'seal_invalid 129' HUP
+trap 'seal_invalid 130' INT
+trap 'seal_invalid 143' TERM
+
+[[ -n "$ATTEMPT_ID" && "$ATTEMPT_ID" =~ ^[A-Za-z0-9._-]+$ ]] || die 'set G1_C_001_ATTEMPT_ID'
+for path in "$SOURCE_SEED_ARCHIVE" "$MODEL_SEED_ARCHIVE" "$RUNTIME_WHEEL" "$RUNTIME_WHEEL_PROVENANCE" "$CUDA_WHEELHOUSE_ARCHIVE" "$INPUT_MANIFEST" "$INPUT_OSS_RECEIPT" "$BOOTSTRAP_RECEIPT"; do
+  [[ "$path" = /* && -f "$path" && ! -L "$path" ]] || die "staged input must be an absolute regular file: $path"
+done
+[[ ! -e "$RUN_DIR" && ! -e "$WORK_ROOT" ]] || die 'attempt destination already exists'
+for command in git nvidia-smi sha256sum tar timeout setsid ss; do require "$command"; done
+command -v "$PYTHON" >/dev/null || die "Python is unavailable: $PYTHON"
+PYTHON="$(command -v "$PYTHON")"
+"$PYTHON" -c 'import ensurepip, sys, venv; assert sys.version_info[:2] == (3, 12), sys.version'
+[[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || die 'requires Linux x86_64'
+grep -Eq '^ID=ubuntu$' /etc/os-release && grep -Eq '^VERSION_ID="?24\.04"?$' /etc/os-release || die 'requires Ubuntu 24.04'
+[[ -x "$CUDA_HOME/bin/nvcc" ]] && "$CUDA_HOME/bin/nvcc" --version | grep -Eq 'release 12\.8([,.]|$)' || die 'requires CUDA 12.8'
+[[ "$(nvidia-smi -L | wc -l | xargs)" == 1 ]] || die 'requires exactly one GPU'
+nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader | grep -Eq '^NVIDIA A10.*, *([2][2-5][0-9]{3}) MiB, *580\.126\.09$' || die 'requires one A10 with driver 580.126.09'
+[[ -z "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=no)" ]] || die 'restored ToolGap checkout is tracked-dirty'
+
+mkdir -p "$(dirname -- "$RUN_DIR")"
+mkdir "$RUN_DIR" "$WORK_ROOT" "$RUN_DIR/arms"
+RUN_DIR="$(cd "$RUN_DIR" && pwd -P)"
+WORK_ROOT="$(cd "$WORK_ROOT" && pwd -P)"
+"$PYTHON" - "$REPO_ROOT" "$RUN_DIR/attempt-context.json" "$ATTEMPT_ID" <<'PY'
+import hashlib, json, os, pathlib, subprocess, sys
+from datetime import datetime, timezone
+root = pathlib.Path(sys.argv[1])
+output = pathlib.Path(sys.argv[2])
+attempt = sys.argv[3]
+git = lambda *args: subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
+spec = root / "experiments/g1/SPEC.g1-c-001.md"
+document = {
+    "attempt_id": attempt, "bundle_id": "G1-C-001", "claim_state": "roadmap",
+    "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    "gate": "G1", "kind": "formal_checked_demote_runtime",
+    "spec_path": "experiments/g1/SPEC.g1-c-001.md",
+    "spec_sha256": hashlib.sha256(spec.read_bytes()).hexdigest(),
+    "toolgap_commit": git("rev-parse", "HEAD"),
+    "toolgap_tracked_clean": not bool(git("status", "--porcelain", "--untracked-files=no")),
+    "toolgap_tree": git("rev-parse", "HEAD^{tree}"),
+}
+fd = os.open(output, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+with os.fdopen(fd, "w", encoding="utf-8") as handle: handle.write(json.dumps(document, indent=2, sort_keys=True) + "\n")
+os.chmod(output, 0o444)
+PY
+capture_environment
+
+PHASE="input_binding"
+"$PYTHON" - "$INPUT_MANIFEST" "$INPUT_OSS_RECEIPT" "$BOOTSTRAP_RECEIPT" "$REPO_ROOT" "$SOURCE_SEED_ARCHIVE" "$MODEL_SEED_ARCHIVE" "$RUNTIME_WHEEL" "$RUNTIME_WHEEL_PROVENANCE" "$CUDA_WHEELHOUSE_ARCHIVE" <<'PY' >"$RUN_DIR/input-manifest-verify.log"
+import hashlib, json, pathlib, re, subprocess, sys
+(
+    manifest_path, receipt_path, bootstrap_path, root, source, model, wheel, provenance, wheelhouse,
+) = map(pathlib.Path, sys.argv[1:])
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+required = {"archives", "identity", "model", "ordinary_dependency_transport", "patches", "schema_version", "static_inputs"}
+if set(manifest) != required or manifest["schema_version"] != 1:
+    raise ValueError("input manifest schema differs")
+identity = manifest["identity"]
+if identity.get("bundle_id") != "G1-C-001" or identity.get("kind") != "formal_checked_demote_runtime":
+    raise ValueError("input manifest identity differs")
+head = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+tree = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD^{tree}"], text=True).strip()
+if identity.get("toolgap_commit") != head or identity.get("toolgap_tree") != tree:
+    raise ValueError("input manifest ToolGap identity differs")
+files = {
+    "sglang_source_seed": source, "model_snapshot": model, "runtime_wheel": wheel,
+    "runtime_wheel_provenance": provenance, "cuda_wheelhouse": wheelhouse,
+}
+for label, path in files.items():
+    entry = manifest["archives"][label]
+    observed = hashlib.sha256(path.read_bytes()).hexdigest()
+    if entry != {"path": path.name, "sha256": observed, "size_bytes": path.stat().st_size}:
+        raise ValueError(f"staged archive differs: {label}")
+for path, binding in manifest["static_inputs"].items():
+    candidate = root / path
+    if not candidate.is_file() or binding != {"sha256": hashlib.sha256(candidate.read_bytes()).hexdigest(), "size_bytes": candidate.stat().st_size}:
+        raise ValueError(f"static input differs: {path}")
+receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+if receipt.get("identity") != identity:
+    raise ValueError("input OSS receipt identity differs")
+bootstrap = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+if bootstrap.get("input_manifest_sha256") != hashlib.sha256(manifest_path.read_bytes()).hexdigest():
+    raise ValueError("bootstrap receipt differs")
+print("input_manifest=verified")
+PY
+chmod 0444 "$RUN_DIR/input-manifest-verify.log"
+copy_immutable "$INPUT_MANIFEST" "$RUN_DIR/input-manifest.json"
+copy_immutable "$INPUT_OSS_RECEIPT" "$RUN_DIR/input-oss-receipt.json"
+copy_immutable "$BOOTSTRAP_RECEIPT" "$RUN_DIR/bootstrap-receipt.json"
+copy_immutable "$RUNTIME_WHEEL" "$RUN_DIR/runtime-wheel.whl"
+copy_immutable "$RUNTIME_WHEEL_PROVENANCE" "$RUN_DIR/runtime-wheel-provenance.json"
+
+PHASE="source_restore"
+"$PYTHON" - "$SOURCE_SEED_ARCHIVE" <<'PY'
+import pathlib, sys, tarfile
+archive = pathlib.Path(sys.argv[1]); names = set()
+with tarfile.open(archive, "r:*") as bundle:
+    for member in bundle.getmembers():
+        pure, name = pathlib.PurePosixPath(member.name), member.name.rstrip("/")
+        if pure.is_absolute() or ".." in pure.parts or not pure.parts or pure.parts[0] != "sglang-source.git" or name in names or not (member.isdir() or member.isfile()):
+            raise ValueError(f"unsafe SGLang source member: {member.name}")
+        names.add(name)
+if not names: raise ValueError("empty SGLang seed")
+PY
+tar --no-same-owner -xzf "$SOURCE_SEED_ARCHIVE" -C "$WORK_ROOT"
+BARE="$WORK_ROOT/sglang-source.git"
+TREATMENT="$WORK_ROOT/sglang"
+git -C "$BARE" fsck --full
+[[ "$(git -C "$BARE" rev-parse "$BASE_COMMIT^{tree}")" == "$BASE_TREE" ]]
+git clone --no-local "$BARE" "$TREATMENT"
+git -C "$TREATMENT" checkout --detach "$BASE_COMMIT"
+for patch in "$REPO_ROOT"/upstream/sglang/patches/000{1-3}-*.patch; do
+  sha256sum "$patch"
+  git -C "$TREATMENT" apply --check "$patch"
+  git -C "$TREATMENT" apply "$patch"
+done >"$RUN_DIR/source-restore.log" 2>&1
+mapfile -t CHANGED < <(git -C "$TREATMENT" diff --name-only | LC_ALL=C sort)
+EXPECTED_CHANGED=(
+  python/pyproject.toml
+  python/sglang/srt/mem_cache/unified_cache/session_ref_tracker.py
+  python/sglang/srt/mem_cache/unified_cache/unified_tree_core.py
+  python/sglang/srt/mem_cache/unified_cache/unified_tree_core_interface.py
+  python/sglang/srt/mem_cache/unified_radix_cache.py
+  test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py
+)
+[[ "${CHANGED[*]}" == "${EXPECTED_CHANGED[*]}" ]] || die 'patched SGLang changed paths differ'
+git -C "$TREATMENT" -c user.name='G1-C-001' -c user.email='g1-c-001@invalid' add -A
+git -C "$TREATMENT" -c user.name='G1-C-001' -c user.email='g1-c-001@invalid' commit -m 'g1-c-001 frozen patch sequence' >>"$RUN_DIR/source-restore.log" 2>&1
+"$PYTHON" - "$TREATMENT" "$RUN_DIR/sglang-provenance.json" "$REPO_ROOT" <<'PY'
+import hashlib, json, os, pathlib, subprocess, sys
+source, output, root = map(pathlib.Path, sys.argv[1:])
+digest = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+git = lambda *args: subprocess.check_output(["git", "-C", str(source), *args], text=True).strip()
+patches = []
+for index in range(1, 4):
+    path = next((root / "upstream/sglang/patches").glob(f"000{index}-*.patch"))
+    patches.append({"label": f"patch_{index}", "path": str(path.resolve()), "sha256": digest(path)})
+document = {"base_commit": "92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2", "base_tree": "25e9bf86d04c27fe380024d9c8c421c3b5b51f3c", "patched_commit": git("rev-parse", "HEAD"), "patched_tree": git("rev-parse", "HEAD^{tree}"), "patches": patches}
+fd = os.open(output, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+with os.fdopen(fd, "w", encoding="utf-8") as handle: handle.write(json.dumps(document, indent=2, sort_keys=True) + "\n")
+os.chmod(output, 0o444)
+PY
+
+PHASE="model"
+MODEL_ROOT="$WORK_ROOT/model-input/model-snapshot"
+"$PYTHON" "$MODEL_HELPER" prepare --archive "$MODEL_SEED_ARCHIVE"   --archive-sha256 "$(sha256sum "$MODEL_SEED_ARCHIVE" | awk '{print $1}')"   --input-root "$WORK_ROOT/model-input" --inventory "$INVENTORY"   --receipt "$RUN_DIR/model-snapshot.json" >"$RUN_DIR/model-seed-prepare.log" 2>&1
+
+PHASE="resolver"
+RUNTIME_VENV="$WORK_ROOT/runtime-venv"
+"$PYTHON" -m venv "$RUNTIME_VENV"
+"$RUNTIME_VENV/bin/python" -m pip install --upgrade pip >"$RUN_DIR/resolver-install.log" 2>&1
+WHEELHOUSE_ROOT="$WORK_ROOT/cuda-wheelhouse"
+mkdir "$WHEELHOUSE_ROOT"
+"$PYTHON" - "$CUDA_WHEELHOUSE_ARCHIVE" "$WHEELHOUSE_ROOT" "$RUN_DIR/cuda-wheelhouse-index.json" "$RUN_DIR/cuda-wheelhouse-validation.json" <<'PY'
+import hashlib, json, os, pathlib, shutil, sys, tarfile
+archive, root, index_output, validation_output = map(pathlib.Path, sys.argv[1:])
+names = {}
+with tarfile.open(archive, "r:*") as bundle:
+    for member in bundle.getmembers():
+        pure, name = pathlib.PurePosixPath(member.name), member.name.rstrip("/")
+        if pure.is_absolute() or ".." in pure.parts or not pure.parts or pure.parts[0] != "cuda-wheelhouse" or name in names or not (member.isdir() or member.isfile()):
+            raise ValueError(f"unsafe CUDA wheelhouse member: {member.name}")
+        if member.isfile():
+            if len(pure.parts) != 2: raise ValueError("nested CUDA wheelhouse member")
+            source = bundle.extractfile(member)
+            if source is None: raise ValueError("unreadable wheelhouse member")
+            target = root / pure.name
+            with source, target.open("xb") as output: shutil.copyfileobj(source, output)
+            names[name] = target
+index = json.loads((root / "wheelhouse-index.json").read_text(encoding="utf-8"))
+required = {"sglang_kernel", "sgl_deep_ep", "sgl_deep_gemm", "torch", "torchvision", "torchaudio"}
+if set(index) != {"schema_version", "wheels"} or index["schema_version"] != 1 or set(index["wheels"]) != required:
+    raise ValueError("wheelhouse index differs")
+digest = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+for label, entry in index["wheels"].items():
+    path = root / entry["path"]
+    if path.name != entry["path"] or not path.is_file() or digest(path) != entry["sha256"] or path.stat().st_size != entry["size_bytes"]:
+        raise ValueError(f"wheelhouse binding differs: {label}")
+for output, document in ((index_output, index), (validation_output, {
+    "archive_sha256": digest(archive), "archive_size_bytes": archive.stat().st_size,
+    "index_sha256": digest(root / "wheelhouse-index.json"), "wheels": index["wheels"],
+})):
+    fd = os.open(output, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle: handle.write(json.dumps(document, indent=2, sort_keys=True) + "\n")
+    os.chmod(output, 0o444)
+PY
+mapfile -t CUDA_WHEELS < <("$PYTHON" - "$RUN_DIR/cuda-wheelhouse-index.json" "$WHEELHOUSE_ROOT" <<'PY'
+import json, pathlib, sys
+index, root = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+for entry in json.loads(index.read_text(encoding="utf-8"))["wheels"].values():
+    print(root / entry["path"])
+PY
+)
+test "${#CUDA_WHEELS[@]}" = 6
+"$RUNTIME_VENV/bin/python" -m pip install --only-binary=:all: --find-links "$WHEELHOUSE_ROOT" --index-url "$PYPI_INDEX_URL" --trusted-host "$PYPI_TRUSTED_HOST" --force-reinstall "${CUDA_WHEELS[@]}" >>"$RUN_DIR/resolver-install.log" 2>&1
+"$RUNTIME_VENV/bin/python" -m pip install --no-deps --force-reinstall "$RUN_DIR/runtime-wheel.whl" >>"$RUN_DIR/resolver-install.log" 2>&1
+"$RUNTIME_VENV/bin/python" -m pip install --no-deps --only-binary=:all: --index-url "$PYPI_INDEX_URL" --trusted-host "$PYPI_TRUSTED_HOST" --force-reinstall "flashinfer_python[cu12]==0.6.17" >>"$RUN_DIR/resolver-install.log" 2>&1
+"$PYTHON" - "$RUN_DIR/runtime-wheel.whl" "$RUN_DIR/ordinary-requirements.txt" <<'PY'
+from email.parser import BytesParser
+import os, pathlib, re, sys, zipfile
+wheel, output = map(pathlib.Path, sys.argv[1:])
+special = {"cuda-tile", "flashinfer-python", "sglang-kernel", "sgl-deep-ep", "sgl-deep-gemm", "torch", "torchvision", "torchaudio"}
+with zipfile.ZipFile(wheel) as archive:
+    metadata = [name for name in archive.namelist() if name.endswith(".dist-info/METADATA")]
+    if len(metadata) != 1: raise ValueError("runtime wheel metadata differs")
+    requirements = BytesParser().parsebytes(archive.read(metadata[0])).get_all("Requires-Dist", [])
+ordinary = []
+for requirement in requirements:
+    match = re.match(r"\s*([A-Za-z0-9_.-]+)", requirement)
+    if not match: raise ValueError(f"unparseable requirement: {requirement!r}")
+    if re.sub(r"[-_.]+", "-", match.group(1)).lower() not in special: ordinary.append(requirement)
+fd = os.open(output, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+with os.fdopen(fd, "w", encoding="utf-8") as handle: handle.write("\n".join(ordinary) + "\n")
+os.chmod(output, 0o444)
+PY
+"$RUNTIME_VENV/bin/python" -m pip install --only-binary=:all: --index-url "$PYPI_INDEX_URL" --trusted-host "$PYPI_TRUSTED_HOST" -r "$RUN_DIR/ordinary-requirements.txt" >>"$RUN_DIR/resolver-install.log" 2>&1
+"$RUNTIME_VENV/bin/python" -m pip list --format=json >"$RUN_DIR/installed-distributions.json"
+chmod 0444 "$RUN_DIR/installed-distributions.json"
+"$PYTHON" - "$RUN_DIR/runtime-wheel-validation.json" "$RUN_DIR/runtime-wheel.whl" "$RUN_DIR/runtime-wheel-provenance.json" <<'PY'
+import hashlib, json, os, pathlib, sys
+out, wheel, provenance = map(pathlib.Path, sys.argv[1:])
+digest = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+document = {"provenance_identity": json.loads(provenance.read_text(encoding="utf-8"))["identity"], "runtime_wheel_sha256": digest(wheel), "runtime_wheel_size_bytes": wheel.stat().st_size, "source_rebuild": False}
+fd = os.open(out, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+with os.fdopen(fd, "w", encoding="utf-8") as handle: handle.write(json.dumps(document, indent=2, sort_keys=True) + "\n")
+os.chmod(out, 0o444)
+PY
+"$PYTHON" - "$RUN_DIR/omitted-dependency-exception.json" <<'PY'
+import json, os, pathlib, sys
+out = pathlib.Path(sys.argv[1])
+document = {"allowed_uninstalled_requirement": "cuda-tile==1.6.0rc5", "installed_without_dependency_resolution": "flashinfer_python[cu12]==0.6.17", "reason": "CUDA12 wheel route must not source-build cuda-tile on ECS"}
+fd = os.open(out, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+with os.fdopen(fd, "w", encoding="utf-8") as handle: handle.write(json.dumps(document, indent=2, sort_keys=True) + "\n")
+os.chmod(out, 0o444)
+PY
+env -u PYTHONPATH "$RUNTIME_VENV/bin/python" "$PROVENANCE" --source-root "$TREATMENT" --install-root "$RUNTIME_VENV" --expected-interpreter "$RUNTIME_VENV/bin/python" --output "$RUN_DIR/installed-source-provenance.json"
+mv "$RUN_DIR/installed-source-provenance.json" "$RUN_DIR/sglang-package-provenance.json"
+
+"$PYTHON" - "$RUN_DIR/arm-plan.json" <<'PY'
+import json, os, pathlib, sys
+out = pathlib.Path(sys.argv[1])
+arms = [
+    ("enabled", "TestG1EnabledArm.test_enabled_checked_demotion_records_allocator_visible_release"),
+    ("bypass", "TestG1BypassArm.test_bypass_releases_priority_without_physical_reclamation"),
+    ("reject_write_through_pending", "TestG1WriteThroughPending.test_uncommitted_host_copy_is_deferred_without_physical_free"),
+    ("reject_non_target_session_coverage", "TestG1NonTargetCoverage.test_shared_target_is_deferred_for_the_other_session"),
+    ("reject_device_locked", "TestG1DeviceLocked.test_active_request_is_deferred_at_the_device_lock_check"),
+    ("reject_stale_generation", "TestG1StaleGeneration.test_stale_generation_is_rejected_before_priority_release"),
+    ("stock_eviction_liveness", "TestG1StockEvictionLiveness.test_stock_eviction_remains_reachable_after_bypass"),
+]
+fd = os.open(out, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+with os.fdopen(fd, "w", encoding="utf-8") as handle:
+    handle.write(json.dumps({"arms": [{"arm": arm, "selector": selector} for arm, selector in arms], "fresh_process_per_arm": True, "selector_module": "test.registered.scripted_runtime.test_toolgap_g1_forced_demote"}, indent=2, sort_keys=True) + "\n")
+os.chmod(out, 0o444)
+PY
+cat >"$RUN_DIR/arm-runner.py" <<'PY'
+import importlib.util, pathlib, sys, unittest
+path = pathlib.Path(sys.argv[1]); selector = sys.argv[2]
+if not path.is_file(): raise ValueError("scripted test module is absent")
+class_name, method_name = selector.rsplit(".", 1)
+spec = importlib.util.spec_from_file_location("g1_c_001_scripted", path)
+if spec is None or spec.loader is None: raise ValueError("cannot load scripted test")
+module = importlib.util.module_from_spec(spec); sys.modules[spec.name] = module; spec.loader.exec_module(module)
+suite = unittest.defaultTestLoader.loadTestsFromName(f"{class_name}.{method_name}", module)
+if suite.countTestCases() != 1: raise ValueError("selector did not resolve exactly one test")
+raise SystemExit(0 if unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful() else 1)
+PY
+chmod 0444 "$RUN_DIR/arm-runner.py"
+{
+  printf 'HF_HUB_OFFLINE=1\nTRANSFORMERS_OFFLINE=1\nSGLANG_ENABLE_UNIFIED_RADIX_TREE=1\n'
+  printf 'TOOLGAP_G1_MODEL_PATH=%q\nTREATMENT=%q\nRUNTIME_PYTHON=%q\n' "$MODEL_ROOT" "$TREATMENT" "$RUNTIME_VENV/bin/python"
+  printf 'ORDINARY_PYPI_INDEX=%q\n' "$PYPI_INDEX_URL"
+} >"$RUN_DIR/runtime.env"
+chmod 0444 "$RUN_DIR/runtime.env"
+
+PHASE="formal_arms"
+run_arm() {
+  local arm="$1" selector="$2" pid pgid status
+  local arm_dir="$RUN_DIR/arms"
+  printf '%s\n' "$selector" >"$arm_dir/$arm.command.txt"
+  gpu_pids >"$arm_dir/$arm.gpu-before.txt"
+  ss -ltnH | LC_ALL=C sort >"$arm_dir/$arm.listeners-before.txt"
+  (
+    cd "$TREATMENT"
+    exec setsid timeout --signal=TERM --kill-after=30s "${LONG_TIMEOUT_SECONDS}s" \
+      env -u PYTHONPATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 SGLANG_ENABLE_UNIFIED_RADIX_TREE=1 \
+      TOOLGAP_G1_MODEL_PATH="$MODEL_ROOT" "$RUNTIME_VENV/bin/python" "$RUN_DIR/arm-runner.py" \
+      "$TREATMENT/test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py" "$selector"
+  ) >"$arm_dir/$arm.log" 2>&1 &
+  pid="$!"
+  pgid="$(ps -o pgid= -p "$pid" | xargs)"
+  [[ "$pgid" == "$pid" ]] || die "arm $arm did not form its own process group"
+  if wait "$pid"; then status=0; else status=$?; fi
+  ps -eo pid=,pgid=,stat=,args= | awk -v group="$pgid" '$2 == group && $3 !~ /^Z/' >"$arm_dir/$arm.process-group-after.txt"
+  gpu_pids >"$arm_dir/$arm.gpu-after.txt"
+  ss -ltnH | LC_ALL=C sort >"$arm_dir/$arm.listeners-after.txt"
+  comm -12 "$arm_dir/$arm.gpu-before.txt" "$arm_dir/$arm.gpu-after.txt" >"$arm_dir/$arm.gpu-leaked.txt"
+  comm -13 "$arm_dir/$arm.listeners-before.txt" "$arm_dir/$arm.listeners-after.txt" >"$arm_dir/$arm.listeners-leaked.txt"
+  "$PYTHON" - "$arm_dir/$arm.cleanup.json" "$arm" "$arm_dir/$arm.process-group-after.txt" "$arm_dir/$arm.gpu-leaked.txt" "$arm_dir/$arm.listeners-leaked.txt" <<'PY'
+import json, os, pathlib, sys
+out = pathlib.Path(sys.argv[1])
+arm = sys.argv[2]
+group, gpu, listeners = map(pathlib.Path, sys.argv[3:])
+document = {"arm": arm, "listener_clean": not listeners.read_text(), "pgid_clean": not group.read_text(), "gpu_delta_clean": not gpu.read_text()}
+fd = os.open(out, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+with os.fdopen(fd, "w", encoding="utf-8") as handle: handle.write(json.dumps(document, indent=2, sort_keys=True) + "\n")
+os.chmod(out, 0o444)
+PY
+  [[ "$status" == 0 ]] || return "$status"
+  "$PYTHON" "$EXTRACTOR" --expected-arm "$arm" --log "$arm_dir/$arm.log" --output "$arm_dir/$arm.record.json"
+}
+for arm in "${ARMS[@]}"; do run_arm "$arm" "${SELECTORS[$arm]}"; done
+"$PYTHON" - "$RUN_DIR/arm-records.json" "$RUN_DIR/cleanup.json" "$RUN_DIR" "${ARMS[@]}" <<'PY'
+import json, os, pathlib, sys
+records_out = pathlib.Path(sys.argv[1])
+cleanup_out = pathlib.Path(sys.argv[2])
+root = pathlib.Path(sys.argv[3])
+arms = sys.argv[4:]
+records = [json.loads((root / "arms" / f"{arm}.record.json").read_text()) for arm in arms]
+cleanup = [json.loads((root / "arms" / f"{arm}.cleanup.json").read_text()) for arm in arms]
+for out, document in ((records_out, records), (cleanup_out, {"all_clean": all(all(row[key] for key in ("listener_clean", "pgid_clean", "gpu_delta_clean")) for row in cleanup), "arms": cleanup})):
+    fd = os.open(out, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle: handle.write(json.dumps(document, indent=2, sort_keys=True) + "\n")
+    os.chmod(out, 0o444)
+PY
+
+PHASE="scope"
+"$PYTHON" - "$RUN_DIR/scope-scan.log" "$RUN_DIR/resolver-install.log" "$RUN_DIR/source-restore.log" <<'PY'
+import os, pathlib, re, sys
+out, resolver, restore = map(pathlib.Path, sys.argv[1:])
+forbidden = {
+    "special_upstream_index": r"(github\.com|download\.pytorch\.org|docs\.sglang\.ai)",
+    "source_build": r"\b(cargo|rustc|maturin)\b",
+    "treatment_source_install": r"pip install .*sglang/python",
+}
+hits = []
+for path in (resolver, restore):
+    text = path.read_text(encoding="utf-8", errors="replace")
+    for label, pattern in forbidden.items():
+        if re.search(pattern, text, re.IGNORECASE):
+            hits.append(f"{path.name}:{label}")
+fd = os.open(out, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+with os.fdopen(fd, "w", encoding="utf-8") as handle:
+    handle.write("scope=clean\n" if not hits else "scope=invalid\n" + "\n".join(hits) + "\n")
+os.chmod(out, 0o444)
+if hits: raise SystemExit(1)
+PY
+
+PHASE="seal"
+TERMINAL="$("$PYTHON" - "$RUN_DIR/arm-records.json" "$FINALIZER" <<'PY'
+import importlib.util, json, pathlib, sys
+records, module = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+spec = importlib.util.spec_from_file_location("g1_c_001_finalize", module)
+loaded = importlib.util.module_from_spec(spec); assert spec.loader is not None; spec.loader.exec_module(loaded)
+print(loaded.classify_records(json.loads(records.read_text()))[0])
+PY
+)"
+"$PYTHON" "$FINALIZER" render --template "$TEMPLATE" --output "$RUN_DIR/manifest.json" --terminal "$TERMINAL"
+(cd "$RUN_DIR" && sha256sum manifest.json >manifest.sha256)
+chmod 0444 "$RUN_DIR/manifest.sha256"
+"$PYTHON" "$FINALIZER" finish --run-dir "$RUN_DIR"
+printf 'G1_C_001_SEALED_ATTEMPT=%s\n' "$RUN_DIR"

@@ -1,0 +1,19 @@
+{
+  "identity": {
+    "attempt_id": "__GENERATED__",
+    "bundle_id": "G1-C-001",
+    "claim_state": "roadmap",
+    "gate": "G1",
+    "gate_decision": "__GENERATED__",
+    "kind": "formal_checked_demote_runtime",
+    "spec_path": "experiments/g1/SPEC.g1-c-001.md",
+    "spec_sha256": "__GENERATED__",
+    "toolgap_commit": "__GENERATED__",
+    "toolgap_tree": "__GENERATED__"
+  },
+  "outcome": {
+    "claim_state": "roadmap",
+    "terminals": ["PASS", "STOP", "INVALID"]
+  },
+  "planned_success_artifacts": "__GENERATED__"
+}
