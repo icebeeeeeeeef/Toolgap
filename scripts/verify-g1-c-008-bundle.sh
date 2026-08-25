@@ -242,6 +242,13 @@ module_spec = importlib.util.spec_from_file_location("g1_c_008_finalize", finali
 assert module_spec and module_spec.loader
 module = importlib.util.module_from_spec(module_spec)
 module_spec.loader.exec_module(module)
+selected_test_path = pathlib.PurePosixPath(
+    "test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py"
+)
+assert module.SCRIPTED_TEST_PATH == str(selected_test_path)
+assert module.SELECTOR_MODULE == selected_test_path.stem
+assert f'SCRIPTED_TEST="$TREATMENT/{selected_test_path}"' in runner
+assert '"selector_module": scripted_test.stem' in runner
 assert tuple(module.ARMS) == (
     "enabled", "bypass", "reject_write_through_pending",
     "reject_non_target_session_coverage", "reject_device_locked",

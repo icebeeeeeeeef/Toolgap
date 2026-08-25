@@ -11,11 +11,13 @@ import re
 import shlex
 import sys
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 BUNDLE_ID = "G1-C-008"
 KIND = "formal_checked_demote_runtime"
 SPEC_PATH = "experiments/g1/SPEC.g1-c-008.md"
+SCRIPTED_TEST_PATH = "test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py"
+SELECTOR_MODULE = PurePosixPath(SCRIPTED_TEST_PATH).stem
 ARMS = (
     "enabled",
     "bypass",
@@ -455,7 +457,7 @@ def validate_plan(run_dir: Path) -> None:
     plan = load_json(run_dir / "arm-plan.json", "arm plan")
     if set(plan) != {"arms", "fresh_process_per_arm", "selector_module"}:
         raise ValueError("arm plan schema differs")
-    if plan["fresh_process_per_arm"] is not True or plan["selector_module"] != "test.registered.scripted_runtime.test_toolgap_g1_forced_demote":
+    if plan["fresh_process_per_arm"] is not True or plan["selector_module"] != SELECTOR_MODULE:
         raise ValueError("arm plan does not require fresh formal arms")
     arms = plan["arms"]
     if not isinstance(arms, list) or [item.get("arm") for item in arms if isinstance(item, dict)] != list(ARMS):

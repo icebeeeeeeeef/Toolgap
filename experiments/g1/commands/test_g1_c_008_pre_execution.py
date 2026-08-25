@@ -248,7 +248,7 @@ def write_plan(run_dir: Path) -> None:
             for arm in FINALIZE.ARMS
         ],
         "fresh_process_per_arm": True,
-        "selector_module": "test.registered.scripted_runtime.test_toolgap_g1_forced_demote",
+        "selector_module": "test_toolgap_g1_forced_demote",
     })
 
 
@@ -429,6 +429,20 @@ def refresh_receipt_for_index(run_dir: Path) -> None:
 
 
 class G1C007PreExecutionTests(unittest.TestCase):
+    def test_plan_binds_importable_selector_module_stem(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            write_plan(run_dir)
+            FINALIZE.validate_plan(run_dir)
+            plan_path = run_dir / "arm-plan.json"
+            plan = json.loads(plan_path.read_text(encoding="utf-8"))
+            replace_read_only(plan_path, {
+                **plan,
+                "selector_module": "test.registered.scripted_runtime.test_toolgap_g1_forced_demote",
+            })
+            with self.assertRaises(ValueError):
+                FINALIZE.validate_plan(run_dir)
+
     def test_render_failure_seals_without_manifest_and_replays_clean_scope(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             run_dir = prepare_run(directory)

@@ -481,6 +481,7 @@ PY
 tar --no-same-owner -xzf "$SOURCE_SEED_ARCHIVE" -C "$WORK_ROOT"
 BARE="$WORK_ROOT/sglang-source.git"
 TREATMENT="$WORK_ROOT/sglang"
+SCRIPTED_TEST="$TREATMENT/test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py"
 git -C "$BARE" fsck --full
 [[ "$(git -C "$BARE" rev-parse "$BASE_COMMIT^{tree}")" == "$BASE_TREE" ]]
 git clone --no-local "$BARE" "$TREATMENT"
@@ -625,9 +626,11 @@ PY
 env -u PYTHONPATH "$RUNTIME_VENV/bin/python" "$PROVENANCE" --source-root "$TREATMENT" --install-root "$RUNTIME_VENV" --expected-interpreter "$RUNTIME_VENV/bin/python" --output "$RUN_DIR/installed-source-provenance.json"
 mv "$RUN_DIR/installed-source-provenance.json" "$RUN_DIR/sglang-package-provenance.json"
 
-"$PYTHON" - "$RUN_DIR/arm-plan.json" <<'PY'
+"$PYTHON" - "$RUN_DIR/arm-plan.json" "$SCRIPTED_TEST" <<'PY'
 import json, os, pathlib, sys
 out = pathlib.Path(sys.argv[1])
+scripted_test = pathlib.Path(sys.argv[2])
+if not scripted_test.is_file(): raise ValueError("scripted test module is absent")
 arms = [
     ("enabled", "TestG1EnabledArm.test_enabled_checked_demotion_records_allocator_visible_release"),
     ("bypass", "TestG1BypassArm.test_bypass_releases_priority_without_physical_reclamation"),
@@ -639,7 +642,7 @@ arms = [
 ]
 fd = os.open(out, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
 with os.fdopen(fd, "w", encoding="utf-8") as handle:
-    handle.write(json.dumps({"arms": [{"arm": arm, "selector": selector} for arm, selector in arms], "fresh_process_per_arm": True, "selector_module": "test.registered.scripted_runtime.test_toolgap_g1_forced_demote"}, indent=2, sort_keys=True) + "\n")
+    handle.write(json.dumps({"arms": [{"arm": arm, "selector": selector} for arm, selector in arms], "fresh_process_per_arm": True, "selector_module": scripted_test.stem}, indent=2, sort_keys=True) + "\n")
 os.chmod(out, 0o444)
 PY
 cat >"$RUN_DIR/arm-runner.py" <<'PY'
@@ -684,7 +687,7 @@ run_arm() {
       timeout --signal=TERM --kill-after=30s "${LONG_TIMEOUT_SECONDS}s" \
       env -u PYTHONPATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 SGLANG_ENABLE_UNIFIED_RADIX_TREE=1 \
       TOOLGAP_G1_MODEL_PATH="$MODEL_ROOT" "$RUNTIME_VENV/bin/python" "$RUN_DIR/arm-runner.py" \
-      "$TREATMENT/test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py" "$selector"
+      "$SCRIPTED_TEST" "$selector"
   ) >"$arm_dir/$arm.log" 2>&1 &
   pid="$!"
   CURRENT_ARM_PID="$pid"
