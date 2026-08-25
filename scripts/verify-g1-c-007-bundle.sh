@@ -47,6 +47,10 @@ git -C "$ROOT" diff --check "$PREDECESSOR"
 # G1-C-007 must match every listed frozen predecessor path to the explicit
 # rejected, never-executed C-006 commit, not merely to the current index.
 FROZEN=(
+  experiments/g1/artifacts/model-files.g1-preflight-001.json
+  upstream/sglang/patches/0001-atomic-checked-demote.patch
+  upstream/sglang/patches/0002-g1-scripted-forced-demote.patch
+  upstream/sglang/patches/0003-cuda12-compat-packaging.patch
   experiments/g1/SPEC.g1-preflight-001.md
   experiments/g1/manifest.g1-preflight-001.template.json
   experiments/g1/commands/00-g1-preflight-001-bootstrap.sh
