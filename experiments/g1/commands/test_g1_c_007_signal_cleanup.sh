@@ -11,6 +11,7 @@ SAMPLER_PID=""
 HARNESS_PID=""
 
 fallback_cleanup() {
+  local status="$?"
   trap - EXIT
   if [[ "$HARNESS_PID" =~ ^[1-9][0-9]*$ ]]; then kill -KILL "$HARNESS_PID" 2>/dev/null || true; fi
   if [[ "$SAMPLER_PID" =~ ^[1-9][0-9]*$ ]]; then kill -KILL "$SAMPLER_PID" 2>/dev/null || true; fi
@@ -18,7 +19,8 @@ fallback_cleanup() {
   if [[ "$ARM_PID" =~ ^[1-9][0-9]*$ ]]; then kill -KILL "$ARM_PID" 2>/dev/null || true; fi
   if [[ "$ARM_PID" =~ ^[1-9][0-9]*$ ]]; then wait "$ARM_PID" 2>/dev/null || true; fi
   if [[ "$SAMPLER_PID" =~ ^[1-9][0-9]*$ ]]; then wait "$SAMPLER_PID" 2>/dev/null || true; fi
-  rm -rf "$TEMPORARY"
+  python3 -c 'import shutil, sys; shutil.rmtree(sys.argv[1], ignore_errors=True)' "$TEMPORARY"
+  exit "$status"
 }
 trap fallback_cleanup EXIT
 
@@ -27,14 +29,15 @@ sed -n '/BEGIN_SIGNAL_CLEANUP_HELPERS/,/END_SIGNAL_CLEANUP_HELPERS/p' "$RUNNER" 
 (
   # shellcheck source=/dev/null
   source "$TEMPORARY/helpers.sh"
-  perl -MPOSIX -e 'my $ready = shift; setsid(); open my $out, ">", $ready or die $!; print {$out} "$$\n"; close $out; exec "sleep", "60"' "$TEMPORARY/arm-ready" &
+  PYTHON=python3
+  perl -MPOSIX -e 'my $ready = shift; open my $out, ">", $ready or die $!; print {$out} "$$\n"; close $out; select undef, undef, undef, 0.3; setsid(); exec "sleep", "60"' "$TEMPORARY/arm-ready" &
   CURRENT_ARM_PID="$!"
   for _ in $(seq 1 100); do
     [[ -f "$TEMPORARY/arm-ready" ]] && break
     sleep 0.01
   done
-  CURRENT_ARM_PGID="$CURRENT_ARM_PID"
   [[ "$(cat "$TEMPORARY/arm-ready")" == "$CURRENT_ARM_PID" ]]
+  wait_for_arm_pgid
   sleep 60 &
   CURRENT_SAMPLER_PID="$!"
   printf '%s\n' "$CURRENT_ARM_PID" >"$TEMPORARY/arm-pid"

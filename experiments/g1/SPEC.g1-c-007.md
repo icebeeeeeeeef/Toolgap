@@ -90,6 +90,16 @@ input seed only after validating its own manifest-bound bytes.
 `20-g1-c-007.sh` is taken from that restored checkout and refuses a dirty
 tracked tree.
 
+A valid attempt ID, absolute regular staged inputs, absent output paths, a
+runnable bootstrap Python/finalizer pair, Git, and a clean restored checkout
+are prerequisites before an attempt can be identified. Once those basics pass,
+the runner creates the attempt directory, records the absolute `work_root` in
+`attempt-context.json`, and captures best-effort environment evidence before
+checking Python 3.12, Linux/Ubuntu, CUDA, GPU count/type, or driver admission.
+Those host-envelope mismatches therefore seal an offline-verifiable
+`pre_execution INVALID`; inability to run the finalizer itself remains a
+pre-attempt bootstrap failure.
+
 The runner verifies all staged archive hashes before extracting them, validates
 safe archive member names, and applies exactly three explicit manifest-bound
 paths: `0001-atomic-checked-demote.patch`,
@@ -136,6 +146,15 @@ records for `resolver` and later. This does not change source, model, wheel,
 selector, cleanup, or G1 terminal semantics. A C-007 formal completion still
 requires both passing immutable preflight records.
 
+The same offline check binds both preflight `path` values to the context's
+absolute `work_root` and validates completed-stage evidence rather than trusting
+the claimed phase alone. A `source_restore` failure requires completed input
+binding; `model` requires source provenance; `resolver` requires the model
+receipt; `formal_arms` requires resolver/runtime setup; `scope` requires all
+seven arm and cleanup records; and `seal` requires clean scope plus the rendered
+manifest checksum. The currently failing stage may be incomplete, but every
+earlier milestone must be present and structurally valid.
+
 The generated arm runner defines `main()` and invokes it only under
 `if __name__ == "__main__"`. A multiprocessing spawn child may therefore
 reimport the runner as its bootstrap main module without resolving a selector,
@@ -153,6 +172,11 @@ PID is known and continue at 0.25-second intervals until that arm exits; the
 immutable sample ledger is replayed into `during`, with
 `attributable = during - before` and `leaked = attributable intersection after`.
 The only accepted selector set is:
+
+After launching an arm under `setsid`, the runner polls the real child PGID for
+at most ten seconds and accepts group cleanup only after `pgid == pid`. If the
+child exits or the deadline expires, failure cleanup falls back to the child PID
+without signaling an unrelated process group.
 
 | Arm | Selector | Required observation |
 | --- | --- | --- |
@@ -193,7 +217,11 @@ The terminal artifacts are immutable: `execution-status.json`,
 PID/PGID/listener/GPU cleanup evidence, scope scan, raw records, and the
 classification oracle off-host using only the sealed directory. The
 runner terminates and waits for the active sampler and isolated arm process
-group before recording an `INVALID` after any error or termination signal.
+group before recording an `INVALID` after any error or a handled `HUP`, `INT`,
+or `TERM` signal. Offline verification requires the artifact-index paths to be
+sorted and exactly equal the sealed directory's regular files other than the
+index and completion receipt themselves; it rejects unindexed files, symlinks,
+and a non-canonical or non-exact completion receipt.
 operator-only `scripts/anchor-g1-c-007-oss.sh` first performs that
 verification, uploads each indexed artifact to a versioned OSS prefix, and
 writes an external anchor that binds every OSS object version. The ECS role only

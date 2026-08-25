@@ -22,9 +22,11 @@ STORAGE_PREFLIGHT_TESTS="$ROOT/experiments/g1/commands/test_g1_c_007_storage_pre
 BUILDER_TESTS="$ROOT/experiments/g1/commands/test_g1_c_007_bundle_manifest.py"
 PRE_EXECUTION_TESTS="$ROOT/experiments/g1/commands/test_g1_c_007_pre_execution.py"
 FAILURE_EVIDENCE_TESTS="$ROOT/experiments/g1/commands/test_g1_c_007_failure_evidence.sh"
+HOST_MISMATCH_TESTS="$ROOT/experiments/g1/commands/test_g1_c_007_host_mismatch.sh"
+REVIEW="$ROOT/worklog/reviews/2026-08-25/g1-c-007-code-quality-review.md"
 ANCHOR="$ROOT/scripts/anchor-g1-c-007-oss.sh"
 
-for path in "$SPEC" "$TEMPLATE" "$BOOTSTRAP" "$RUNNER" "$BUILDER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS" "$SIGNAL_CLEANUP_TESTS" "$SOURCE_RESTORE_TESTS" "$RUNTIME_WHEEL_NAME_TESTS" "$ARM_RUNNER_SPAWN_TESTS" "$STORAGE_PREFLIGHT_TESTS" "$BUILDER_TESTS" "$PRE_EXECUTION_TESTS" "$FAILURE_EVIDENCE_TESTS" "$ANCHOR"; do
+for path in "$SPEC" "$TEMPLATE" "$BOOTSTRAP" "$RUNNER" "$BUILDER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS" "$SIGNAL_CLEANUP_TESTS" "$SOURCE_RESTORE_TESTS" "$RUNTIME_WHEEL_NAME_TESTS" "$ARM_RUNNER_SPAWN_TESTS" "$STORAGE_PREFLIGHT_TESTS" "$BUILDER_TESTS" "$PRE_EXECUTION_TESTS" "$FAILURE_EVIDENCE_TESTS" "$HOST_MISMATCH_TESTS" "$REVIEW" "$ANCHOR"; do
   test -f "$path"
 done
 bash -n "$BOOTSTRAP"
@@ -41,6 +43,7 @@ bash "$RUNTIME_WHEEL_NAME_TESTS"
 bash "$ARM_RUNNER_SPAWN_TESTS"
 bash "$STORAGE_PREFLIGHT_TESTS"
 bash "$FAILURE_EVIDENCE_TESTS"
+bash "$HOST_MISMATCH_TESTS"
 PREDECESSOR="0ad49f1afdf5c59285a2828afbfe36d3409caa68"
 git -C "$ROOT" diff --check "$PREDECESSOR"
 
@@ -211,7 +214,7 @@ assert tuple(module.ARMS) == (
 )
 assert set(module.SELECTORS) == set(module.ARMS)
 for arm, selector in module.SELECTORS.items():
-    assert f'[{arm}]="{selector}"' in runner
+    assert selector in runner
 assert "fresh_process_per_arm" in runner
 assert "exec setsid timeout" in runner
 assert "G1_C_007_INPUT_OSS_RECEIPT" in runner
@@ -221,6 +224,7 @@ assert "g1_c_007_gpu_sampler.py" in runner
 assert "--poll-seconds 0.25" in runner
 assert "gpu-samples.json" in runner and "gpu-during.txt" in runner and "gpu-attributable.txt" in runner
 assert "cleanup_active_processes" in runner and "CURRENT_ARM_PGID" in runner
+assert "wait_for_arm_pgid" in runner and "os.getpgid(pid)" in runner
 assert "trap 'seal_invalid \"$?\"' EXIT" in runner
 assert "PATCHES=(" in runner
 assert "apply_frozen_patches" in runner
@@ -234,6 +238,9 @@ assert "available disk is below manifest bound before dependency install" in run
 assert runner.index('storage-preflight-source-restore.json') < runner.index('tar --no-same-owner')
 assert runner.index('storage-preflight-resolver.json') < runner.index('"$PYTHON" -m venv')
 assert runner.index('record_failure_evidence "$code"') < runner.index('"$PYTHON" "$FINALIZER" invalid')
+assert '"work_root": str(work_root)' in runner
+assert runner.index("capture_environment") < runner.index("requires Linux x86_64")
+assert runner.rindex('PHASE="seal"') > runner.index('sha256sum manifest.json')
 assert "def main() -> int:" in runner
 assert 'if __name__ == "__main__":' in runner
 assert "raise SystemExit(main())" in runner
@@ -288,6 +295,7 @@ for relative in (
     "experiments/g1/commands/test_g1_c_007_bundle_manifest.py",
     "experiments/g1/commands/test_g1_c_007_pre_execution.py",
     "experiments/g1/commands/test_g1_c_007_failure_evidence.sh",
+    "experiments/g1/commands/test_g1_c_007_host_mismatch.sh",
     "scripts/anchor-g1-c-007-oss.sh",
 ):
     assert relative in builder
@@ -308,6 +316,8 @@ assert "RUNTIME_WHEEL_FILENAME" in finalizer and "runtime_wheel_filename" in fin
 assert "MINIMUM_FREE_BYTES" in builder and "storage_preflight" in builder
 assert "validate_storage_preflight" in finalizer and "storage-preflight-resolver.json" in finalizer
 assert "validate_pre_execution_evidence" in finalizer and "pre_execution_failure_reason" in finalizer
+assert "PHASE_REQUIRED_MILESTONES" in finalizer and '"work_root"' in finalizer
+assert "artifact index does not equal the sealed regular-file set" in finalizer
 assert "rejection contract" in finalizer and "stock eviction liveness" in finalizer
 assert "arm record aggregate differs from individual evidence" in finalizer
 assert "observation_errors" in finalizer and "LIVE_OBSERVATION_FIELDS" in finalizer

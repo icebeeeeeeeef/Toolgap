@@ -5,7 +5,7 @@ set -Eeuo pipefail
 ROOT="$(cd -- "$(dirname -- "$BASH_SOURCE")/../../.." && pwd -P)"
 RUNNER="$ROOT/experiments/g1/commands/20-g1-c-007.sh"
 TEMPORARY="$(mktemp -d "${TMPDIR:-/tmp}/g1-c-007-source-restore.XXXXXX")"
-trap 'rm -rf "$TEMPORARY"' EXIT
+trap 'python3 -c '\''import shutil, sys; shutil.rmtree(sys.argv[1], ignore_errors=True)'\'' "$TEMPORARY"' EXIT
 
 sed -n '/BEGIN_FROZEN_PATCH_RESTORE_HELPER/,/END_FROZEN_PATCH_RESTORE_HELPER/p' "$RUNNER" >"$TEMPORARY/helper.sh"
 sed -n '/BEGIN_CHANGED_PATH_INVENTORY_HELPER/,/END_CHANGED_PATH_INVENTORY_HELPER/p' "$RUNNER" >>"$TEMPORARY/helper.sh"

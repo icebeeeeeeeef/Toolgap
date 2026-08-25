@@ -5,7 +5,7 @@ set -Eeuo pipefail
 ROOT="$(cd -- "$(dirname -- "$BASH_SOURCE")/../../.." && pwd -P)"
 RUNNER="$ROOT/experiments/g1/commands/20-g1-c-007.sh"
 TEMPORARY="$(mktemp -d "${TMPDIR:-/tmp}/g1-c-007-arm-runner.XXXXXX")"
-trap 'rm -rf "$TEMPORARY"' EXIT
+trap 'python3 -c '\''import shutil, sys; shutil.rmtree(sys.argv[1], ignore_errors=True)'\'' "$TEMPORARY"' EXIT
 
 awk '
   /^cat >"\$RUN_DIR\/arm-runner\.py" <<'"'"'PY'"'"'$/ { capture = 1; next }

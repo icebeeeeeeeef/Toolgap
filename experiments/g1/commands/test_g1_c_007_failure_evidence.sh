@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "$BASH_SOURCE")/../../.." && pwd -P)"
 RUNNER="$ROOT/experiments/g1/commands/20-g1-c-007.sh"
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+trap 'python3 -c '\''import shutil, sys; shutil.rmtree(sys.argv[1], ignore_errors=True)'\'' "$TMP"' EXIT
 
 sed -n '/# BEGIN_FAILURE_EVIDENCE_HELPER/,/# END_FAILURE_EVIDENCE_HELPER/p' "$RUNNER" >"$TMP/helper.sh"
 # shellcheck source=/dev/null

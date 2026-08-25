@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -136,7 +137,7 @@ def validate_context(run_dir: Path) -> dict[str, object]:
     required = {
         "attempt_id", "bundle_id", "claim_state", "created_at", "gate",
         "kind", "spec_path", "spec_sha256", "toolgap_commit",
-        "toolgap_tracked_clean", "toolgap_tree",
+        "toolgap_tracked_clean", "toolgap_tree", "work_root",
     }
     if set(context) != required:
         raise ValueError("attempt context fields differ")
@@ -151,6 +152,14 @@ def validate_context(run_dir: Path) -> dict[str, object]:
     for field, length in (("spec_sha256", 64), ("toolgap_commit", 40), ("toolgap_tree", 40)):
         if not valid_digest(context[field], length):
             raise ValueError(f"attempt context {field} is invalid")
+    work_root = context["work_root"]
+    if (
+        not isinstance(work_root, str)
+        or not Path(work_root).is_absolute()
+        or str(Path(work_root)) != work_root
+        or ".." in Path(work_root).parts
+    ):
+        raise ValueError("attempt context work root is invalid")
     return context
 
 
@@ -160,7 +169,7 @@ def validate_input_manifest(run_dir: Path, context: dict[str, object]) -> dict[s
         "archives", "identity", "model", "ordinary_dependency_transport",
         "patches", "schema_version", "static_inputs", "storage_preflight",
     }
-    if set(document) != required or document["schema_version"] != 1:
+    if set(document) != required or type(document["schema_version"]) is not int or document["schema_version"] != 1:
         raise ValueError("input manifest schema differs")
     identity = document["identity"]
     expected = {
@@ -186,7 +195,7 @@ def validate_input_manifest(run_dir: Path, context: dict[str, object]) -> dict[s
             not isinstance(entry, dict) or set(entry) != {"path", "sha256", "size_bytes"}
             or not isinstance(entry.get("path"), str) or Path(entry["path"]).name != entry["path"]
             or not valid_digest(entry.get("sha256"))
-            or not isinstance(entry.get("size_bytes"), int) or entry["size_bytes"] < 1
+            or type(entry.get("size_bytes")) is not int or entry["size_bytes"] < 1
         ):
             raise ValueError(f"invalid input archive: {label}")
     if document["ordinary_dependency_transport"] != {
@@ -201,7 +210,7 @@ def validate_input_manifest(run_dir: Path, context: dict[str, object]) -> dict[s
 
 def validate_input_oss_receipt(run_dir: Path, manifest: dict[str, object]) -> None:
     receipt = load_json(run_dir / "input-oss-receipt.json", "input OSS receipt")
-    if set(receipt) != {"schema_version", "identity", "objects"} or receipt["schema_version"] != 1:
+    if set(receipt) != {"schema_version", "identity", "objects"} or type(receipt["schema_version"]) is not int or receipt["schema_version"] != 1:
         raise ValueError("input OSS receipt schema differs")
     if receipt["identity"] != manifest["identity"]:
         raise ValueError("input OSS receipt identity differs")
@@ -222,6 +231,7 @@ def validate_input_oss_receipt(run_dir: Path, manifest: dict[str, object]) -> No
             or not re.fullmatch(r"oss://[^/]+/.+", observed["object_uri"])
             or Path(observed["object_uri"]).name != expected_binding["path"]
             or observed.get("sha256") != expected_binding["sha256"]
+            or type(observed.get("size_bytes")) is not int
             or observed.get("size_bytes") != expected_binding["size_bytes"]
             or not isinstance(observed.get("version_id"), str) or not observed["version_id"]
         ):
@@ -274,6 +284,7 @@ def validate_storage_preflight_record(
     path: Path,
     stage: str,
     minimum: int,
+    expected_path: str,
     *,
     allow_insufficient: bool,
 ) -> None:
@@ -286,23 +297,25 @@ def validate_storage_preflight_record(
             "available_free_bytes", "minimum_free_bytes", "path",
             "schema_version", "stage", "total_bytes",
         }
+        or type(document["schema_version"]) is not int
         or document["schema_version"] != 1
         or document["stage"] != stage
         or document["minimum_free_bytes"] != minimum
-        or not isinstance(document["path"], str)
-        or not Path(document["path"]).is_absolute()
-        or not isinstance(available, int)
-        or isinstance(available, bool)
+        or document["path"] != expected_path
+        or type(available) is not int
         or available < 0
-        or not isinstance(total, int)
-        or isinstance(total, bool)
+        or type(total) is not int
         or total < available
         or (not allow_insufficient and available < minimum)
     ):
         raise ValueError(f"storage preflight differs: {stage}")
 
 
-def validate_storage_preflight(run_dir: Path, manifest: dict[str, object]) -> None:
+def validate_storage_preflight(
+    run_dir: Path,
+    manifest: dict[str, object],
+    context: dict[str, object],
+) -> None:
     minimum = storage_minimum_free_bytes(manifest)
     for filename, stage in (
         ("storage-preflight-source-restore.json", "source_restore"),
@@ -312,6 +325,7 @@ def validate_storage_preflight(run_dir: Path, manifest: dict[str, object]) -> No
             run_dir / filename,
             stage,
             minimum,
+            context["work_root"],
             allow_insufficient=False,
         )
 
@@ -329,10 +343,10 @@ def validate_pre_execution_evidence(
     exit_code = failure.get("exit_code")
     if (
         set(failure) != {"exit_code", "failure_phase", "schema_version"}
+        or type(failure["schema_version"]) is not int
         or failure["schema_version"] != 1
         or phase not in FAILURE_PHASES
-        or not isinstance(exit_code, int)
-        or isinstance(exit_code, bool)
+        or type(exit_code) is not int
         or not 1 <= exit_code <= 255
     ):
         raise ValueError("pre-execution failure evidence differs")
@@ -355,6 +369,7 @@ def validate_pre_execution_evidence(
     }
     if observed_names != expected_names:
         raise ValueError("pre-execution storage preflight set differs for failure phase")
+    manifest = None
     if expected_names:
         manifest = validate_input_manifest(run_dir, context)
         minimum = storage_minimum_free_bytes(manifest)
@@ -365,9 +380,11 @@ def validate_pre_execution_evidence(
                     run_dir / filename,
                     stage,
                     minimum,
+                    context["work_root"],
                     allow_insufficient=phase_index == stage_index,
                 )
                 required.add(filename)
+    validate_phase_milestones(run_dir, context, manifest, phase)
     return failure, required
 
 
@@ -375,7 +392,7 @@ def pre_execution_failure_reason(failure: dict[str, object]) -> str:
     return f"runner failure at phase {failure['failure_phase']}, exit {failure['exit_code']}"
 
 
-def validate_runtime_inputs(run_dir: Path, manifest: dict[str, object]) -> None:
+def validate_staged_runtime_inputs(run_dir: Path, manifest: dict[str, object]) -> None:
     archives = manifest["archives"]
     wheel_filename = runtime_wheel_filename(manifest)
     bindings = {
@@ -395,6 +412,7 @@ def validate_runtime_inputs(run_dir: Path, manifest: dict[str, object]) -> None:
         not isinstance(output_wheel, dict)
         or output_wheel.get("filename") != wheel_filename
         or output_wheel.get("sha256") != archives["runtime_wheel"]["sha256"]
+        or type(output_wheel.get("size_bytes")) is not int
         or output_wheel.get("size_bytes") != archives["runtime_wheel"]["size_bytes"]
     ):
         raise ValueError("runtime provenance wheel binding differs")
@@ -413,7 +431,15 @@ def validate_runtime_inputs(run_dir: Path, manifest: dict[str, object]) -> None:
     base = provenance.get("base_wheel")
     if not isinstance(base, dict) or base.get("filename") != "sglang-0.0.0.dev2+g734a8e921-cp312-cp312-linux_x86_64.whl" or base.get("sha256") != "0874acca7b27e45ae39606eb12ee24a5f4cb17cd3791bb60fdccb95c332bf59e":
         raise ValueError("runtime provenance base payload differs")
+
+
+def validate_runtime_inputs(run_dir: Path, manifest: dict[str, object]) -> None:
+    validate_staged_runtime_inputs(run_dir, manifest)
+    archives = manifest["archives"]
+    wheel_filename = runtime_wheel_filename(manifest)
     validation = load_json(run_dir / "runtime-wheel-validation.json", "runtime wheel validation")
+    if type(validation.get("runtime_wheel_size_bytes")) is not int:
+        raise ValueError("runtime wheel validation size differs")
     if validation != {
         "provenance_identity": "G0_prebuilt_runtime_payload_plus_CUDA12_metadata_rewrite",
         "runtime_wheel_filename": wheel_filename,
@@ -438,7 +464,7 @@ def validate_plan(run_dir: Path) -> None:
             raise ValueError("invalid arm plan row")
 
 
-def validate_sglang_provenance(run_dir: Path, manifest: dict[str, object]) -> None:
+def validate_source_provenance(run_dir: Path, manifest: dict[str, object]) -> None:
     source = load_json(run_dir / "sglang-provenance.json", "SGLang source provenance")
     required = {"base_commit", "base_tree", "patched_commit", "patched_tree", "patches"}
     if set(source) != required:
@@ -461,6 +487,9 @@ def validate_sglang_provenance(run_dir: Path, manifest: dict[str, object]) -> No
         ):
             raise ValueError("SGLang source patch binding differs")
 
+
+
+def validate_installed_package_provenance(run_dir: Path) -> None:
     package = load_json(run_dir / "sglang-package-provenance.json", "installed SGLang package provenance")
     required_package = {
         "expected_interpreter", "install_root", "interpreter", "interpreter_matches", "modules",
@@ -489,6 +518,218 @@ def validate_sglang_provenance(run_dir: Path, manifest: dict[str, object]) -> No
             raise ValueError("installed SGLang module provenance differs")
 
 
+def validate_sglang_provenance(run_dir: Path, manifest: dict[str, object]) -> None:
+    validate_source_provenance(run_dir, manifest)
+    validate_installed_package_provenance(run_dir)
+
+
+def require_nonempty_regular(run_dir: Path, name: str) -> None:
+    path = run_dir / name
+    absolute_regular(path, name)
+    if path.stat().st_size < 1:
+        raise ValueError(f"completed milestone artifact is empty: {name}")
+
+
+def validate_input_binding_milestone(
+    run_dir: Path, context: dict[str, object], manifest: dict[str, object]
+) -> None:
+    validate_input_oss_receipt(run_dir, manifest)
+    validate_bootstrap(run_dir, manifest)
+    require_nonempty_regular(run_dir, "input-manifest-verify.log")
+    if (run_dir / "input-manifest-verify.log").read_text(encoding="utf-8") != "input_manifest=verified\n":
+        raise ValueError("input binding verification differs")
+    validate_staged_runtime_inputs(run_dir, manifest)
+
+
+def validate_source_restore_milestone(
+    run_dir: Path, context: dict[str, object], manifest: dict[str, object]
+) -> None:
+    require_nonempty_regular(run_dir, "source-restore.log")
+    validate_source_provenance(run_dir, manifest)
+
+
+def validate_model_milestone(
+    run_dir: Path, context: dict[str, object], manifest: dict[str, object]
+) -> None:
+    require_nonempty_regular(run_dir, "model-seed-prepare.log")
+    receipt = load_json(run_dir / "model-snapshot.json", "model snapshot receipt")
+    if set(receipt) != {
+        "archive_sha256", "file_count", "inventory_sha256", "model_root",
+        "repository", "revision", "total_bytes",
+    }:
+        raise ValueError("model snapshot receipt schema differs")
+    model = manifest.get("model")
+    archive = manifest.get("archives", {}).get("model_snapshot")
+    if (
+        not isinstance(model, dict) or not isinstance(archive, dict)
+        or receipt["archive_sha256"] != archive.get("sha256")
+        or receipt["inventory_sha256"] != model.get("inventory_sha256")
+        or receipt["repository"] != model.get("repository")
+        or receipt["revision"] != model.get("revision")
+        or receipt["model_root"] != str(Path(context["work_root"]) / "model-input/model-snapshot")
+        or type(receipt["file_count"]) is not int or receipt["file_count"] < 1
+        or type(receipt["total_bytes"]) is not int or receipt["total_bytes"] < 1
+    ):
+        raise ValueError("model snapshot receipt binding differs")
+
+
+def validate_wheelhouse_milestone(run_dir: Path, manifest: dict[str, object]) -> None:
+    index_doc = load_json(run_dir / "cuda-wheelhouse-index.json", "CUDA wheelhouse index")
+    validation = load_json(run_dir / "cuda-wheelhouse-validation.json", "CUDA wheelhouse validation")
+    required = {"sglang_kernel", "sgl_deep_ep", "sgl_deep_gemm", "torch", "torchvision", "torchaudio"}
+    wheels = index_doc.get("wheels")
+    if set(index_doc) != {"schema_version", "wheels"} or type(index_doc["schema_version"]) is not int or index_doc["schema_version"] != 1 or not isinstance(wheels, dict) or set(wheels) != required:
+        raise ValueError("CUDA wheelhouse index differs")
+    for label, entry in wheels.items():
+        if (
+            not isinstance(entry, dict) or set(entry) != {"path", "sha256", "size_bytes"}
+            or not isinstance(entry["path"], str) or Path(entry["path"]).name != entry["path"]
+            or not valid_digest(entry["sha256"])
+            or type(entry["size_bytes"]) is not int or entry["size_bytes"] < 1
+        ):
+            raise ValueError(f"CUDA wheelhouse entry differs: {label}")
+    archive = manifest["archives"]["cuda_wheelhouse"]
+    if type(validation.get("archive_size_bytes")) is not int:
+        raise ValueError("CUDA wheelhouse validation size differs")
+    if validation != {
+        "archive_sha256": archive["sha256"],
+        "archive_size_bytes": archive["size_bytes"],
+        "index_sha256": sha256(run_dir / "cuda-wheelhouse-index.json"),
+        "wheels": wheels,
+    }:
+        raise ValueError("CUDA wheelhouse validation differs")
+
+
+def validate_runtime_environment(run_dir: Path, context: dict[str, object]) -> None:
+    path = run_dir / "runtime.env"
+    absolute_regular(path, path.name)
+    values = {}
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        key, separator, encoded = raw.partition("=")
+        if not separator or key in values:
+            raise ValueError("runtime environment schema differs")
+        decoded = shlex.split(encoded)
+        if len(decoded) != 1:
+            raise ValueError("runtime environment value differs")
+        values[key] = decoded[0]
+    work_root = Path(context["work_root"])
+    expected = {
+        "HF_HUB_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "1",
+        "SGLANG_ENABLE_UNIFIED_RADIX_TREE": "1",
+        "TOOLGAP_G1_MODEL_PATH": str(work_root / "model-input/model-snapshot"),
+        "TREATMENT": str(work_root / "sglang"),
+        "RUNTIME_PYTHON": str(work_root / "runtime-venv/bin/python"),
+        "ORDINARY_PYPI_INDEX": "http://mirrors.cloud.aliyuncs.com/pypi/simple/",
+    }
+    if values != expected:
+        raise ValueError("runtime environment binding differs")
+
+
+def validate_resolver_milestone(
+    run_dir: Path, context: dict[str, object], manifest: dict[str, object]
+) -> None:
+    require_nonempty_regular(run_dir, "resolver-install.log")
+    require_nonempty_regular(run_dir, "ordinary-requirements.txt")
+    require_nonempty_regular(run_dir, "arm-runner.py")
+    validate_runtime_inputs(run_dir, manifest)
+    validate_wheelhouse_milestone(run_dir, manifest)
+    validate_installed_package_provenance(run_dir)
+    try:
+        installed = json.loads((run_dir / "installed-distributions.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("installed distributions differ") from error
+    if not isinstance(installed, list) or not all(isinstance(item, dict) for item in installed):
+        raise ValueError("installed distributions differ")
+    names = {re.sub(r"[-_.]+", "-", str(item.get("name", ""))).lower() for item in installed}
+    if not {"sglang", "sglang-kernel", "sgl-deep-ep", "sgl-deep-gemm", "torch", "torchvision", "torchaudio", "flashinfer-python"}.issubset(names):
+        raise ValueError("installed distribution set differs")
+    exception = load_json(run_dir / "omitted-dependency-exception.json", "omitted dependency exception")
+    if exception != {
+        "allowed_uninstalled_requirement": "cuda-tile==1.6.0rc5",
+        "installed_without_dependency_resolution": "flashinfer_python[cu12]==0.6.17",
+        "reason": "CUDA12 wheel route must not source-build cuda-tile on ECS",
+    }:
+        raise ValueError("omitted dependency exception differs")
+    validate_plan(run_dir)
+    validate_runtime_environment(run_dir, context)
+
+
+def validate_formal_arms_milestone(
+    run_dir: Path, context: dict[str, object], manifest: dict[str, object]
+) -> None:
+    validate_plan(run_dir)
+    validate_cleanup(run_dir)
+    records = []
+    for arm in ARMS:
+        command = run_dir / "arms" / f"{arm}.command.txt"
+        absolute_regular(command, f"{arm} command")
+        if command.read_text(encoding="utf-8") != SELECTORS[arm] + "\n":
+            raise ValueError(f"{arm} selector evidence differs")
+        require_nonempty_regular(run_dir, f"arms/{arm}.log")
+        record = load_json(run_dir / "arms" / f"{arm}.record.json", f"{arm} record")
+        permitted = RECORD_FIELDS | ({"stock_eviction"} if arm == "stock_eviction_liveness" else set())
+        if set(record) != permitted or record.get("arm") != arm:
+            raise ValueError(f"{arm} completed record schema differs")
+        records.append(record)
+    try:
+        aggregate = json.loads((run_dir / "arm-records.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("arm record aggregate differs") from error
+    if aggregate != records:
+        raise ValueError("arm record aggregate differs")
+
+
+def validate_scope_milestone(
+    run_dir: Path, context: dict[str, object], manifest: dict[str, object]
+) -> None:
+    require_nonempty_regular(run_dir, "scope-scan.log")
+    if (run_dir / "scope-scan.log").read_text(encoding="utf-8") != "scope=clean\n":
+        raise ValueError("runtime scope scanner did not prove clean scope")
+
+
+def validate_manifest_milestone(
+    run_dir: Path, context: dict[str, object], manifest: dict[str, object]
+) -> None:
+    rendered = load_json(run_dir / "manifest.json", "rendered manifest")
+    identity = rendered.get("identity")
+    terminal = identity.get("gate_decision") if isinstance(identity, dict) else None
+    if terminal not in {"PASS", "STOP", "INVALID"}:
+        raise ValueError("rendered manifest terminal differs")
+    validate_rendered_manifest(run_dir, context, terminal)
+
+
+MILESTONE_VALIDATORS = {
+    "input_binding": validate_input_binding_milestone,
+    "source_restore": validate_source_restore_milestone,
+    "model": validate_model_milestone,
+    "resolver": validate_resolver_milestone,
+    "formal_arms": validate_formal_arms_milestone,
+    "scope": validate_scope_milestone,
+    "manifest": validate_manifest_milestone,
+}
+PHASE_REQUIRED_MILESTONES = {
+    "bootstrap": (),
+    "input_binding": (),
+    "source_restore": ("input_binding",),
+    "model": ("input_binding", "source_restore"),
+    "resolver": ("input_binding", "source_restore", "model"),
+    "formal_arms": ("input_binding", "source_restore", "model", "resolver"),
+    "scope": ("input_binding", "source_restore", "model", "resolver", "formal_arms"),
+    "seal": ("input_binding", "source_restore", "model", "resolver", "formal_arms", "scope", "manifest"),
+}
+
+
+def validate_phase_milestones(
+    run_dir: Path, context: dict[str, object], manifest: dict[str, object] | None, phase: str
+) -> None:
+    required = PHASE_REQUIRED_MILESTONES[phase]
+    if required and manifest is None:
+        raise ValueError("failure phase requires input manifest")
+    for milestone in required:
+        MILESTONE_VALIDATORS[milestone](run_dir, context, manifest)
+
+
 def record_errors(record: object, expected_arm: str) -> list[str]:
     errors = []
     allowed = RECORD_FIELDS | ({"stock_eviction"} if expected_arm == "stock_eviction_liveness" else set())
@@ -497,10 +738,10 @@ def record_errors(record: object, expected_arm: str) -> list[str]:
     if record["arm"] != expected_arm:
         errors.append("arm")
     qualification = record["component_qualification"]
-    if not isinstance(qualification, dict) or qualification.get("components") != ["FULL"] or qualification.get("supports_swa") is not False or not isinstance(qualification.get("page_size"), int) or qualification["page_size"] < 1:
+    if not isinstance(qualification, dict) or qualification.get("components") != ["FULL"] or qualification.get("supports_swa") is not False or type(qualification.get("page_size")) is not int or qualification["page_size"] < 1:
         errors.append("qualification")
     operation = record["operation"]
-    if not isinstance(operation, dict) or not isinstance(operation.get("session_id"), str) or not isinstance(operation.get("supplied_generation"), int):
+    if not isinstance(operation, dict) or not isinstance(operation.get("session_id"), str) or type(operation.get("supplied_generation")) is not int:
         errors.append("operation")
     target = record["target"]
     if not isinstance(target, dict) or set(target) != TARGET_FIELDS:
@@ -521,9 +762,9 @@ def record_errors(record: object, expected_arm: str) -> list[str]:
                 )
     counters = record["route_counters"]
     if not isinstance(counters, dict) or set(counters) != COUNTER_FIELDS or any(
-        not isinstance(counters.get(key), int) or counters[key] < 0
+        type(counters.get(key)) is not int or counters[key] < 0
         for key in COUNTER_FIELDS if key != "physical_demote_node_ids"
-    ) or not isinstance(counters.get("physical_demote_node_ids"), list) or not all(isinstance(item, int) for item in counters["physical_demote_node_ids"]):
+    ) or not isinstance(counters.get("physical_demote_node_ids"), list) or not all(type(item) is int for item in counters["physical_demote_node_ids"]):
         errors.append("route_counters")
     capacity = record["capacity"]
     if not isinstance(capacity, dict) or set(capacity) != {"before", "after"}:
@@ -533,7 +774,7 @@ def record_errors(record: object, expected_arm: str) -> list[str]:
             errors.extend(f"capacity:{error}" for error in capacity_sample_errors(sample))
     if record["priority_release"] not in {"RELEASED", "NOT_RELEASED"}:
         errors.append("priority_release")
-    if not isinstance(record["released_component_leaves"], int) or record["released_component_leaves"] < 0:
+    if type(record["released_component_leaves"]) is not int or record["released_component_leaves"] < 0:
         errors.append("released_component_leaves")
     if (
         not isinstance(record["facade"], dict)
@@ -543,7 +784,7 @@ def record_errors(record: object, expected_arm: str) -> list[str]:
         errors.append("facade")
     if not isinstance(record["nodes"], list) or not all(isinstance(item, dict) for item in record["nodes"]):
         errors.append("nodes")
-    if not isinstance(record["freed_device_ids"], list) or not all(isinstance(value, int) for value in record["freed_device_ids"]):
+    if not isinstance(record["freed_device_ids"], list) or not all(type(value) is int for value in record["freed_device_ids"]):
         errors.append("freed_device_ids")
     if expected_arm == "stock_eviction_liveness":
         errors.extend(stock_eviction_errors(record))
@@ -761,7 +1002,7 @@ def liveness_passes(record: dict[str, object]) -> bool:
         and record["route_counters"]["cache_owned_drain"] == 0
         and record["freed_device_ids"] == []
         and isinstance(stock.get("candidate_ids_before"), list) and bool(stock["candidate_ids_before"])
-        and isinstance(stock.get("observed_calls"), int) and stock["observed_calls"] > 0
+        and type(stock.get("observed_calls")) is int and stock["observed_calls"] > 0
         and isinstance(victims, list) and bool(victims)
         and isinstance(results, list) and any(isinstance(item, dict) and item.get("num_tokens_evicted", 0) > 0 for item in results)
         and record["route_counters"]["stock_evict"] == stock["observed_calls"]
@@ -806,7 +1047,7 @@ def validate_gpu_samples(path: Path, arm_pid: int, expected_union: list[int], ar
     document = load_json(path, f"{arm} GPU samples")
     if set(document) != {"arm_pid", "poll_seconds", "samples"}:
         raise ValueError(f"{arm} GPU sample schema differs")
-    if document["arm_pid"] != arm_pid or type(document["poll_seconds"]) not in {int, float} or document["poll_seconds"] != 0.25:
+    if type(document["arm_pid"]) is not int or document["arm_pid"] != arm_pid or type(document["poll_seconds"]) not in {int, float} or document["poll_seconds"] != 0.25:
         raise ValueError(f"{arm} GPU sampler binding differs")
     samples = document["samples"]
     if not isinstance(samples, list) or not samples:
@@ -845,7 +1086,7 @@ def validate_cleanup(run_dir: Path) -> None:
     for item in arms:
         if not isinstance(item, dict) or set(item) != {"arm", "pid", "pgid", "listener_clean", "pgid_clean", "gpu_delta_clean"}:
             raise ValueError("cleanup row differs")
-        if not isinstance(item["pid"], int) or item["pid"] < 1 or item["pgid"] != item["pid"]:
+        if type(item["pid"]) is not int or type(item["pgid"]) is not int or item["pid"] < 1 or item["pgid"] != item["pid"]:
             raise ValueError("cleanup PID/PGID binding differs")
         if not all(item[key] is True for key in ("listener_clean", "pgid_clean", "gpu_delta_clean")):
             raise ValueError("an arm leaked a runtime resource")
@@ -968,7 +1209,7 @@ def validate_full_evidence(run_dir: Path, context: dict[str, object]) -> tuple[s
     manifest = validate_input_manifest(run_dir, context)
     validate_input_oss_receipt(run_dir, manifest)
     validate_bootstrap(run_dir, manifest)
-    validate_storage_preflight(run_dir, manifest)
+    validate_storage_preflight(run_dir, manifest, context)
     validate_runtime_inputs(run_dir, manifest)
     validate_sglang_provenance(run_dir, manifest)
     exception = load_json(run_dir / "omitted-dependency-exception.json", "omitted dependency exception")
@@ -1039,23 +1280,56 @@ def verify(args: argparse.Namespace) -> int:
     if status["attempt_status"] not in {"PASS", "STOP", "INVALID"} or status["claim_state"] != "roadmap" or status["gate"] != "G1" or status["kind"] != KIND or status["evidence_scope"] not in {"formal_runtime", "pre_execution"}:
         raise ValueError("execution status identity differs")
     receipt = load_json(run_dir / "completion-receipt.json", "completion receipt")
-    if receipt.get("gate_decision") != status["attempt_status"] or receipt.get("status") != "G1_C_007_TERMINAL_SEALED":
+    if (
+        set(receipt) != {
+            "artifact_index_sha256", "claim_state", "execution_status_sha256",
+            "gate", "gate_decision", "status",
+        }
+        or receipt["claim_state"] != "roadmap"
+        or receipt["gate"] != "G1"
+        or receipt["gate_decision"] != status["attempt_status"]
+        or receipt["status"] != "G1_C_007_TERMINAL_SEALED"
+        or not valid_digest(receipt["artifact_index_sha256"])
+        or not valid_digest(receipt["execution_status_sha256"])
+    ):
         raise ValueError("completion receipt differs")
     index_doc = load_json(run_dir / "artifact-index.json", "artifact index")
     if set(index_doc) != {"artifact_dir", "files"} or index_doc["artifact_dir"] != "." or not isinstance(index_doc["files"], list):
         raise ValueError("artifact index schema differs")
     seen = set()
+    indexed_paths = []
     for item in index_doc["files"]:
         if not isinstance(item, dict) or set(item) != {"path", "sha256", "size_bytes"}:
             raise ValueError("artifact index entry differs")
         path = item.get("path")
-        if not isinstance(path, str) or Path(path).is_absolute() or ".." in Path(path).parts or path in seen:
+        if (
+            not isinstance(path, str) or Path(path).is_absolute()
+            or ".." in Path(path).parts or path in seen
+            or not valid_digest(item.get("sha256"))
+            or type(item.get("size_bytes")) is not int or item["size_bytes"] < 0
+        ):
             raise ValueError("unsafe indexed path")
         seen.add(path)
+        indexed_paths.append(path)
         candidate = run_dir / path
         absolute_regular(candidate, path)
         if candidate.stat().st_size != item["size_bytes"] or sha256(candidate) != item["sha256"]:
             raise ValueError(f"indexed artifact differs: {path}")
+    if indexed_paths != sorted(indexed_paths):
+        raise ValueError("artifact index order differs")
+    actual = set()
+    for candidate in run_dir.rglob("*"):
+        path = candidate.relative_to(run_dir).as_posix()
+        if candidate.is_symlink():
+            raise ValueError(f"sealed attempt contains a symlink: {path}")
+        if candidate.is_dir():
+            continue
+        if not candidate.is_file():
+            raise ValueError(f"sealed attempt contains a non-regular artifact: {path}")
+        if path not in {"artifact-index.json", "completion-receipt.json"}:
+            actual.add(path)
+    if seen != actual:
+        raise ValueError("artifact index does not equal the sealed regular-file set")
     if "execution-status.json" not in seen:
         raise ValueError("artifact index omits execution status")
     if receipt.get("artifact_index_sha256") != sha256(run_dir / "artifact-index.json") or receipt.get("execution_status_sha256") != sha256(run_dir / "execution-status.json"):

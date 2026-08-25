@@ -161,6 +161,17 @@ class G1C007BundleManifestTests(unittest.TestCase):
             )
             self.assertEqual(set(manifest["static_inputs"]), set(BUILDER.STATIC_PATHS))
             self.assertEqual(output.stat().st_mode & 0o777, 0o444)
+            for mutate in (
+                lambda value: value.__setitem__("schema_version", True),
+                lambda value: value["archives"]["runtime_wheel"].__setitem__("size_bytes", True),
+                lambda value: value["storage_preflight"].__setitem__("minimum_free_bytes", True),
+                lambda value: next(iter(value["static_inputs"].values())).__setitem__("size_bytes", True),
+            ):
+                with self.subTest(mutate=mutate):
+                    malformed = json.loads(json.dumps(manifest))
+                    mutate(malformed)
+                    with self.assertRaises(ValueError):
+                        BUILDER.validate_schema(malformed)
 
 
 if __name__ == "__main__":

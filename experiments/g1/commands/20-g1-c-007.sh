@@ -42,15 +42,18 @@ declare -a ARMS=(
   reject_stale_generation
   stock_eviction_liveness
 )
-declare -A SELECTORS=(
-  [enabled]="TestG1EnabledArm.test_enabled_checked_demotion_records_allocator_visible_release"
-  [bypass]="TestG1BypassArm.test_bypass_releases_priority_without_physical_reclamation"
-  [reject_write_through_pending]="TestG1WriteThroughPending.test_uncommitted_host_copy_is_deferred_without_physical_free"
-  [reject_non_target_session_coverage]="TestG1NonTargetCoverage.test_shared_target_is_deferred_for_the_other_session"
-  [reject_device_locked]="TestG1DeviceLocked.test_active_request_is_deferred_at_the_device_lock_check"
-  [reject_stale_generation]="TestG1StaleGeneration.test_stale_generation_is_rejected_before_priority_release"
-  [stock_eviction_liveness]="TestG1StockEvictionLiveness.test_stock_eviction_remains_reachable_after_bypass"
-)
+selector_for() {
+  case "$1" in
+    enabled) printf '%s\n' 'TestG1EnabledArm.test_enabled_checked_demotion_records_allocator_visible_release' ;;
+    bypass) printf '%s\n' 'TestG1BypassArm.test_bypass_releases_priority_without_physical_reclamation' ;;
+    reject_write_through_pending) printf '%s\n' 'TestG1WriteThroughPending.test_uncommitted_host_copy_is_deferred_without_physical_free' ;;
+    reject_non_target_session_coverage) printf '%s\n' 'TestG1NonTargetCoverage.test_shared_target_is_deferred_for_the_other_session' ;;
+    reject_device_locked) printf '%s\n' 'TestG1DeviceLocked.test_active_request_is_deferred_at_the_device_lock_check' ;;
+    reject_stale_generation) printf '%s\n' 'TestG1StaleGeneration.test_stale_generation_is_rejected_before_priority_release' ;;
+    stock_eviction_liveness) printf '%s\n' 'TestG1StockEvictionLiveness.test_stock_eviction_remains_reachable_after_bypass' ;;
+    *) return 1 ;;
+  esac
+}
 
 CURRENT_ARM_PID=""
 CURRENT_ARM_PGID=""
@@ -74,7 +77,7 @@ stop_current_sampler() {
 }
 stop_current_arm_group() {
   local arm_pid="${CURRENT_ARM_PID:-}" pgid="${CURRENT_ARM_PGID:-}"
-  if valid_runtime_pid "$pgid" && kill -0 -- "-$pgid" 2>/dev/null; then
+  if valid_runtime_pid "$arm_pid" && [[ "$pgid" == "$arm_pid" ]] && kill -0 -- "-$pgid" 2>/dev/null; then
     kill -TERM -- "-$pgid" 2>/dev/null || true
     sleep 1
     if kill -0 -- "-$pgid" 2>/dev/null; then kill -KILL -- "-$pgid" 2>/dev/null || true; fi
@@ -86,6 +89,28 @@ stop_current_arm_group() {
   if valid_runtime_pid "$arm_pid"; then wait "$arm_pid" 2>/dev/null || true; fi
   CURRENT_ARM_PID=""
   CURRENT_ARM_PGID=""
+}
+wait_for_arm_pgid() {
+  valid_runtime_pid "${CURRENT_ARM_PID:-}" || return 1
+  "$PYTHON" - "$CURRENT_ARM_PID" <<'PY' || return 1
+import os
+import sys
+import time
+
+pid = int(sys.argv[1])
+deadline = time.monotonic() + 10
+while True:
+    try:
+        pgid = os.getpgid(pid)
+    except ProcessLookupError:
+        raise SystemExit(1)
+    if pgid == pid:
+        raise SystemExit(0)
+    if time.monotonic() >= deadline:
+        raise SystemExit(1)
+    time.sleep(0.05)
+PY
+  CURRENT_ARM_PGID="$CURRENT_ARM_PID"
 }
 cleanup_active_processes() {
   stop_current_sampler
@@ -227,12 +252,12 @@ gpu_pids() {
 capture_environment() {
   {
     printf 'captured_at=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-    uname -a
-    cat /etc/os-release
-    "$PYTHON" --version
-    nvidia-smi -L
-    nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv,noheader
-    "$CUDA_HOME/bin/nvcc" --version
+    uname -a || true
+    cat /etc/os-release 2>/dev/null || true
+    "$PYTHON" --version || true
+    nvidia-smi -L 2>/dev/null || true
+    nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv,noheader 2>/dev/null || true
+    "$CUDA_HOME/bin/nvcc" --version 2>/dev/null || true
   } >"$RUN_DIR/environment.txt" 2>&1
   chmod 0444 "$RUN_DIR/environment.txt"
 }
@@ -290,27 +315,24 @@ for path in "$SOURCE_SEED_ARCHIVE" "$MODEL_SEED_ARCHIVE" "$RUNTIME_WHEEL" "$RUNT
   [[ "$path" = /* && -f "$path" && ! -L "$path" ]] || die "staged input must be an absolute regular file: $path"
 done
 [[ ! -e "$RUN_DIR" && ! -e "$WORK_ROOT" ]] || die 'attempt destination already exists'
-for command in git nvidia-smi sha256sum tar timeout setsid ss; do require "$command"; done
+require git
 command -v "$PYTHON" >/dev/null || die "Python is unavailable: $PYTHON"
 PYTHON="$(command -v "$PYTHON")"
-"$PYTHON" -c 'import ensurepip, sys, venv; assert sys.version_info[:2] == (3, 12), sys.version'
-[[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || die 'requires Linux x86_64'
-grep -Eq '^ID=ubuntu$' /etc/os-release && grep -Eq '^VERSION_ID="?24\.04"?$' /etc/os-release || die 'requires Ubuntu 24.04'
-[[ -x "$CUDA_HOME/bin/nvcc" ]] && "$CUDA_HOME/bin/nvcc" --version | grep -Eq 'release 12\.8([,.]|$)' || die 'requires CUDA 12.8'
-[[ "$(nvidia-smi -L | wc -l | xargs)" == 1 ]] || die 'requires exactly one GPU'
-nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader | grep -Eq '^NVIDIA A10.*, *([2][2-5][0-9]{3}) MiB, *580\.126\.09$' || die 'requires one A10 with driver 580.126.09'
+[[ -f "$FINALIZER" && ! -L "$FINALIZER" ]] || die 'finalizer is unavailable'
+"$PYTHON" "$FINALIZER" --help >/dev/null || die 'finalizer cannot run under bootstrap Python'
 [[ -z "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=no)" ]] || die 'restored ToolGap checkout is tracked-dirty'
 
 mkdir -p "$(dirname -- "$RUN_DIR")"
 mkdir "$RUN_DIR" "$WORK_ROOT" "$RUN_DIR/arms"
 RUN_DIR="$(cd "$RUN_DIR" && pwd -P)"
 WORK_ROOT="$(cd "$WORK_ROOT" && pwd -P)"
-"$PYTHON" - "$REPO_ROOT" "$RUN_DIR/attempt-context.json" "$ATTEMPT_ID" <<'PY'
+"$PYTHON" - "$REPO_ROOT" "$RUN_DIR/attempt-context.json" "$ATTEMPT_ID" "$WORK_ROOT" <<'PY'
 import hashlib, json, os, pathlib, subprocess, sys
 from datetime import datetime, timezone
 root = pathlib.Path(sys.argv[1])
 output = pathlib.Path(sys.argv[2])
 attempt = sys.argv[3]
+work_root = pathlib.Path(sys.argv[4])
 git = lambda *args: subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
 spec = root / "experiments/g1/SPEC.g1-c-007.md"
 document = {
@@ -322,12 +344,21 @@ document = {
     "toolgap_commit": git("rev-parse", "HEAD"),
     "toolgap_tracked_clean": not bool(git("status", "--porcelain", "--untracked-files=no")),
     "toolgap_tree": git("rev-parse", "HEAD^{tree}"),
+    "work_root": str(work_root),
 }
 fd = os.open(output, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
 with os.fdopen(fd, "w", encoding="utf-8") as handle: handle.write(json.dumps(document, indent=2, sort_keys=True) + "\n")
 os.chmod(output, 0o444)
 PY
 capture_environment
+
+for command in nvidia-smi sha256sum tar timeout setsid ss; do require "$command"; done
+"$PYTHON" -c 'import ensurepip, sys, venv; assert sys.version_info[:2] == (3, 12), sys.version'
+[[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || die 'requires Linux x86_64'
+grep -Eq '^ID=ubuntu$' /etc/os-release && grep -Eq '^VERSION_ID="?24\.04"?$' /etc/os-release || die 'requires Ubuntu 24.04'
+[[ -x "$CUDA_HOME/bin/nvcc" ]] && "$CUDA_HOME/bin/nvcc" --version | grep -Eq 'release 12\.8([,.]|$)' || die 'requires CUDA 12.8'
+[[ "$(nvidia-smi -L | wc -l | xargs)" == 1 ]] || die 'requires exactly one GPU'
+nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader | grep -Eq '^NVIDIA A10.*, *([2][2-5][0-9]{3}) MiB, *580\.126\.09$' || die 'requires one A10 with driver 580.126.09'
 
 PHASE="input_binding"
 "$PYTHON" - "$INPUT_MANIFEST" "$INPUT_OSS_RECEIPT" "$BOOTSTRAP_RECEIPT" "$REPO_ROOT" "$SOURCE_SEED_ARCHIVE" "$MODEL_SEED_ARCHIVE" "$RUNTIME_WHEEL" "$RUNTIME_WHEEL_PROVENANCE" "$CUDA_WHEELHOUSE_ARCHIVE" <<'PY' >"$RUN_DIR/input-manifest-verify.log"
@@ -598,9 +629,8 @@ run_arm() {
   pid="$!"
   CURRENT_ARM_PID="$pid"
   CURRENT_ARM_PGID=""
-  pgid="$(ps -o pgid= -p "$pid" | xargs)"
-  [[ "$pgid" == "$pid" ]] || die "arm $arm did not form its own process group"
-  CURRENT_ARM_PGID="$pgid"
+  wait_for_arm_pgid || die "arm $arm did not form its own process group"
+  pgid="$CURRENT_ARM_PGID"
   printf '%s\n' "$pid" >"$arm_dir/$arm.pid"
   printf '%s\n' "$pgid" >"$arm_dir/$arm.pgid"
   "$PYTHON" "$GPU_SAMPLER" --arm-pid "$pid" --poll-seconds 0.25 \
@@ -633,7 +663,7 @@ PY
   CURRENT_ARM_PID=""
   CURRENT_ARM_PGID=""
 }
-for arm in "${ARMS[@]}"; do run_arm "$arm" "${SELECTORS[$arm]}"; done
+for arm in "${ARMS[@]}"; do run_arm "$arm" "$(selector_for "$arm")"; done
 "$PYTHON" - "$RUN_DIR/arm-records.json" "$RUN_DIR/cleanup.json" "$RUN_DIR" "${ARMS[@]}" <<'PY'
 import json, os, pathlib, sys
 records_out = pathlib.Path(sys.argv[1])
@@ -673,7 +703,6 @@ os.chmod(out, 0o444)
 if hits: raise SystemExit(1)
 PY
 
-PHASE="seal"
 TERMINAL="$("$PYTHON" - "$RUN_DIR/arm-records.json" "$FINALIZER" <<'PY'
 import importlib.util, json, pathlib, sys
 records, module = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
@@ -685,5 +714,6 @@ PY
 "$PYTHON" "$FINALIZER" render --template "$TEMPLATE" --output "$RUN_DIR/manifest.json" --terminal "$TERMINAL"
 (cd "$RUN_DIR" && sha256sum manifest.json >manifest.sha256)
 chmod 0444 "$RUN_DIR/manifest.sha256"
+PHASE="seal"
 "$PYTHON" "$FINALIZER" finish --run-dir "$RUN_DIR"
 printf 'G1_C_007_SEALED_ATTEMPT=%s\n' "$RUN_DIR"

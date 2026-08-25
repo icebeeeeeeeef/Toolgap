@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import copy
 import importlib.util
+import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -167,6 +169,47 @@ class G1C001TerminalTests(unittest.TestCase):
             "node_id": 7, "live": False,
         }
         self.assertEqual(FINALIZE.classify_records(value)[0], "PASS")
+
+    def test_enabled_bool_as_int_combination_is_invalid(self) -> None:
+        value = records()
+        enabled = value[0]
+        enabled["component_qualification"]["page_size"] = True
+        enabled["operation"]["supplied_generation"] = True
+        enabled["released_component_leaves"] = True
+        enabled["route_counters"]["checked_facade"] = True
+        enabled["route_counters"]["checked_backend"] = True
+        enabled["route_counters"]["physical_demote"] = True
+        enabled["route_counters"]["cache_owned_drain"] = True
+        enabled["capacity"]["before"]["available_size"] = True
+        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_record_integer_fields_reject_bool(self) -> None:
+        mutators = (
+            lambda item: item["component_qualification"].__setitem__("page_size", True),
+            lambda item: item["operation"].__setitem__("supplied_generation", True),
+            lambda item: item.__setitem__("released_component_leaves", True),
+            lambda item: item["route_counters"].__setitem__("checked_facade", True),
+            lambda item: item["route_counters"].__setitem__("physical_demote_node_ids", [True]),
+            lambda item: item.__setitem__("freed_device_ids", [True]),
+            lambda item: item["target"].__setitem__("requested_node_ids", [True]),
+            lambda item: item["capacity"]["before"].__setitem__("available_size", True),
+        )
+        for mutate in mutators:
+            with self.subTest(mutate=mutate):
+                enabled = record("enabled")
+                mutate(enabled)
+                self.assertTrue(FINALIZE.record_errors(enabled, "enabled"))
+
+    def test_gpu_sample_arm_pid_rejects_bool(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "samples.json"
+            path.write_text(json.dumps({
+                "arm_pid": True,
+                "poll_seconds": 0.25,
+                "samples": [{"captured_at": "2026-08-25T00:00:00Z", "pids": [1]}],
+            }), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                FINALIZE.validate_gpu_samples(path, 1, [1], "enabled")
 
 
 if __name__ == "__main__":

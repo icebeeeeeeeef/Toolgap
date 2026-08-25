@@ -53,6 +53,7 @@ STATIC_PATHS = (
     "experiments/g1/commands/test_g1_c_007_bundle_manifest.py",
     "experiments/g1/commands/test_g1_c_007_pre_execution.py",
     "experiments/g1/commands/test_g1_c_007_failure_evidence.sh",
+    "experiments/g1/commands/test_g1_c_007_host_mismatch.sh",
     "scripts/verify-g1-c-007-bundle.sh",
     "scripts/anchor-g1-c-007-oss.sh",
     MODEL_INVENTORY,
@@ -197,7 +198,7 @@ def validate_wheelhouse(archive_path: Path) -> None:
         if index_file is None:
             raise ValueError("wheelhouse index is absent")
         index = load_json(index_file, "wheelhouse index")
-        if set(index) != {"schema_version", "wheels"} or index["schema_version"] != 1:
+        if set(index) != {"schema_version", "wheels"} or type(index["schema_version"]) is not int or index["schema_version"] != 1:
             raise ValueError("wheelhouse index schema differs")
         wheels = index["wheels"]
         if not isinstance(wheels, dict) or set(wheels) != set(WHEELHOUSE_NAMES):
@@ -210,7 +211,7 @@ def validate_wheelhouse(archive_path: Path) -> None:
                 or not isinstance(entry.get("path"), str)
                 or PurePosixPath(entry["path"]).name != entry["path"]
                 or not entry["path"].endswith(".whl")
-                or not isinstance(entry.get("size_bytes"), int) or entry["size_bytes"] < 1
+                or type(entry.get("size_bytes")) is not int or entry["size_bytes"] < 1
             ):
                 raise ValueError(f"invalid wheelhouse entry: {label}")
             require_digest(entry["sha256"], f"{label} wheel SHA-256")
@@ -235,7 +236,7 @@ def patch_entries(root: Path) -> list[dict[str, str]]:
 
 def validate_runtime_provenance(root: Path, wheel: Path, provenance_path: Path) -> None:
     provenance = load_json(provenance_path, "runtime wheel provenance")
-    if provenance.get("schema_version") != 1 or provenance.get("identity") != RUNTIME_PROVENANCE:
+    if type(provenance.get("schema_version")) is not int or provenance.get("schema_version") != 1 or provenance.get("identity") != RUNTIME_PROVENANCE:
         raise ValueError("runtime wheel provenance identity differs")
     rebuild = provenance.get("source_rebuild")
     if not isinstance(rebuild, dict) or rebuild.get("performed") is not False:
@@ -246,6 +247,7 @@ def validate_runtime_provenance(root: Path, wheel: Path, provenance_path: Path) 
         or wheel.name != G0_RUNTIME_WHEEL
         or output.get("filename") != G0_RUNTIME_WHEEL
         or output.get("sha256") != digest(wheel)
+        or type(output.get("size_bytes")) is not int
         or output.get("size_bytes") != wheel.stat().st_size
     ):
         raise ValueError("runtime wheel provenance does not bind output wheel")
@@ -277,7 +279,16 @@ def validate_runtime_provenance(root: Path, wheel: Path, provenance_path: Path) 
             ("nvidia-cutlass-dsl[cu13]==4.6.2", "nvidia-cutlass-dsl==4.6.2"),
         )
     ]
-    if not isinstance(rewrite, dict) or rewrite.get("exact_substitutions") != expected_rewrite:
+    if (
+        not isinstance(rewrite, dict)
+        or rewrite.get("exact_substitutions") != expected_rewrite
+        or any(
+            type(item.get(field)) is not int
+            for item in rewrite.get("exact_substitutions", [])
+            if isinstance(item, dict)
+            for field in ("input_occurrences", "output_occurrences")
+        )
+    ):
         raise ValueError("runtime wheel metadata rewrite differs")
 
 
@@ -356,13 +367,28 @@ def validate_schema(document: dict[str, object]) -> None:
     if set(document) != {
         "archives", "identity", "model", "ordinary_dependency_transport",
         "patches", "schema_version", "static_inputs", "storage_preflight",
-    } or document["schema_version"] != 1:
+    } or type(document["schema_version"]) is not int or document["schema_version"] != 1:
         raise ValueError("input manifest schema differs")
     identity = document["identity"]
     if not isinstance(identity, dict) or identity.get("bundle_id") != BUNDLE_ID:
         raise ValueError("input manifest identity differs")
     if not isinstance(document["archives"], dict) or set(document["archives"]) != ARCHIVE_NAMES:
         raise ValueError("input manifest archive set differs")
+    for label, entry in document["archives"].items():
+        if not isinstance(entry, dict) or type(entry.get("size_bytes")) is not int or entry["size_bytes"] < 1:
+            raise ValueError(f"input manifest archive size differs: {label}")
+    model = document.get("model")
+    if not isinstance(model, dict) or type(model.get("local_only")) is not bool:
+        raise ValueError("input manifest model schema differs")
+    storage = document.get("storage_preflight")
+    if not isinstance(storage, dict) or type(storage.get("minimum_free_bytes")) is not int:
+        raise ValueError("input manifest storage schema differs")
+    static = document.get("static_inputs")
+    if not isinstance(static, dict) or any(
+        not isinstance(entry, dict) or type(entry.get("size_bytes")) is not int or entry["size_bytes"] < 1
+        for entry in static.values()
+    ):
+        raise ValueError("input manifest static input schema differs")
 
 
 def create(args: argparse.Namespace) -> int:
