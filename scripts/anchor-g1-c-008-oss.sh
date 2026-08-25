@@ -57,7 +57,7 @@ PY
 read -r STATUS CLAIM GATE < <(python3 - "$ATTEMPT_DIR/execution-status.json" <<'PY'
 import json, sys
 document = json.load(open(sys.argv[1], encoding="utf-8"))
-if document.get("attempt_status") not in {"PASS", "STOP", "INVALID"}:
+if document.get("attempt_status") not in ("PASS", "STOP", "INVALID"):
     raise SystemExit("not a G1-C-008 terminal")
 if document.get("claim_state") != "roadmap" or document.get("gate") != "G1":
     raise SystemExit("attempt exceeds formal G1 scope")
@@ -81,7 +81,7 @@ for item in index.get("files", []):
     path, digest, size = item.get("path"), item.get("sha256"), item.get("size_bytes")
     candidate = Path(path) if isinstance(path, str) else Path()
     if (
-        not isinstance(path, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", path)
+        not isinstance(path, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+/-]*", path)
         or "//" in path or ".." in candidate.parts or path in seen
         or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)
         or not isinstance(size, int) or size < 0

@@ -51,6 +51,7 @@ STATIC_PATHS = (
     "experiments/g1/commands/test_g1_c_008_source_restore.sh",
     "experiments/g1/commands/test_g1_c_008_runtime_wheel_name.sh",
     "experiments/g1/commands/test_g1_c_008_arm_runner_spawn.sh",
+    "experiments/g1/commands/test_g1_c_008_anchor_offline.sh",
     "experiments/g1/commands/test_g1_c_008_storage_preflight.sh",
     "experiments/g1/commands/test_g1_c_008_bundle_manifest.py",
     "experiments/g1/commands/test_g1_c_008_pre_execution.py",

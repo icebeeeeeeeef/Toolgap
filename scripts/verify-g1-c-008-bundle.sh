@@ -20,6 +20,7 @@ SIGNAL_CLEANUP_TESTS="$ROOT/experiments/g1/commands/test_g1_c_008_signal_cleanup
 SOURCE_RESTORE_TESTS="$ROOT/experiments/g1/commands/test_g1_c_008_source_restore.sh"
 RUNTIME_WHEEL_NAME_TESTS="$ROOT/experiments/g1/commands/test_g1_c_008_runtime_wheel_name.sh"
 ARM_RUNNER_SPAWN_TESTS="$ROOT/experiments/g1/commands/test_g1_c_008_arm_runner_spawn.sh"
+ANCHOR_OFFLINE_TESTS="$ROOT/experiments/g1/commands/test_g1_c_008_anchor_offline.sh"
 STORAGE_PREFLIGHT_TESTS="$ROOT/experiments/g1/commands/test_g1_c_008_storage_preflight.sh"
 BUILDER_TESTS="$ROOT/experiments/g1/commands/test_g1_c_008_bundle_manifest.py"
 PRE_EXECUTION_TESTS="$ROOT/experiments/g1/commands/test_g1_c_008_pre_execution.py"
@@ -28,9 +29,10 @@ CLEANUP_FAILURE_TESTS="$ROOT/experiments/g1/commands/test_g1_c_008_cleanup_failu
 HOST_MISMATCH_TESTS="$ROOT/experiments/g1/commands/test_g1_c_008_host_mismatch.sh"
 PLAN="$ROOT/worklog/plans/2026-08-25/g1-c-008-importable-arm-module.md"
 LESSON="$ROOT/worklog/lessons/2026-08-25/g1-c-007-scripted-module-identity.md"
+ANCHOR_LESSON="$ROOT/worklog/lessons/2026-08-25/g1-c-008-anchor-portability.md"
 ANCHOR="$ROOT/scripts/anchor-g1-c-008-oss.sh"
 
-for path in "$SPEC" "$TEMPLATE" "$BOOTSTRAP" "$RUNNER" "$BUILDER" "$ARM_LAUNCHER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$ARM_LAUNCHER_TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS" "$SIGNAL_CLEANUP_TESTS" "$SOURCE_RESTORE_TESTS" "$RUNTIME_WHEEL_NAME_TESTS" "$ARM_RUNNER_SPAWN_TESTS" "$STORAGE_PREFLIGHT_TESTS" "$BUILDER_TESTS" "$PRE_EXECUTION_TESTS" "$FAILURE_EVIDENCE_TESTS" "$CLEANUP_FAILURE_TESTS" "$HOST_MISMATCH_TESTS" "$PLAN" "$LESSON" "$ANCHOR"; do
+for path in "$SPEC" "$TEMPLATE" "$BOOTSTRAP" "$RUNNER" "$BUILDER" "$ARM_LAUNCHER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$ARM_LAUNCHER_TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS" "$SIGNAL_CLEANUP_TESTS" "$SOURCE_RESTORE_TESTS" "$RUNTIME_WHEEL_NAME_TESTS" "$ARM_RUNNER_SPAWN_TESTS" "$ANCHOR_OFFLINE_TESTS" "$STORAGE_PREFLIGHT_TESTS" "$BUILDER_TESTS" "$PRE_EXECUTION_TESTS" "$FAILURE_EVIDENCE_TESTS" "$CLEANUP_FAILURE_TESTS" "$HOST_MISMATCH_TESTS" "$PLAN" "$LESSON" "$ANCHOR_LESSON" "$ANCHOR"; do
   test -f "$path"
 done
 bash -n "$BOOTSTRAP"
@@ -46,6 +48,7 @@ bash "$SIGNAL_CLEANUP_TESTS"
 bash "$SOURCE_RESTORE_TESTS"
 bash "$RUNTIME_WHEEL_NAME_TESTS"
 bash "$ARM_RUNNER_SPAWN_TESTS"
+bash "$ANCHOR_OFFLINE_TESTS"
 bash "$STORAGE_PREFLIGHT_TESTS"
 bash "$FAILURE_EVIDENCE_TESTS"
 bash "$CLEANUP_FAILURE_TESTS"
@@ -328,6 +331,9 @@ assert "G1_C_008_EXTERNAL_OSS_ANCHOR" in anchor
 assert "ossutil ls --all-versions" in anchor
 assert "python3 \"$FINALIZER\" verify" in anchor
 assert "CONTEXT_ATTEMPT_ID" in anchor and "CONTEXT_SHA256" in anchor
+assert 'not in ("PASS", "STOP", "INVALID")' in anchor
+assert 'r"[A-Za-z0-9][A-Za-z0-9._+/-]*"' in anchor
+assert 'not in {"PASS", "STOP", "INVALID"}' not in anchor
 
 # Builder independently binds patch bytes, immutable runtime provenance, the
 # six-wheel index, and every static formal script.
@@ -347,6 +353,7 @@ for relative in (
     "experiments/g1/commands/test_g1_c_008_runtime_wheel_name.sh",
     "experiments/g1/commands/test_g1_c_008_arm_launcher.py",
     "experiments/g1/commands/test_g1_c_008_arm_runner_spawn.sh",
+    "experiments/g1/commands/test_g1_c_008_anchor_offline.sh",
     "experiments/g1/commands/test_g1_c_008_storage_preflight.sh",
     "experiments/g1/commands/test_g1_c_008_bundle_manifest.py",
     "experiments/g1/commands/test_g1_c_008_pre_execution.py",
