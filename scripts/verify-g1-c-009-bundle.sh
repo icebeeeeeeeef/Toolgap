@@ -281,6 +281,8 @@ for fragment in (
     "Within each before or after snapshot", "recomputed from before observations",
     "demote count, ID count, and cache-drain count agree",
     "does not assert the PASS-side", "before causal `STOP` is considered",
+    "exact unchanged prepared device shape", "demoted host-only shape",
+    "tombstones, host loss, and", "`checked_backend` to equal",
     "reason must also be replayable", "all locks are zero", "from `1` to `0`",
     "Allocator device indices are", "Malformed or contradictory IDs are `INVALID`",
     "causal missing-reclaim `STOP` case",
@@ -501,6 +503,9 @@ assert 'observation["node_id"] < 0' in finalizer
 assert 'len(device_ids) != len(set(device_ids))' in finalizer
 assert 'len(phase_device_ids) != len(set(phase_device_ids))' in finalizer
 assert 'observation_is_eligible(observation)' in finalizer
+assert 'def observation_is_prepared(' in finalizer
+assert 'observation_is_prepared(item)' in finalizer
+assert 'positive_after_shape(before[index], item)' in finalizer
 assert 'len(target[key]) != len(set(target[key]))' in finalizer
 assert 'target["eligible_node_ids"] != requested' in finalizer
 assert 'target["completed_node_ids"] != requested' in finalizer
@@ -509,6 +514,9 @@ assert 'counters["physical_demote"] != len(requested)' in finalizer
 assert 'counters["cache_owned_drain"] != len(requested)' in finalizer
 assert 'counters["physical_demote"] != len(physical_ids)' in finalizer
 assert 'counters["cache_owned_drain"] != counters["physical_demote"]' in finalizer
+assert 'physical_ids != demoted_ids' in finalizer
+assert 'counters["checked_backend"] != len(requested)' in finalizer
+assert '== (0 if stale else len(record["target"]["requested_node_ids"]))' in finalizer
 assert 'node["disposition"] != "COMPLETED" or node["reason"] != "DEMOTED"' in finalizer
 assert 'len(original_device_ids) != len(set(original_device_ids))' in finalizer
 assert 'node_freed_device_ids != record["freed_device_ids"]' in finalizer
@@ -520,6 +528,11 @@ tests = (root / "experiments/g1/commands/test_g1_c_009_finalize.py").read_text(e
 assert "test_patch_records_causal_outcomes_before_final_classification" in tests
 assert "test_noncausal_failure_precedes_enabled_causal_stop" in tests
 assert "test_target_phase_device_ids_are_globally_unique" in tests
+assert "test_enabled_after_requires_a_coherent_live_source_shape" in tests
+assert "test_bypass_after_requires_unchanged_or_instrumented_demoted_shape" in tests
+assert "test_liveness_before_requires_a_prepared_device_tail" in tests
+assert "test_enabled_tombstone_preparation_is_invalid_without_exception" in tests
+assert "test_checked_backend_count_matches_requested_nodes" in tests
 assert "validate_gpu_samples" in finalizer and "GPU sampler union differs" in finalizer
 assert "stock_eviction_errors" in finalizer and "no_allocator_reclaim" in finalizer
 print("G1-C-009 static contract checks passed")

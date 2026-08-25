@@ -290,9 +290,14 @@ are globally unique; the two snapshots and stock-victim history are not
 incorrectly merged. `eligible_node_ids` is recomputed from before observations:
 live, host-committed, device-leaf, zero locks, and `session_ref == 1`. Enabled
 and bypass additionally require the prepared source state to have no pending
-transfer, and every live post-release observation has `session_ref == 0` and
-zero locks. Stock liveness also requires `session_ref == 0` after release but
-does not forbid pressure-time locks. Enabled binds requested, eligible,
+transfer and nonempty device IDs. Their after observations must remain live,
+host-committed, pending-free, zero-locked, and at `session_ref == 0`. Each is
+either the exact unchanged prepared device shape or the demoted host-only shape
+with empty device IDs and `device_leaf == false`; tombstones, host loss, and
+hybrids are `INVALID`. For bypass, demoted after NodeIds exactly equal the
+instrumented physical-demote NodeIds. Stock liveness requires the same prepared
+before state and `session_ref == 0` for any live after observation, but permits
+pressure-time locks and eviction tombstones. Enabled binds requested, eligible,
 scheduled, completed,
 node-outcome, and physical-demote NodeIds; each nonempty outcome is
 `COMPLETED/DEMOTED`. Its physical-demote and cache-drain counts each equal the
@@ -300,6 +305,8 @@ requested node count. Bypass and stock liveness bind requested/eligible and
 leave scheduled, completed, and node outcomes empty. A passing bypass has no
 physical demote; a causal bypass counterexample may report requested physical
 IDs only when the demote count, ID count, and cache-drain count agree.
+Enabled and each non-stale rejection also require `checked_backend` to equal
+the requested NodeId count; stale rejection requires zero backend calls.
 Stock candidates are unique nonnegative NodeIds. Allocator device indices are
 nonnegative and unique per observation; enabled observations are also globally
 unique. Per-node freed indices flatten exactly to the aggregate freed indices,

@@ -75,6 +75,7 @@ def record(arm: str) -> dict[str, object]:
         value["target"]["completed_node_ids"] = [7]
         value["target"]["scheduled_node_ids"] = [7]
         value["target"]["after"][0]["device_ids"] = []
+        value["target"]["after"][0]["device_leaf"] = False
         value["target"]["after"][0]["session_ref"] = 0
     elif arm == "bypass":
         value["facade"] = {"disposition": "BYPASSED", "reason": "PRIORITY_RELEASE_ONLY"}
@@ -214,8 +215,12 @@ class G1C001TerminalTests(unittest.TestCase):
 
     def test_enabled_missing_reclaim_stops(self) -> None:
         value = records()
-        value[0]["freed_device_ids"] = []
-        value[0]["nodes"][0]["freed_device_ids"] = []
+        enabled = value[0]
+        enabled["freed_device_ids"] = []
+        enabled["nodes"][0]["freed_device_ids"] = []
+        enabled["target"]["after"][0]["device_ids"] = [42]
+        enabled["target"]["after"][0]["device_leaf"] = True
+        enabled["capacity"]["after"]["available_size"] = 1
         self.assertEqual(FINALIZE.classify_records(value)[0], "STOP")
 
     def test_bypass_physical_reclaim_stops(self) -> None:
@@ -224,6 +229,9 @@ class G1C001TerminalTests(unittest.TestCase):
         bypass["route_counters"]["physical_demote"] = 1
         bypass["route_counters"]["physical_demote_node_ids"] = [7]
         bypass["route_counters"]["cache_owned_drain"] = 1
+        bypass["target"]["after"][0]["device_ids"] = []
+        bypass["target"]["after"][0]["device_leaf"] = False
+        bypass["capacity"]["after"]["available_size"] = 2
         self.assertEqual(FINALIZE.classify_records(value)[0], "STOP")
 
     def test_bypass_physical_counter_identity_mismatch_is_invalid(self) -> None:
@@ -266,6 +274,8 @@ class G1C001TerminalTests(unittest.TestCase):
             "physical_demote_node_ids": [7],
             "cache_owned_drain": 1,
         })
+        bypass["target"]["after"][0]["device_ids"] = []
+        bypass["target"]["after"][0]["device_leaf"] = False
         value[6]["facade"]["reason"] = "ACCEPTED"
         self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
@@ -542,6 +552,13 @@ class G1C001TerminalTests(unittest.TestCase):
                 value[0]["route_counters"][field] = 2
                 self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
+    def test_checked_backend_count_matches_requested_nodes(self) -> None:
+        for arm_index in (0, 2, 3, 4):
+            with self.subTest(arm=FINALIZE.ARMS[arm_index]):
+                value = records()
+                value[arm_index]["route_counters"]["checked_backend"] = 99
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
     def test_enabled_duplicate_node_ids_are_invalid_even_when_aligned(self) -> None:
         value = records()
         append_enabled_node(value[0], node_id=7, device_id=43)
@@ -625,6 +642,78 @@ class G1C001TerminalTests(unittest.TestCase):
         value = records()
         value[6]["target"]["after"][0]["lock_refs"] = [1, 0, 0]
         self.assertEqual(FINALIZE.classify_records(value)[0], "PASS")
+
+    def test_enabled_after_requires_a_coherent_live_source_shape(self) -> None:
+        mutators = {
+            "tombstone": lambda item: item.__setitem__(
+                "after", [{"node_id": 7, "live": False}]
+            ),
+            "host_loss": lambda item: item["after"][0].__setitem__("host_committed", False),
+            "write_pending": lambda item: item["after"][0].__setitem__("write_through_pending", True),
+            "load_pending": lambda item: item["after"][0].__setitem__("load_back_pending", True),
+            "demoted_but_leaf": lambda item: item["after"][0].__setitem__("device_leaf", True),
+            "device_but_not_leaf": lambda item: (
+                item["after"][0].__setitem__("device_ids", [42]),
+                item["after"][0].__setitem__("device_leaf", False),
+            ),
+            "wrong_unchanged_ids": lambda item: (
+                item["after"][0].__setitem__("device_ids", [43]),
+                item["after"][0].__setitem__("device_leaf", True),
+            ),
+        }
+        for label, mutate in mutators.items():
+            with self.subTest(label=label):
+                value = records()
+                mutate(value[0]["target"])
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_bypass_after_requires_unchanged_or_instrumented_demoted_shape(self) -> None:
+        mutators = {
+            "tombstone": lambda item: item.__setitem__(
+                "after", [{"node_id": 7, "live": False}]
+            ),
+            "host_loss": lambda item: item["after"][0].__setitem__("host_committed", False),
+            "write_pending": lambda item: item["after"][0].__setitem__("write_through_pending", True),
+            "load_pending": lambda item: item["after"][0].__setitem__("load_back_pending", True),
+            "removed_without_instrumentation": lambda item: (
+                item["after"][0].__setitem__("device_ids", []),
+                item["after"][0].__setitem__("device_leaf", False),
+            ),
+            "physical_without_removal": lambda item: item["route_counters"].update({
+                "physical_demote": 1,
+                "physical_demote_node_ids": [7],
+                "cache_owned_drain": 1,
+            }),
+            "wrong_unchanged_ids": lambda item: item["after"][0].__setitem__("device_ids", [43]),
+        }
+        for label, mutate in mutators.items():
+            with self.subTest(label=label):
+                value = records()
+                mutate(value[1]["target"] if label != "physical_without_removal" else value[1])
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_liveness_before_requires_a_prepared_device_tail(self) -> None:
+        mutators = {
+            "tombstone": lambda item: item.__setitem__(
+                "before", [{"node_id": 7, "live": False}]
+            ),
+            "empty_device": lambda item: item["before"][0].__setitem__("device_ids", []),
+            "write_pending": lambda item: item["before"][0].__setitem__("write_through_pending", True),
+            "load_pending": lambda item: item["before"][0].__setitem__("load_back_pending", True),
+        }
+        for label, mutate in mutators.items():
+            with self.subTest(label=label):
+                value = records()
+                if label == "tombstone":
+                    value[6]["target"]["eligible_node_ids"] = []
+                mutate(value[6]["target"])
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_enabled_tombstone_preparation_is_invalid_without_exception(self) -> None:
+        value = records()
+        value[0]["target"]["before"] = [{"node_id": 7, "live": False}]
+        value[0]["target"]["eligible_node_ids"] = []
+        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
     def test_patch_records_causal_outcomes_before_final_classification(self) -> None:
         patch = PATCH_TWO.read_text(encoding="utf-8")

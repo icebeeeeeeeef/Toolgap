@@ -864,6 +864,34 @@ def observation_is_eligible(observation: dict[str, object]) -> bool:
     )
 
 
+def observation_is_prepared(observation: dict[str, object]) -> bool:
+    return (
+        observation_is_eligible(observation)
+        and bool(observation["device_ids"])
+        and observation["write_through_pending"] is False
+        and observation["load_back_pending"] is False
+    )
+
+
+def positive_after_shape(
+    before: dict[str, object], after: dict[str, object]
+) -> str | None:
+    if not (
+        after["live"] is True
+        and after["host_committed"] is True
+        and after["write_through_pending"] is False
+        and after["load_back_pending"] is False
+        and after["session_ref"] == 0
+        and not any(after["lock_refs"])
+    ):
+        return None
+    if after["device_ids"] == [] and after["device_leaf"] is False:
+        return "demoted"
+    if after["device_ids"] == before["device_ids"] and after["device_leaf"] is True:
+        return "unchanged"
+    return None
+
+
 def observation_errors(observation: object) -> list[str]:
     if not isinstance(observation, dict):
         return ["not_object"]
@@ -986,21 +1014,11 @@ def enabled_context_errors(record: dict[str, object]) -> list[str]:
         errors.append("enabled priority release differs")
     if record["facade"] != {"disposition": "ACCEPTED", "reason": "ACCEPTED"}:
         errors.append("enabled facade differs")
-    if not before or not all(
-        item["live"] is True
-        and item["host_committed"] is True
-        and item["device_leaf"] is True
-        and item["device_ids"]
-        and item["write_through_pending"] is False
-        and item["load_back_pending"] is False
-        and not any(item["lock_refs"])
-        and item["session_ref"] == 1
-        for item in before
-    ):
+    if not before or not all(observation_is_prepared(item) for item in before):
         errors.append("enabled does not begin with committed Full device tails")
     if len(before) != len(target["after"]):
         errors.append("enabled target observation count differs")
-    if counters["checked_facade"] != 1 or counters["checked_backend"] < 1 or counters["stock_evict"] != 0:
+    if counters["checked_facade"] != 1 or counters["checked_backend"] != len(requested) or counters["stock_evict"] != 0:
         errors.append("enabled route is not the checked non-stock route")
     if (
         not requested
@@ -1012,12 +1030,12 @@ def enabled_context_errors(record: dict[str, object]) -> list[str]:
         or counters["cache_owned_drain"] != len(requested)
     ):
         errors.append("enabled target identity differs")
-    if any(
-        item["live"] is True
-        and (item["session_ref"] != 0 or any(item["lock_refs"]))
-        for item in target["after"]
-    ):
-        errors.append("enabled post-release reference state differs")
+    after_shapes = [
+        positive_after_shape(before[index], item)
+        for index, item in enumerate(target["after"])
+    ]
+    if any(shape is None for shape in after_shapes):
+        errors.append("enabled post-release source shape differs")
     if (
         [node["node_id"] for node in nodes] != requested
         or any(
@@ -1027,7 +1045,10 @@ def enabled_context_errors(record: dict[str, object]) -> list[str]:
     ):
         errors.append("enabled node outcomes differ")
     original_device_ids = [
-        device_id for observation in before for device_id in observation["device_ids"]
+        device_id
+        for observation in before
+        if observation["live"] is True
+        for device_id in observation["device_ids"]
     ]
     node_freed_device_ids = [
         device_id for node in nodes for device_id in node["freed_device_ids"]
@@ -1081,30 +1102,23 @@ def bypass_context_errors(record: dict[str, object]) -> list[str]:
     ):
         errors.append("bypass target identity differs")
     physical_ids = counters["physical_demote_node_ids"]
+    after_shapes = [
+        positive_after_shape(before[index], item)
+        for index, item in enumerate(after)
+    ]
+    demoted_ids = [
+        requested[index] for index, shape in enumerate(after_shapes) if shape == "demoted"
+    ]
+    if any(shape is None for shape in after_shapes):
+        errors.append("bypass post-release source shape differs")
     if (
         counters["physical_demote"] != len(physical_ids)
         or counters["cache_owned_drain"] != counters["physical_demote"]
-        or any(node_id not in requested for node_id in physical_ids)
+        or physical_ids != demoted_ids
     ):
         errors.append("bypass physical counter identity differs")
-    if not all(
-        item["live"] is True
-        and item["host_committed"] is True
-        and item["device_leaf"] is True
-        and item["device_ids"]
-        and item["write_through_pending"] is False
-        and item["load_back_pending"] is False
-        and not any(item["lock_refs"])
-        and item["session_ref"] == 1
-        for item in before
-    ):
+    if not all(observation_is_prepared(item) for item in before):
         errors.append("bypass does not begin with prepared Full device tails")
-    if any(
-        item["live"] is True
-        and (item["session_ref"] != 0 or any(item["lock_refs"]))
-        for item in after
-    ):
-        errors.append("bypass post-release reference state differs")
     if len(before) != len(after):
         errors.append("bypass target observation count differs")
     elif any(set(item.get("device_ids", [])) - set(before[index].get("device_ids", [])) for index, item in enumerate(after)):
@@ -1245,7 +1259,8 @@ def rejection_passes(record: dict[str, object], reason: str) -> bool:
         record["facade"] == expected_facade
         and record["priority_release"] == required_release
         and counters["checked_facade"] == 1
-        and (counters["checked_backend"] == 0 if stale else counters["checked_backend"] >= 1)
+        and counters["checked_backend"]
+        == (0 if stale else len(record["target"]["requested_node_ids"]))
         and rejection_nodes_pass(record, reason)
         and (stale_rejection_context_pass(record) if stale else rejection_observations_pass(record, reason))
         and (record["released_component_leaves"] == 0 if stale else record["released_component_leaves"] > 0)
@@ -1278,6 +1293,7 @@ def liveness_passes(record: dict[str, object]) -> bool:
         and target["scheduled_node_ids"] == []
         and target["completed_node_ids"] == []
         and record["nodes"] == []
+        and all(observation_is_prepared(item) for item in target["before"])
         and all(
             observation["live"] is not True or observation["session_ref"] == 0
             for observation in target["after"]
