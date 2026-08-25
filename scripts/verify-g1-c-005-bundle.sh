@@ -140,8 +140,12 @@ for fragment in (
     "G0_prebuilt_runtime_payload_plus_CUDA12_metadata_rewrite",
     "current-tree wheel build", "six special wheels", "fresh SGLang",
     "four rejection cases", "is permitted only", "external anchor",
+    "2026-08-25T01:32:28Z", "formal_arms", "_check_not_importing_main",
+    "cleanup evidence was clean",
 ):
     assert fragment in spec, fragment
+assert "in-flight frozen attempt" not in spec
+assert "parent remains under the frozen 2400-second timeout" not in spec
 
 module_spec = importlib.util.spec_from_file_location("g1_c_005_finalize", finalizer_path)
 assert module_spec and module_spec.loader

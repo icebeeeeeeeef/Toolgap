@@ -6,11 +6,12 @@ Canonical owners: `experiments/g1/SPEC.md`, `docs/ROADMAP.md`, and
 ## Executable scope
 
 `G1-C-001` through `G1-C-003` are sealed `pre_execution` `INVALID` attempts.
-`G1-C-004` is a separate in-flight frozen attempt. It reached the first real
-enabled arm, but its generated arm runner runs unittest at import time. SGLang
-creates a multiprocessing spawn child, which reimports that main module and
-fails `_check_not_importing_main`. The C-004 parent remains within its frozen
-2400-second timeout; do not alter or interrupt it.
+`G1-C-004` sealed a separate `pre_execution` `INVALID` at
+`2026-08-25T01:32:28Z`. It reached the first real enabled arm, but its generated
+arm runner ran unittest at import time. SGLang created a multiprocessing spawn
+child, which reimported that main module and failed `_check_not_importing_main`.
+The `formal_arms` phase exited `1`; enabled-arm PID/PGID, listener, and GPU
+cleanup evidence was clean. Preserve that sealed attempt.
 
 Freeze C-005 with the same inputs, mechanism, controls, and terminal oracle.
 The sole repair puts generated arm-runner selector loading and unittest

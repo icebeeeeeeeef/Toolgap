@@ -18,14 +18,15 @@ it successfully restored the patched source, prepared the model, and installed
 the CUDA wheelhouse plus mirror dependencies, but copied the valid runtime
 wheel under the generic filename `runtime-wheel.whl`, which pip rejects before
 examining wheel bytes. All three attempts remain frozen evidence. C-004 changes
-only the runtime-wheel evidence/install filename; `G1-C-004` is a separate
-in-flight frozen attempt that reached its first enabled arm. Its generated
-`arm-runner.py` invokes unittest at import time, so the SGLang multiprocessing
-spawn child reimports the main module and fails `_check_not_importing_main`.
-Its parent remains under the frozen 2400-second timeout and must not be
-interrupted or rewritten. C-005 changes only generated arm-runner import
-safety; it is not `G1-PREFLIGHT-001` or `CUDA12-COMPAT-001`, whose predecessor
-evidence also remains frozen with its own narrower conclusions.
+only the runtime-wheel evidence/install filename. It sealed a separate
+`pre_execution` `INVALID` at `2026-08-25T01:32:28Z`, after reaching its first
+enabled arm: its generated `arm-runner.py` invoked unittest at import time, so
+the SGLang multiprocessing spawn child reimported the main module and failed
+`_check_not_importing_main`. Its `formal_arms` exit was `1`; enabled-arm
+PID/PGID, listener, and GPU cleanup evidence was clean. C-005 changes only
+generated arm-runner import safety; it is not `G1-PREFLIGHT-001` or
+`CUDA12-COMPAT-001`, whose predecessor evidence also remains frozen with its
+own narrower conclusions.
 
 The sole intervention is the private, internal
 `UnifiedRadixCache.checked_demote_session(session_id, generation)` path added
