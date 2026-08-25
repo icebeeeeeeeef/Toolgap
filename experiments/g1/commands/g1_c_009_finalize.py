@@ -1008,9 +1008,13 @@ def rejection_observations_pass(
         return False
     if reason == "WRITE_THROUGH_PENDING":
         return all(
-            observation["write_through_pending"] is True
-            and observation["host_committed"] is False
-            for observation in (*before.values(), *after.values())
+            before[node_id]["write_through_pending"] is True
+            and after[node_id]["write_through_pending"] is True
+            and before[node_id]["host_committed"] is False
+            and after[node_id]["host_committed"] is False
+            and before[node_id]["session_ref"] == 1
+            and after[node_id]["session_ref"] == 0
+            for node_id in requested
         )
     if reason == "NON_TARGET_SESSION_COVERAGE":
         return all(
@@ -1020,11 +1024,25 @@ def rejection_observations_pass(
             and after[node_id]["host_committed"] is True
             and before[node_id]["device_leaf"] is True
             and after[node_id]["device_leaf"] is True
+            and before[node_id]["write_through_pending"] is False
+            and after[node_id]["write_through_pending"] is False
+            and before[node_id]["load_back_pending"] is False
+            and after[node_id]["load_back_pending"] is False
+            and all(value == 0 for value in before[node_id]["lock_refs"])
+            and all(value == 0 for value in after[node_id]["lock_refs"])
             for node_id in requested
         )
     if reason == "DEVICE_LOCKED":
         return all(
-            any(value > 0 for value in before[node_id]["lock_refs"])
+            before[node_id]["write_through_pending"] is False
+            and after[node_id]["write_through_pending"] is False
+            and before[node_id]["load_back_pending"] is False
+            and after[node_id]["load_back_pending"] is False
+            and before[node_id]["host_committed"] is True
+            and after[node_id]["host_committed"] is True
+            and before[node_id]["session_ref"] == 1
+            and after[node_id]["session_ref"] == 0
+            and any(value > 0 for value in before[node_id]["lock_refs"])
             and any(value > 0 for value in after[node_id]["lock_refs"])
             for node_id in requested
         )

@@ -273,6 +273,7 @@ for fragment in (
     "REJECTED/STALE_GENERATION", "source-backed rejection-oracle mapping",
     "same nonempty unique sequence", "eligible and completed IDs must be empty",
     "non-boolean supplied and current generations differ", "empty target",
+    "reason must also be replayable", "all locks are zero", "from `1` to `0`",
     "pre-execution-failure.json", "real filename stem", "inherits this `sys.path`",
 ):
     assert fragment in spec, fragment
@@ -444,6 +445,11 @@ assert 'target["eligible_node_ids"] != []' in finalizer
 assert 'target["completed_node_ids"] != []' in finalizer
 assert 'record["released_component_leaves"] > 0' in finalizer
 assert 'operation["supplied_generation"] != operation["current_generation"]' in finalizer
+assert 'before[node_id]["write_through_pending"] is False' in finalizer
+assert 'before[node_id]["load_back_pending"] is False' in finalizer
+assert 'all(value == 0 for value in before[node_id]["lock_refs"])' in finalizer
+assert 'before[node_id]["session_ref"] == 1' in finalizer
+assert 'after[node_id]["session_ref"] == 0' in finalizer
 assert '{"disposition": "DEFERRED", "reason": "DEFERRED"}' in finalizer
 assert '{"disposition": "REJECTED", "reason": reason}' in finalizer
 assert "release_session_priority" in shared_tests

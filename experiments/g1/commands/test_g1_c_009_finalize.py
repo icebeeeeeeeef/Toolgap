@@ -259,6 +259,8 @@ class G1C001TerminalTests(unittest.TestCase):
             "after_not_pending": lambda item: item["target"]["after"][0].__setitem__("write_through_pending", False),
             "before_claims_committed": lambda item: item["target"]["before"][0].__setitem__("host_committed", True),
             "after_claims_committed": lambda item: item["target"]["after"][0].__setitem__("host_committed", True),
+            "before_wrong_session_ref": lambda item: item["target"]["before"][0].__setitem__("session_ref", 2),
+            "after_wrong_session_ref": lambda item: item["target"]["after"][0].__setitem__("session_ref", 1),
         }
         for label, mutate in mutators.items():
             with self.subTest(label=label):
@@ -272,6 +274,9 @@ class G1C001TerminalTests(unittest.TestCase):
             "after_not_remaining": lambda item: item["target"]["after"][0].__setitem__("session_ref", 0),
             "host_not_committed": lambda item: item["target"]["before"][0].__setitem__("host_committed", False),
             "not_device_leaf": lambda item: item["target"]["after"][0].__setitem__("device_leaf", False),
+            "write_pending": lambda item: item["target"]["before"][0].__setitem__("write_through_pending", True),
+            "load_pending": lambda item: item["target"]["after"][0].__setitem__("load_back_pending", True),
+            "device_lock": lambda item: item["target"]["before"][0].__setitem__("lock_refs", [1]),
         }
         for label, mutate in mutators.items():
             with self.subTest(label=label):
@@ -284,6 +289,20 @@ class G1C001TerminalTests(unittest.TestCase):
             with self.subTest(phase=phase):
                 value = records()
                 value[4]["target"][phase][0]["lock_refs"] = [0]
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_device_locked_reason_requires_prior_checks_clear(self) -> None:
+        mutators = {
+            "write_pending": lambda item: item["target"]["before"][0].__setitem__("write_through_pending", True),
+            "load_pending": lambda item: item["target"]["after"][0].__setitem__("load_back_pending", True),
+            "host_not_committed": lambda item: item["target"]["before"][0].__setitem__("host_committed", False),
+            "before_wrong_session_ref": lambda item: item["target"]["before"][0].__setitem__("session_ref", 2),
+            "after_wrong_session_ref": lambda item: item["target"]["after"][0].__setitem__("session_ref", 1),
+        }
+        for label, mutate in mutators.items():
+            with self.subTest(label=label):
+                value = records()
+                mutate(value[4])
                 self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
     def test_each_deferred_reason_preserves_nonempty_device_ids(self) -> None:

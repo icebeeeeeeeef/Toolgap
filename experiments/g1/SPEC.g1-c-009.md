@@ -267,8 +267,13 @@ nonempty device IDs. Released component leaves must be positive. The facade
 must be `DEFERRED/DEFERRED` and each node outcome must carry the arm-specific
 reason. Write-through observations remain pending, non-target coverage changes
 `session_ref` from `2` to `1` while preserving committed host/device-leaf
-state, and device-lock observations retain a positive lock. Stale generation
-must be `REJECTED/STALE_GENERATION` with an exact three-field operation whose
+state, and device-lock observations retain a positive lock. The ordered backend
+reason must also be replayable: non-target observations have no write/load
+pending state and all locks are zero; device-lock observations have no
+write/load pending state and retain a committed host copy. Write-through and
+device-lock observations change target `session_ref` from `1` to `0` after
+priority release. Stale generation must be `REJECTED/STALE_GENERATION` with an
+exact three-field operation whose
 non-boolean supplied and current generations differ, zero released leaves, an
 empty target, and no backend or node outcome. This is an execution result only;
 the project claim remains `roadmap` until the canonical Gate process accepts

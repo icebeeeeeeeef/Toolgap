@@ -32,3 +32,8 @@ shared-session, or lock state, and the separate empty stale-generation shape.
 The shared-coverage focused model also replays source-owned frontier markers
 and ancestor path counts through first-session priority release, proving the
 second session remains protected after the `2` to `1` transition.
+
+A reason label is insufficient unless all earlier patch 0001 checks are clear.
+The final oracle therefore rejects non-target evidence with pending transfer or
+locks, device-lock evidence with pending transfer, and target-session reference
+transitions that contradict priority release.
