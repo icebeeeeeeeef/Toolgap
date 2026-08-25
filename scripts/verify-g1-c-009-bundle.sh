@@ -484,6 +484,7 @@ assert 'target["scheduled_node_ids"] != requested' in finalizer
 assert 'target["eligible_node_ids"] != []' in finalizer
 assert 'target["completed_node_ids"] != []' in finalizer
 assert 'record["released_component_leaves"] > 0' in finalizer
+assert 'not isinstance(record["priority_release"], str)' in finalizer
 assert 'operation["supplied_generation"] != operation["current_generation"]' in finalizer
 assert 'before[node_id]["write_through_pending"] is False' in finalizer
 assert 'before[node_id]["load_back_pending"] is False' in finalizer
@@ -542,6 +543,7 @@ assert "test_enabled_after_shape_binds_frees_and_capacity" in tests
 assert "test_enabled_frees_cannot_be_attributed_to_another_node" in tests
 assert "test_liveness_after_requires_preserved_state_or_matching_victim" in tests
 assert "test_liveness_target_eviction_is_replayed_from_matching_victim" in tests
+assert "test_priority_release_unhashable_json_is_invalid_without_exception" in tests
 assert "validate_gpu_samples" in finalizer and "GPU sampler union differs" in finalizer
 assert "stock_eviction_errors" in finalizer and "no_allocator_reclaim" in finalizer
 print("G1-C-009 static contract checks passed")

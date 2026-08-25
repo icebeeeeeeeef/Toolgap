@@ -806,7 +806,10 @@ def record_errors(record: object, expected_arm: str) -> list[str]:
     else:
         for sample in capacity.values():
             errors.extend(f"capacity:{error}" for error in capacity_sample_errors(sample))
-    if record["priority_release"] not in {"RELEASED", "NOT_RELEASED"}:
+    if (
+        not isinstance(record["priority_release"], str)
+        or record["priority_release"] not in {"RELEASED", "NOT_RELEASED"}
+    ):
         errors.append("priority_release")
     if type(record["released_component_leaves"]) is not int or record["released_component_leaves"] < 0:
         errors.append("released_component_leaves")

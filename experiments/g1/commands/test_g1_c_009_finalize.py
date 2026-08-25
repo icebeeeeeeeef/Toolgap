@@ -168,6 +168,9 @@ def append_enabled_node(value: dict[str, object], node_id: int, device_id: int) 
     target["after"].append(after)
     value["freed_device_ids"].append(device_id)
     value["route_counters"]["physical_demote_node_ids"].append(node_id)
+    value["route_counters"]["checked_backend"] += 1
+    value["route_counters"]["physical_demote"] += 1
+    value["route_counters"]["cache_owned_drain"] += 1
     value["nodes"].append({
         "node_id": node_id,
         "disposition": "COMPLETED",
@@ -468,6 +471,16 @@ class G1C001TerminalTests(unittest.TestCase):
         value[0].pop("capacity")
         self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
+    def test_priority_release_unhashable_json_is_invalid_without_exception(self) -> None:
+        for arm_index in range(len(FINALIZE.ARMS)):
+            for malformed in ([], {}):
+                with self.subTest(
+                    arm=FINALIZE.ARMS[arm_index], malformed=type(malformed).__name__
+                ):
+                    value = records()
+                    value[arm_index]["priority_release"] = malformed
+                    self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
     def test_after_observation_missing_device_ids_is_invalid(self) -> None:
         value = records()
         value[0]["target"]["after"][0].pop("device_ids")
@@ -715,7 +728,11 @@ class G1C001TerminalTests(unittest.TestCase):
         append_enabled_node(enabled, node_id=8, device_id=43)
         enabled["nodes"][0]["freed_device_ids"] = [42, 43]
         enabled["nodes"][1]["freed_device_ids"] = []
-        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+        classification, reasons = FINALIZE.classify_records(value)
+        self.assertEqual(classification, "INVALID")
+        self.assertIn(
+            "enabled per-node frees differ from after source shapes", reasons
+        )
 
     def test_bypass_after_requires_unchanged_or_instrumented_demoted_shape(self) -> None:
         mutators = {
