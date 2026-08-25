@@ -802,7 +802,11 @@ def device_ids(observations: list[dict[str, object]]) -> list[int]:
 def observation_errors(observation: object) -> list[str]:
     if not isinstance(observation, dict):
         return ["not_object"]
-    if type(observation.get("node_id")) is not int or type(observation.get("live")) is not bool:
+    if (
+        type(observation.get("node_id")) is not int
+        or observation["node_id"] < 0
+        or type(observation.get("live")) is not bool
+    ):
         return ["node_id_or_live"]
     if observation["live"] is False:
         return [] if set(observation) == MISSING_OBSERVATION_FIELDS else ["missing_node_schema"]
@@ -813,11 +817,21 @@ def observation_errors(observation: object) -> list[str]:
     )
     if any(type(observation[field]) is not bool for field in bool_fields):
         return ["live_node_bool"]
-    for field in ("device_ids", "lock_refs"):
-        value = observation[field]
-        if not isinstance(value, list) or not all(type(item) is int for item in value):
-            return [f"{field}"]
-    if type(observation["session_ref"]) is not int:
+    device_ids = observation["device_ids"]
+    if (
+        not isinstance(device_ids, list)
+        or not all(type(item) is int and item >= 0 for item in device_ids)
+        or len(device_ids) != len(set(device_ids))
+    ):
+        return ["device_ids"]
+    lock_refs = observation["lock_refs"]
+    if (
+        not isinstance(lock_refs, list)
+        or len(lock_refs) != 1
+        or not all(type(item) is int and item >= 0 for item in lock_refs)
+    ):
+        return ["lock_refs"]
+    if type(observation["session_ref"]) is not int or observation["session_ref"] < 0:
         return ["session_ref"]
     return []
 

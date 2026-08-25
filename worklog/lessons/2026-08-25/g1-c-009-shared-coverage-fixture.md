@@ -37,3 +37,8 @@ A reason label is insufficient unless all earlier patch 0001 checks are clear.
 The final oracle therefore rejects non-target evidence with pending transfer or
 locks, device-lock evidence with pending transfer, and target-session reference
 transitions that contradict priority release.
+
+Full-only qualification also fixes observation cardinality: one component
+means exactly one lock counter. The common live-observation validator now owns
+that invariant plus nonnegative reference counts, NodeIds, unique allocator
+indices, and bool rejection, so every arm receives the same schema gate.

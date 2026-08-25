@@ -274,6 +274,8 @@ for fragment in (
     "same nonempty unique sequence", "eligible and completed IDs must be empty",
     "non-boolean supplied and current generations differ", "empty target",
     "reason must also be replayable", "all locks are zero", "from `1` to `0`",
+    "exactly one nonnegative integer", "allocator device indices are nonnegative",
+    "observed order is preserved",
     "pre-execution-failure.json", "real filename stem", "inherits this `sys.path`",
 ):
     assert fragment in spec, fragment
@@ -459,6 +461,10 @@ assert 'self.assertEqual(ancestor.component_data["FULL"].session_ref, 1)' in sha
 assert 'self.assertEqual(component._session_leaves[second_session], {target})' in shared_tests
 assert "arm record aggregate differs from individual evidence" in finalizer
 assert "observation_errors" in finalizer and "LIVE_OBSERVATION_FIELDS" in finalizer
+assert 'len(lock_refs) != 1' in finalizer
+assert 'observation["session_ref"] < 0' in finalizer
+assert 'observation["node_id"] < 0' in finalizer
+assert 'len(device_ids) != len(set(device_ids))' in finalizer
 assert "validate_gpu_samples" in finalizer and "GPU sampler union differs" in finalizer
 assert "stock_eviction_errors" in finalizer and "no_allocator_reclaim" in finalizer
 print("G1-C-009 static contract checks passed")

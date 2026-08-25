@@ -279,6 +279,11 @@ empty target, and no backend or node outcome. This is an execution result only;
 the project claim remains `roadmap` until the canonical Gate process accepts
 it.
 
+Every live node observation is also Full-only schema evidence: `lock_refs` has
+exactly one nonnegative integer, `session_ref` is nonnegative, NodeIds and
+allocator device indices are nonnegative, and device indices contain no
+duplicates. Their observed order is preserved rather than canonicalized.
+
 `STOP` is permitted only after the enabled and bypass records are formally
 complete, and only for the two causal counterexamples: enabled lacks
 allocator-visible physical reclaim, or bypass exhibits one. A wrong bypass

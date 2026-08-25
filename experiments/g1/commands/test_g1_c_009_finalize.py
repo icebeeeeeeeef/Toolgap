@@ -361,6 +361,53 @@ class G1C001TerminalTests(unittest.TestCase):
         value[0]["target"]["before"][0]["device_ids"] = [42, "bad"]
         self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
+    def test_full_only_observations_require_exactly_one_lock_ref(self) -> None:
+        live_arm_indexes = (0, 1, 2, 3, 4, 6)
+        for arm_index in live_arm_indexes:
+            for phase in ("before", "after"):
+                for lock_refs in ([], [0, 0]):
+                    with self.subTest(
+                        arm=FINALIZE.ARMS[arm_index],
+                        phase=phase,
+                        lock_refs=lock_refs,
+                    ):
+                        value = records()
+                        value[arm_index]["target"][phase][0]["lock_refs"] = lock_refs
+                        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+        for lock_refs in ([], [1, 1]):
+            with self.subTest(arm="reject_device_locked", lock_refs=lock_refs):
+                value = records()
+                value[4]["target"]["before"][0]["lock_refs"] = lock_refs
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_live_observation_counters_and_indices_are_nonnegative_integers(self) -> None:
+        mutators = {
+            "bool_lock_ref": lambda item: item.__setitem__("lock_refs", [True]),
+            "negative_lock_ref": lambda item: item.__setitem__("lock_refs", [-1]),
+            "bool_session_ref": lambda item: item.__setitem__("session_ref", True),
+            "negative_session_ref": lambda item: item.__setitem__("session_ref", -1),
+            "bool_device_id": lambda item: item.__setitem__("device_ids", [True]),
+            "negative_device_id": lambda item: item.__setitem__("device_ids", [-1]),
+        }
+        for label, mutate in mutators.items():
+            with self.subTest(label=label):
+                value = records()
+                mutate(value[0]["target"]["before"][0])
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_duplicate_device_ids_are_invalid_even_when_freed_ids_match(self) -> None:
+        value = records()
+        value[0]["target"]["before"][0]["device_ids"] = [42, 42]
+        value[0]["freed_device_ids"] = [42, 42]
+        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_live_and_tombstone_node_ids_must_be_nonnegative(self) -> None:
+        value = records()
+        value[0]["target"]["before"][0]["node_id"] = -1
+        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+        self.assertTrue(FINALIZE.observation_errors({"node_id": -1, "live": False}))
+
     def test_minimal_stock_victim_is_invalid(self) -> None:
         value = records()
         value[-1]["stock_eviction"]["victims"] = [{}]
