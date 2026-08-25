@@ -51,3 +51,13 @@ identities, so C-009 now binds each arm's target-stage sequences and requires
 unique nonnegative IDs, exact enabled outcomes, and consistent per-node,
 aggregate, and original allocator indices. Empty consistent enabled frees remain
 the missing-reclaim `STOP`; malformed or contradictory identity is `INVALID`.
+
+A later matrix review found that the scripted enabled/bypass arms asserted the
+PASS-side causal effects before printing their record, making both registered
+`STOP` cases unreachable from source execution. Those assertions now stop at
+setup, route, priority release, and normal return; causal effects are recorded
+for offline classification. The finalizer first replays eligibility from raw
+before observations, per-snapshot allocator uniqueness, exact route counts,
+prepared source state, post-release references, and every rejection/liveness
+predicate. Only after all non-causal checks pass may enabled missing reclaim or
+bypass observed reclaim become `STOP`.

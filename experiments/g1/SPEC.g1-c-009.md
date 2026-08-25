@@ -285,10 +285,21 @@ fixed `FULL`, `SWA`, and `MAMBA` slots, so `lock_refs` has exactly three
 nonnegative integers; the observed C-008 write-through shape is `[1, 0, 0]`.
 `session_ref` is nonnegative. Every NodeId sequence contains unique,
 nonnegative exact integers, and before/after observation NodeIds exactly match
-the requested order. Enabled binds requested, eligible, scheduled, completed,
+the requested order. Within each before or after snapshot, live allocator IDs
+are globally unique; the two snapshots and stock-victim history are not
+incorrectly merged. `eligible_node_ids` is recomputed from before observations:
+live, host-committed, device-leaf, zero locks, and `session_ref == 1`. Enabled
+and bypass additionally require the prepared source state to have no pending
+transfer, and every live post-release observation has `session_ref == 0` and
+zero locks. Stock liveness also requires `session_ref == 0` after release but
+does not forbid pressure-time locks. Enabled binds requested, eligible,
+scheduled, completed,
 node-outcome, and physical-demote NodeIds; each nonempty outcome is
-`COMPLETED/DEMOTED`. Bypass and stock liveness bind requested/eligible and
-leave scheduled, completed, node outcomes, and physical-demote IDs empty.
+`COMPLETED/DEMOTED`. Its physical-demote and cache-drain counts each equal the
+requested node count. Bypass and stock liveness bind requested/eligible and
+leave scheduled, completed, and node outcomes empty. A passing bypass has no
+physical demote; a causal bypass counterexample may report requested physical
+IDs only when the demote count, ID count, and cache-drain count agree.
 Stock candidates are unique nonnegative NodeIds. Allocator device indices are
 nonnegative and unique per observation; enabled observations are also globally
 unique. Per-node freed indices flatten exactly to the aggregate freed indices,
@@ -296,12 +307,19 @@ and any nonempty freed evidence exactly matches the original device-tail order.
 Malformed or contradictory IDs are `INVALID`; a structurally consistent empty
 enabled free result remains the causal missing-reclaim `STOP` case.
 
-`STOP` is permitted only after the enabled and bypass records are formally
-complete, and only for the two causal counterexamples: enabled lacks
+Patch 0002 asserts setup, route, priority release, and normal return before
+emitting enabled/bypass records, but deliberately does not assert the PASS-side
+free, capacity, or post-device effects. Thus a source-produced causal
+counterexample reaches the runner and finalizer instead of dying before record
+extraction. `STOP` is permitted only after all rejection and stock-liveness
+semantics have passed, the enabled and bypass records are formally complete,
+and only for the two causal counterexamples: enabled lacks
 allocator-visible physical reclaim, or bypass exhibits one. A wrong bypass
 priority-release result, wrong facade, wrong checked-route counter, malformed
-record, or any other non-causal anomaly is `INVALID`, even if it also lacks
-reclaim. Bad input binding, host mismatch, resolver failure, test failure,
+record, rejection/liveness anomaly, or any other non-causal anomaly is
+`INVALID` before causal `STOP` is considered, even if the same record set also
+lacks or exhibits reclaim. Bad input binding, host mismatch, resolver failure,
+test failure,
 unsafe scope, or cleanup failure is also `INVALID`. `INVALID` never becomes
 evidence for a G1 rejection.
 

@@ -225,6 +225,8 @@ for path in "${FROZEN[@]}"; do
   git -C "$ROOT" cat-file -e "$PREDECESSOR:$path"
 done
 git -C "$ROOT" diff --quiet "$PREDECESSOR" -- "${FROZEN[@]}"
+git -C "$ROOT" apply --check \
+  "$ROOT/upstream/sglang/patches/0002-g1-scripted-forced-demote-c009.patch"
 
 "$PYTHON" - "$ROOT" "$SPEC" "$TEMPLATE" "$RUNNER" "$BUILDER" "$ARM_LAUNCHER" "$FINALIZER" "$ANCHOR" <<'PY'
 import hashlib
@@ -274,8 +276,11 @@ for fragment in (
     "same nonempty unique sequence", "eligible and completed IDs must be empty",
     "non-boolean supplied and current generations differ", "empty target",
     "fixed `FULL`, `SWA`, and `MAMBA` slots", "exactly three",
-    "requested, eligible, scheduled, completed", "globally",
+    "Enabled binds requested, eligible", "scheduled, completed", "globally",
     "flatten exactly to the aggregate freed indices",
+    "Within each before or after snapshot", "recomputed from before observations",
+    "demote count, ID count, and cache-drain count agree",
+    "does not assert the PASS-side", "before causal `STOP` is considered",
     "reason must also be replayable", "all locks are zero", "from `1` to `0`",
     "Allocator device indices are", "Malformed or contradictory IDs are `INVALID`",
     "causal missing-reclaim `STOP` case",
@@ -427,10 +432,36 @@ for reason in (
 ):
     assert f'_assert_deferred_node_reason(outcome, "{reason}")' in patch_two
 
+enabled_script = patch_two.split("+    def _script_enabled", 1)[1].split(
+    "+class TestG1BypassArm", 1
+)[0]
+bypass_script = patch_two.split("+    def _script_bypass", 1)[1].split(
+    "+class TestG1WriteThroughPending", 1
+)[0]
+for arm_script in (enabled_script, bypass_script):
+    assert "record = _new_record(" in arm_script
+    assert "print(json.dumps(record, sort_keys=True))" in arm_script
+for forbidden in (
+    "assert _freed_ids(outcome)", "assert counters.cache_owned_drain",
+    'assert after["available_size"]', "expected_freed_ids",
+):
+    assert forbidden not in enabled_script
+for forbidden in (
+    "assert counters.physical_demote == 0", "assert counters.cache_owned_drain == 0",
+    'assert after["available_size"] == before["available_size"]',
+    'assert [observation["device_ids"] for observation in target_after]',
+):
+    assert forbidden not in bypass_script
+assert 'and observation["host_committed"]' in patch_two
+assert 'and observation["device_leaf"]' in patch_two
+assert 'and not any(observation["lock_refs"])' in patch_two
+assert 'and observation["session_ref"] == 1' in patch_two
+
 # The terminal classifier validates formal arm context before evaluating only
 # the two causal STOP predicates; malformed/rejection/liveness faults are INVALID.
 assert "return \"STOP\", causal_stop" in finalizer
 assert "return \"INVALID\", structural" in finalizer
+assert finalizer.index("if failures:") < finalizer.index("causal_stop =")
 assert "enabled_context_errors" in finalizer and "bypass_context_errors" in finalizer
 assert "validate_full_evidence" in finalizer and "sglang-package-provenance.json" in finalizer
 assert "RUNTIME_WHEEL_FILENAME" in finalizer and "runtime_wheel_filename" in finalizer
@@ -468,10 +499,16 @@ assert 'len(lock_refs) != 3' in finalizer
 assert 'observation["session_ref"] < 0' in finalizer
 assert 'observation["node_id"] < 0' in finalizer
 assert 'len(device_ids) != len(set(device_ids))' in finalizer
+assert 'len(phase_device_ids) != len(set(phase_device_ids))' in finalizer
+assert 'observation_is_eligible(observation)' in finalizer
 assert 'len(target[key]) != len(set(target[key]))' in finalizer
 assert 'target["eligible_node_ids"] != requested' in finalizer
 assert 'target["completed_node_ids"] != requested' in finalizer
 assert 'counters["physical_demote_node_ids"] != requested' in finalizer
+assert 'counters["physical_demote"] != len(requested)' in finalizer
+assert 'counters["cache_owned_drain"] != len(requested)' in finalizer
+assert 'counters["physical_demote"] != len(physical_ids)' in finalizer
+assert 'counters["cache_owned_drain"] != counters["physical_demote"]' in finalizer
 assert 'node["disposition"] != "COMPLETED" or node["reason"] != "DEMOTED"' in finalizer
 assert 'len(original_device_ids) != len(set(original_device_ids))' in finalizer
 assert 'node_freed_device_ids != record["freed_device_ids"]' in finalizer
@@ -479,6 +516,10 @@ assert 'record["freed_device_ids"] != original_device_ids' in finalizer
 assert 'any(type(node_id) is not int or node_id < 0 for node_id in candidates)' in finalizer
 assert '[data.lock_ref for data in node.component_data]' in patch_two
 assert '[1, 0, 0]' in (root / "experiments/g1/commands/test_g1_c_009_finalize.py").read_text(encoding="utf-8")
+tests = (root / "experiments/g1/commands/test_g1_c_009_finalize.py").read_text(encoding="utf-8")
+assert "test_patch_records_causal_outcomes_before_final_classification" in tests
+assert "test_noncausal_failure_precedes_enabled_causal_stop" in tests
+assert "test_target_phase_device_ids_are_globally_unique" in tests
 assert "validate_gpu_samples" in finalizer and "GPU sampler union differs" in finalizer
 assert "stock_eviction_errors" in finalizer and "no_allocator_reclaim" in finalizer
 print("G1-C-009 static contract checks passed")

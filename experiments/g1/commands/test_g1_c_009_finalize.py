@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 MODULE = Path(__file__).with_name("g1_c_009_finalize.py")
+PATCH_TWO = MODULE.parents[3] / "upstream/sglang/patches/0002-g1-scripted-forced-demote-c009.patch"
 SPEC = importlib.util.spec_from_file_location("g1_c_009_finalize", MODULE)
 assert SPEC is not None and SPEC.loader is not None
 FINALIZE = importlib.util.module_from_spec(SPEC)
@@ -74,12 +75,15 @@ def record(arm: str) -> dict[str, object]:
         value["target"]["completed_node_ids"] = [7]
         value["target"]["scheduled_node_ids"] = [7]
         value["target"]["after"][0]["device_ids"] = []
+        value["target"]["after"][0]["session_ref"] = 0
     elif arm == "bypass":
         value["facade"] = {"disposition": "BYPASSED", "reason": "PRIORITY_RELEASE_ONLY"}
         value["route_counters"] = {**route, "checked_facade": 0, "checked_backend": 0}
+        value["target"]["after"][0]["session_ref"] = 0
     elif arm == "stock_eviction_liveness":
         value["facade"] = {"disposition": "BYPASSED", "reason": "PRIORITY_RELEASE_ONLY"}
         value["route_counters"] = {**route, "checked_facade": 0, "checked_backend": 0, "stock_evict": 1}
+        value["target"]["after"][0]["session_ref"] = 0
         value["stock_eviction"] = {
             "candidate_ids_before": [7], "observed_calls": 1,
             "results": [{
@@ -168,6 +172,26 @@ def append_enabled_node(value: dict[str, object], node_id: int, device_id: int) 
     })
 
 
+def append_unexecuted_node(value: dict[str, object], node_id: int, device_id: int) -> None:
+    target = value["target"]
+    before = copy.deepcopy(target["before"][0])
+    before["node_id"] = node_id
+    before["device_ids"] = [device_id]
+    after = copy.deepcopy(target["after"][0])
+    after["node_id"] = node_id
+    after["device_ids"] = [device_id]
+    target["requested_node_ids"].append(node_id)
+    target["before"].append(before)
+    target["after"].append(after)
+    if value["arm"] in {"bypass", "stock_eviction_liveness"}:
+        target["eligible_node_ids"].append(node_id)
+    else:
+        target["scheduled_node_ids"].append(node_id)
+        outcome = copy.deepcopy(value["nodes"][0])
+        outcome["node_id"] = node_id
+        value["nodes"].append(outcome)
+
+
 class G1C001TerminalTests(unittest.TestCase):
     def test_storage_preflight_minimum_is_manifest_bound(self) -> None:
         manifest = {
@@ -196,8 +220,26 @@ class G1C001TerminalTests(unittest.TestCase):
 
     def test_bypass_physical_reclaim_stops(self) -> None:
         value = records()
-        value[1]["route_counters"]["physical_demote"] = 1
+        bypass = value[1]
+        bypass["route_counters"]["physical_demote"] = 1
+        bypass["route_counters"]["physical_demote_node_ids"] = [7]
+        bypass["route_counters"]["cache_owned_drain"] = 1
         self.assertEqual(FINALIZE.classify_records(value)[0], "STOP")
+
+    def test_bypass_physical_counter_identity_mismatch_is_invalid(self) -> None:
+        mutators = {
+            "missing_id": lambda item: item["route_counters"].__setitem__("physical_demote", 1),
+            "missing_count": lambda item: item["route_counters"].__setitem__("physical_demote_node_ids", [7]),
+            "missing_drain": lambda item: (
+                item["route_counters"].__setitem__("physical_demote", 1),
+                item["route_counters"].__setitem__("physical_demote_node_ids", [7]),
+            ),
+        }
+        for label, mutate in mutators.items():
+            with self.subTest(label=label):
+                value = records()
+                mutate(value[1])
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
     def test_bypass_priority_release_fault_is_invalid_not_stop(self) -> None:
         value = records()
@@ -207,6 +249,24 @@ class G1C001TerminalTests(unittest.TestCase):
     def test_rejection_failure_is_invalid_not_stop(self) -> None:
         value = records()
         value[2]["facade"]["reason"] = "ACCEPTED"
+        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_noncausal_failure_precedes_enabled_causal_stop(self) -> None:
+        value = records()
+        value[0]["freed_device_ids"] = []
+        value[0]["nodes"][0]["freed_device_ids"] = []
+        value[2]["facade"]["reason"] = "ACCEPTED"
+        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_noncausal_failure_precedes_bypass_causal_stop(self) -> None:
+        value = records()
+        bypass = value[1]
+        bypass["route_counters"].update({
+            "physical_demote": 1,
+            "physical_demote_node_ids": [7],
+            "cache_owned_drain": 1,
+        })
+        value[6]["facade"]["reason"] = "ACCEPTED"
         self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
     def test_deferred_rejections_keep_specific_reason_on_nodes(self) -> None:
@@ -475,6 +535,13 @@ class G1C001TerminalTests(unittest.TestCase):
                 mutate(value[0])
                 self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
+    def test_enabled_physical_and_drain_counts_match_requested_nodes(self) -> None:
+        for field in ("physical_demote", "cache_owned_drain"):
+            with self.subTest(field=field):
+                value = records()
+                value[0]["route_counters"][field] = 2
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
     def test_enabled_duplicate_node_ids_are_invalid_even_when_aligned(self) -> None:
         value = records()
         append_enabled_node(value[0], node_id=7, device_id=43)
@@ -517,6 +584,73 @@ class G1C001TerminalTests(unittest.TestCase):
                 value = records()
                 mutate(value[6])
                 self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_target_phase_device_ids_are_globally_unique(self) -> None:
+        for arm_index in (1, 2, 6):
+            with self.subTest(arm=FINALIZE.ARMS[arm_index]):
+                value = records()
+                append_unexecuted_node(value[arm_index], node_id=8, device_id=42)
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_eligibility_is_recomputed_from_before_observations(self) -> None:
+        for arm_index in (0, 1, 6):
+            mutators = {
+                "session_9": lambda item: item.__setitem__("session_ref", 9),
+                "locked": lambda item: item.__setitem__("lock_refs", [1, 0, 0]),
+                "host_false": lambda item: item.__setitem__("host_committed", False),
+                "not_device_leaf": lambda item: item.__setitem__("device_leaf", False),
+            }
+            if arm_index in (0, 1):
+                mutators.update({
+                    "write_pending": lambda item: item.__setitem__("write_through_pending", True),
+                    "load_pending": lambda item: item.__setitem__("load_back_pending", True),
+                })
+            for label, mutate in mutators.items():
+                with self.subTest(arm=FINALIZE.ARMS[arm_index], label=label):
+                    value = records()
+                    mutate(value[arm_index]["target"]["before"][0])
+                    self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_post_release_session_and_lock_state_is_bound(self) -> None:
+        for arm_index in (0, 1, 6):
+            with self.subTest(arm=FINALIZE.ARMS[arm_index], field="session_ref"):
+                value = records()
+                value[arm_index]["target"]["after"][0]["session_ref"] = 9
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+        for arm_index in (0, 1):
+            with self.subTest(arm=FINALIZE.ARMS[arm_index], field="lock_refs"):
+                value = records()
+                value[arm_index]["target"]["after"][0]["lock_refs"] = [1, 0, 0]
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+        value = records()
+        value[6]["target"]["after"][0]["lock_refs"] = [1, 0, 0]
+        self.assertEqual(FINALIZE.classify_records(value)[0], "PASS")
+
+    def test_patch_records_causal_outcomes_before_final_classification(self) -> None:
+        patch = PATCH_TWO.read_text(encoding="utf-8")
+        enabled = patch.split("+    def _script_enabled", 1)[1].split(
+            "+class TestG1BypassArm", 1
+        )[0]
+        bypass = patch.split("+    def _script_bypass", 1)[1].split(
+            "+class TestG1WriteThroughPending", 1
+        )[0]
+        for body in (enabled, bypass):
+            self.assertIn("record = _new_record(", body)
+            self.assertIn("print(json.dumps(record, sort_keys=True))", body)
+        for forbidden in (
+            "assert _freed_ids(outcome)",
+            "assert counters.cache_owned_drain",
+            'assert after["available_size"]',
+            "expected_freed_ids",
+        ):
+            self.assertNotIn(forbidden, enabled)
+        for forbidden in (
+            "assert counters.physical_demote == 0",
+            "assert counters.cache_owned_drain == 0",
+            'assert after["available_size"] == before["available_size"]',
+            'assert [observation["device_ids"] for observation in target_after]',
+        ):
+            self.assertNotIn(forbidden, bypass)
 
     def test_allocator_id_forgery_is_structural_invalid(self) -> None:
         mutators = {

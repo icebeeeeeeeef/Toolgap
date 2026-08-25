@@ -763,17 +763,34 @@ def record_errors(record: object, expected_arm: str) -> list[str]:
             if not isinstance(observations, list):
                 errors.append(f"target:{phase}")
                 continue
+            phase_valid = True
             for index, observation in enumerate(observations):
-                errors.extend(
-                    f"target:{phase}[{index}]:{error}"
-                    for error in observation_errors(observation)
-                )
+                observation_problems = observation_errors(observation)
+                phase_valid = phase_valid and not observation_problems
+                errors.extend(f"target:{phase}[{index}]:{error}" for error in observation_problems)
             if (
                 all(isinstance(observation, dict) for observation in observations)
                 and [observation.get("node_id") for observation in observations]
                 != target["requested_node_ids"]
             ):
                 errors.append(f"target:{phase}:node_ids")
+            if phase_valid:
+                phase_device_ids = [
+                    device_id
+                    for observation in observations
+                    if observation["live"] is True
+                    for device_id in observation["device_ids"]
+                ]
+                if len(phase_device_ids) != len(set(phase_device_ids)):
+                    errors.append(f"target:{phase}:duplicate_device_ids")
+        before = target["before"]
+        if (
+            isinstance(before, list)
+            and all(not observation_errors(observation) for observation in before)
+            and target["eligible_node_ids"]
+            != [observation["node_id"] for observation in before if observation_is_eligible(observation)]
+        ):
+            errors.append("target:eligible_node_ids:derived")
     counters = record["route_counters"]
     if not isinstance(counters, dict) or set(counters) != COUNTER_FIELDS or any(
         type(counters.get(key)) is not int or counters[key] < 0
@@ -835,6 +852,16 @@ def record_errors(record: object, expected_arm: str) -> list[str]:
 
 def device_ids(observations: list[dict[str, object]]) -> list[int]:
     return sorted(value for observation in observations for value in observation["device_ids"])
+
+
+def observation_is_eligible(observation: dict[str, object]) -> bool:
+    return (
+        observation["live"] is True
+        and observation["host_committed"] is True
+        and observation["device_leaf"] is True
+        and not any(observation["lock_refs"])
+        and observation["session_ref"] == 1
+    )
 
 
 def observation_errors(observation: object) -> list[str]:
@@ -960,8 +987,14 @@ def enabled_context_errors(record: dict[str, object]) -> list[str]:
     if record["facade"] != {"disposition": "ACCEPTED", "reason": "ACCEPTED"}:
         errors.append("enabled facade differs")
     if not before or not all(
-        item.get("host_committed") is True and item.get("device_leaf") is True
-        and isinstance(item.get("device_ids"), list) and item["device_ids"]
+        item["live"] is True
+        and item["host_committed"] is True
+        and item["device_leaf"] is True
+        and item["device_ids"]
+        and item["write_through_pending"] is False
+        and item["load_back_pending"] is False
+        and not any(item["lock_refs"])
+        and item["session_ref"] == 1
         for item in before
     ):
         errors.append("enabled does not begin with committed Full device tails")
@@ -975,8 +1008,16 @@ def enabled_context_errors(record: dict[str, object]) -> list[str]:
         or target["scheduled_node_ids"] != requested
         or target["completed_node_ids"] != requested
         or counters["physical_demote_node_ids"] != requested
+        or counters["physical_demote"] != len(requested)
+        or counters["cache_owned_drain"] != len(requested)
     ):
         errors.append("enabled target identity differs")
+    if any(
+        item["live"] is True
+        and (item["session_ref"] != 0 or any(item["lock_refs"]))
+        for item in target["after"]
+    ):
+        errors.append("enabled post-release reference state differs")
     if (
         [node["node_id"] for node in nodes] != requested
         or any(
@@ -1037,9 +1078,33 @@ def bypass_context_errors(record: dict[str, object]) -> list[str]:
         or target["scheduled_node_ids"] != []
         or target["completed_node_ids"] != []
         or record["nodes"] != []
-        or counters["physical_demote_node_ids"] != []
     ):
         errors.append("bypass target identity differs")
+    physical_ids = counters["physical_demote_node_ids"]
+    if (
+        counters["physical_demote"] != len(physical_ids)
+        or counters["cache_owned_drain"] != counters["physical_demote"]
+        or any(node_id not in requested for node_id in physical_ids)
+    ):
+        errors.append("bypass physical counter identity differs")
+    if not all(
+        item["live"] is True
+        and item["host_committed"] is True
+        and item["device_leaf"] is True
+        and item["device_ids"]
+        and item["write_through_pending"] is False
+        and item["load_back_pending"] is False
+        and not any(item["lock_refs"])
+        and item["session_ref"] == 1
+        for item in before
+    ):
+        errors.append("bypass does not begin with prepared Full device tails")
+    if any(
+        item["live"] is True
+        and (item["session_ref"] != 0 or any(item["lock_refs"]))
+        for item in after
+    ):
+        errors.append("bypass post-release reference state differs")
     if len(before) != len(after):
         errors.append("bypass target observation count differs")
     elif any(set(item.get("device_ids", [])) - set(before[index].get("device_ids", [])) for index, item in enumerate(after)):
@@ -1213,6 +1278,10 @@ def liveness_passes(record: dict[str, object]) -> bool:
         and target["scheduled_node_ids"] == []
         and target["completed_node_ids"] == []
         and record["nodes"] == []
+        and all(
+            observation["live"] is not True or observation["session_ref"] == 0
+            for observation in target["after"]
+        )
         and record["freed_device_ids"] == []
         and isinstance(stock.get("candidate_ids_before"), list) and bool(stock["candidate_ids_before"])
         and type(stock.get("observed_calls")) is int and stock["observed_calls"] > 0
@@ -1244,16 +1313,18 @@ def classify_records(records: object) -> tuple[str, list[str]]:
     formal_errors = enabled_context_errors(enabled) + bypass_context_errors(bypass)
     if formal_errors:
         return "INVALID", formal_errors
-    causal_stop = enabled_stop_reasons(enabled) + bypass_stop_reasons(bypass)
-    if causal_stop:
-        return "STOP", causal_stop
     failures = []
     for arm, reason in REJECTION_REASONS.items():
         if not rejection_passes(by_arm[arm], reason):
             failures.append(f"{arm} does not preserve rejection contract")
     if not liveness_passes(by_arm["stock_eviction_liveness"]):
         failures.append("stock eviction liveness is absent")
-    return ("INVALID", failures) if failures else ("PASS", ["all formal G1 predicates observed"])
+    if failures:
+        return "INVALID", failures
+    causal_stop = enabled_stop_reasons(enabled) + bypass_stop_reasons(bypass)
+    if causal_stop:
+        return "STOP", causal_stop
+    return "PASS", ["all formal G1 predicates observed"]
 
 
 def validate_gpu_samples(path: Path, arm_pid: int, expected_union: list[int], arm: str) -> None:
