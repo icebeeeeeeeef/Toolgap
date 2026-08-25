@@ -28,3 +28,11 @@ Canonical owner: `experiments/g1/SPEC.g1-c-010.md`
   C-001 through C-009, and independent review pass.
 - A formal C-010 run is staged only after C-009 evidence is externally
   anchored and remote storage again satisfies the 24 GiB preflight.
+
+## Correction
+
+Pre-run review found the same admission race in the stale-generation arm's
+`/close_session` control request. C-010 therefore fences both ordinary
+`/generate` requests by exact `rid` and close-session control requests by exact
+`CloseSessionReqInput` type and `session_id`; both retain their existing
+400-step side-effect bounds.

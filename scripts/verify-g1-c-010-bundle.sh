@@ -31,9 +31,10 @@ CLEANUP_FAILURE_TESTS="$ROOT/experiments/g1/commands/test_g1_c_010_cleanup_failu
 HOST_MISMATCH_TESTS="$ROOT/experiments/g1/commands/test_g1_c_010_host_mismatch.sh"
 PLAN="$ROOT/worklog/plans/2026-08-25/g1-c-010-request-admission-fence.md"
 LESSON="$ROOT/worklog/lessons/2026-08-25/g1-c-009-request-admission-race.md"
+CONTROL_REVIEW="$ROOT/worklog/reviews/2026-08-25/g1-c-010-control-admission-review.md"
 ANCHOR="$ROOT/scripts/anchor-g1-c-010-oss.sh"
 
-for path in "$SPEC" "$TEMPLATE" "$BOOTSTRAP" "$RUNNER" "$BUILDER" "$ARM_LAUNCHER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$ARM_LAUNCHER_TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS" "$SIGNAL_CLEANUP_TESTS" "$SOURCE_RESTORE_TESTS" "$RUNTIME_WHEEL_NAME_TESTS" "$ARM_RUNNER_SPAWN_TESTS" "$ANCHOR_OFFLINE_TESTS" "$REQUEST_ADMISSION_TESTS" "$SHARED_COVERAGE_TESTS" "$STORAGE_PREFLIGHT_TESTS" "$BUILDER_TESTS" "$PRE_EXECUTION_TESTS" "$FAILURE_EVIDENCE_TESTS" "$CLEANUP_FAILURE_TESTS" "$HOST_MISMATCH_TESTS" "$PLAN" "$LESSON" "$ANCHOR"; do
+for path in "$SPEC" "$TEMPLATE" "$BOOTSTRAP" "$RUNNER" "$BUILDER" "$ARM_LAUNCHER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$ARM_LAUNCHER_TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS" "$SIGNAL_CLEANUP_TESTS" "$SOURCE_RESTORE_TESTS" "$RUNTIME_WHEEL_NAME_TESTS" "$ARM_RUNNER_SPAWN_TESTS" "$ANCHOR_OFFLINE_TESTS" "$REQUEST_ADMISSION_TESTS" "$SHARED_COVERAGE_TESTS" "$STORAGE_PREFLIGHT_TESTS" "$BUILDER_TESTS" "$PRE_EXECUTION_TESTS" "$FAILURE_EVIDENCE_TESTS" "$CLEANUP_FAILURE_TESTS" "$HOST_MISMATCH_TESTS" "$PLAN" "$LESSON" "$CONTROL_REVIEW" "$ANCHOR"; do
   test -f "$path"
 done
 bash -n "$BOOTSTRAP"
@@ -325,6 +326,8 @@ for fragment in (
     "28a094182905fb4b8a8bc52182fb0314490baf08",
     "g1-c-009-a1-20260825T082527Z", "400 scheduler steps",
     "eventual HTTP 200", "_http_post_and_await_recv_msg", "exact request `rid`",
+    "close-session control admission fences", "CloseSessionReqInput",
+    "exact `session_id`", "No bare", "`_submit_post` remains",
 ):
     assert fragment in spec, fragment
 
@@ -471,11 +474,24 @@ assert 'predicate=lambda obj: getattr(obj, "rid", None) == rid' in session_reque
 assert 'description=f"request with rid {rid!r}"' in session_request
 assert "_submit_post" not in session_request
 assert "_MAX_STEPS = 400" in patch_two
+stale_script = patch_two.split("+    def _script_stale_generation", 1)[1].split(
+    "+class TestG1StockEvictionLiveness", 1
+)[0]
+assert "CloseSessionReqInput" in stale_script
+assert "_http_post_and_await_recv_msg" in stale_script
+assert 'path="/close_session"' in stale_script
+assert "isinstance(obj, CloseSessionReqInput)" in stale_script
+assert "obj.session_id == session_id" in stale_script
+assert 'description=f"close session {session_id!r}"' in stale_script
+assert "_submit_post" not in patch_two
 for regression in (
     "test_delayed_admission_blocks_helper_before_scheduler_budget_starts",
     "test_wrong_rid_does_not_satisfy_admission_fence",
+    "test_request_arrival_timeout_propagates_before_handle_or_budget",
+    "test_delayed_close_admission_precedes_side_effect_budget",
+    "test_close_predicate_rejects_wrong_type_and_session",
     "test_completion_steps_begin_after_arrival_and_reach_frontier",
-    "test_source_forbids_fire_and_forget_session_submission",
+    "test_source_forbids_fire_and_forget_submission_anywhere",
 ):
     assert regression in request_tests
 assert "def _register_non_target_session_coverage(" in patch_two

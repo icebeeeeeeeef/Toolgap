@@ -3,7 +3,7 @@ new file mode 100644
 index 000000000..1251355cc
 --- /dev/null
 +++ b/test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py
-@@ -0,0 +1,1178 @@
+@@ -0,0 +1,1192 @@
 +"""G1 test-only forced Host-tier reclamation protocol for the pinned SGLang tree.
 +
 +This module is intentionally a scripted-runtime test. It has no production HTTP
@@ -1003,9 +1003,19 @@ index 000000000..1251355cc
 +                t, session_id, "g1-stale-generation-first"
 +            )
 +        )
-+        from sglang.test.scripted_runtime.context.http_post import _submit_post
++        from sglang.srt.managers.io_struct import CloseSessionReqInput
++        from sglang.test.scripted_runtime.context.http_post import (
++            _http_post_and_await_recv_msg,
++        )
 +
-+        _submit_post(t, path="/close_session", json={"session_id": session_id})
++        _http_post_and_await_recv_msg(
++            t,
++            path="/close_session",
++            json={"session_id": session_id},
++            predicate=lambda obj: isinstance(obj, CloseSessionReqInput)
++            and obj.session_id == session_id,
++            description=f"close session {session_id!r}",
++        )
 +        for _ in range(_MAX_STEPS):
 +            if session_id not in cache.session_refs._session_generations:
 +                break

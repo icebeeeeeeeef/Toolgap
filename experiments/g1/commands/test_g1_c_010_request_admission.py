@@ -69,10 +69,18 @@ class FakeHandle:
         return self.context.admitted and self.context.scheduler_steps >= 2
 
 
+class FakeCloseSessionReqInput:
+    def __init__(self, *, session_id: str) -> None:
+        self.session_id = session_id
+
+
 @contextmanager
 def scripted_runtime_modules(*, submit, await_arrival):
     names = (
         "sglang",
+        "sglang.srt",
+        "sglang.srt.managers",
+        "sglang.srt.managers.io_struct",
         "sglang.test",
         "sglang.test.scripted_runtime",
         "sglang.test.scripted_runtime.context",
@@ -81,6 +89,9 @@ def scripted_runtime_modules(*, submit, await_arrival):
     )
     previous = {name: sys.modules.get(name) for name in names}
     modules = {name: types.ModuleType(name) for name in names}
+    modules["sglang.srt.managers.io_struct"].CloseSessionReqInput = (
+        FakeCloseSessionReqInput
+    )
     modules[names[-2]]._submit_post = submit
     modules[names[-2]]._http_post_and_await_recv_msg = await_arrival
     modules[names[-1]].ScriptedReqHandle = FakeHandle
@@ -107,6 +118,13 @@ class G1C010RequestAdmissionTests(unittest.TestCase):
                 cls.source,
                 "_complete_private_session",
                 class_name="_G1ScriptedTestCase",
+            )
+        )
+        cls.stale_script = staticmethod(
+            load_function(
+                cls.source,
+                "_script_stale_generation",
+                class_name="TestG1StaleGeneration",
             )
         )
 
@@ -156,9 +174,12 @@ class G1C010RequestAdmissionTests(unittest.TestCase):
         context = SimpleNamespace(admitted=False, scheduler_steps=0)
 
         def await_arrival(_context, *, predicate, **_kwargs) -> None:
-            observed.append(predicate(SimpleNamespace(rid="wrong-rid")))
+            observed.append(predicate(SimpleNamespace(rid="exact-rid-stale")))
+            observed.append(predicate(SimpleNamespace(rid="other-prefix")))
+            observed.append(predicate(SimpleNamespace()))
+            observed.append(predicate(SimpleNamespace(rid=7)))
             observed.append(predicate(SimpleNamespace(rid="exact-rid")))
-            _context.admitted = observed == [False, True]
+            _context.admitted = observed == [False, False, False, False, True]
 
         with scripted_runtime_modules(
             submit=lambda *_args, **_kwargs: None,
@@ -168,9 +189,117 @@ class G1C010RequestAdmissionTests(unittest.TestCase):
                 context, "exact-session", "exact-rid", max_new_tokens=8
             )
 
-        self.assertEqual(observed, [False, True])
+        self.assertEqual(observed, [False, False, False, False, True])
         self.assertEqual(handle.rid, "exact-rid")
         self.assertTrue(context.admitted)
+
+    def test_request_arrival_timeout_propagates_before_handle_or_budget(self) -> None:
+        context = SimpleNamespace(admitted=False, scheduler_steps=0)
+        sentinel = TimeoutError("request-admission-timeout")
+
+        def await_arrival(*_args, **_kwargs) -> None:
+            raise sentinel
+
+        with scripted_runtime_modules(
+            submit=lambda *_args, **_kwargs: None,
+            await_arrival=await_arrival,
+        ):
+            with self.assertRaises(TimeoutError) as caught:
+                self.session_request(
+                    context, "timeout-session", "timeout-rid", max_new_tokens=8
+                )
+
+        self.assertIs(caught.exception, sentinel)
+        self.assertEqual(context.scheduler_steps, 0)
+
+    def test_delayed_close_admission_precedes_side_effect_budget(self) -> None:
+        session_id = "g1-stale-generation"
+        posted = threading.Event()
+        release = threading.Event()
+        cache = SimpleNamespace(
+            session_refs=SimpleNamespace(_session_generations={session_id: 1})
+        )
+        result = []
+
+        def complete_private_session(_context, _session_id, _rid):
+            if False:
+                yield
+            return cache, 1, (21,)
+
+        def submit(*_args, **_kwargs) -> None:
+            posted.set()
+
+        def await_arrival(_context, *, path, json, predicate, description) -> None:
+            self.assertEqual(path, "/close_session")
+            self.assertEqual(json, {"session_id": session_id})
+            self.assertEqual(description, f"close session {session_id!r}")
+            posted.set()
+            self.assertTrue(release.wait(1.0))
+            self.assertTrue(predicate(FakeCloseSessionReqInput(session_id=session_id)))
+
+        owner = SimpleNamespace(_complete_private_session=complete_private_session)
+        globals_ = self.stale_script.__globals__
+        previous = globals_.get("TestG1StaleGeneration")
+        globals_["TestG1StaleGeneration"] = owner
+        generator = self.stale_script(SimpleNamespace())
+
+        def advance() -> None:
+            result.append(next(generator))
+
+        try:
+            with scripted_runtime_modules(submit=submit, await_arrival=await_arrival):
+                worker = threading.Thread(target=advance)
+                worker.start()
+                self.assertTrue(posted.wait(1.0))
+                self.assertTrue(worker.is_alive(), "close side-effect budget started early")
+                release.set()
+                worker.join(1.0)
+        finally:
+            if previous is None:
+                globals_.pop("TestG1StaleGeneration", None)
+            else:
+                globals_["TestG1StaleGeneration"] = previous
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(result, [None])
+
+    def test_close_predicate_rejects_wrong_type_and_session(self) -> None:
+        session_id = "g1-stale-generation"
+        observed = []
+        cache = SimpleNamespace(
+            session_refs=SimpleNamespace(_session_generations={session_id: 1})
+        )
+
+        def complete_private_session(_context, _session_id, _rid):
+            if False:
+                yield
+            return cache, 1, (21,)
+
+        def await_arrival(_context, *, predicate, **_kwargs) -> None:
+            observed.append(predicate(SimpleNamespace(session_id=session_id)))
+            observed.append(
+                predicate(FakeCloseSessionReqInput(session_id="other-session"))
+            )
+            observed.append(predicate(FakeCloseSessionReqInput(session_id=session_id)))
+
+        owner = SimpleNamespace(_complete_private_session=complete_private_session)
+        globals_ = self.stale_script.__globals__
+        previous = globals_.get("TestG1StaleGeneration")
+        globals_["TestG1StaleGeneration"] = owner
+        try:
+            with scripted_runtime_modules(
+                submit=lambda *_args, **_kwargs: None,
+                await_arrival=await_arrival,
+            ):
+                generator = self.stale_script(SimpleNamespace())
+                self.assertIsNone(next(generator))
+        finally:
+            if previous is None:
+                globals_.pop("TestG1StaleGeneration", None)
+            else:
+                globals_["TestG1StaleGeneration"] = previous
+
+        self.assertEqual(observed, [False, False, True])
 
     def test_completion_steps_begin_after_arrival_and_reach_frontier(self) -> None:
         context = SimpleNamespace(admitted=False, scheduler_steps=0)
@@ -215,16 +344,9 @@ class G1C010RequestAdmissionTests(unittest.TestCase):
         self.assertEqual(finished.exception.value, sentinel)
         self.assertTrue(context.admitted)
 
-    def test_source_forbids_fire_and_forget_session_submission(self) -> None:
-        tree = ast.parse(self.source)
-        function = next(
-            node
-            for node in tree.body
-            if isinstance(node, ast.FunctionDef) and node.name == "_session_request"
-        )
-        names = {node.id for node in ast.walk(function) if isinstance(node, ast.Name)}
-        self.assertIn("_http_post_and_await_recv_msg", names)
-        self.assertNotIn("_submit_post", names)
+    def test_source_forbids_fire_and_forget_submission_anywhere(self) -> None:
+        self.assertIn("_http_post_and_await_recv_msg", self.source)
+        self.assertNotIn("_submit_post", self.source)
 
 
 if __name__ == "__main__":

@@ -63,8 +63,10 @@ and emitted a record, but the bypass arm failed before emitting its record:
 `_complete_private_session` spent all 400 scheduler steps before the
 fire-and-forget background `/generate` reached the tokenizer receive proxy.
 The assertion precedes the eventual HTTP 200 in the sealed log, and no bypass
-target prefill was observed. C-010 changes only that test-only request admission
-ordering. It does not reinterpret C-009 as a G1 result and is not
+target prefill was observed. Pre-run review then found the same fire-and-forget
+race in the stale-generation arm's `/close_session` control request. C-010
+changes only those two test-only admission orderings. It does not reinterpret
+C-009 as a G1 result and is not
 `G1-PREFLIGHT-001` or `CUDA12-COMPAT-001`, whose predecessor evidence remains
 frozen with its own narrower conclusions.
 
@@ -109,12 +111,12 @@ an `INVALID`, not a G1 conclusion.
 Patch 0001 is the unchanged internal checked-demotion implementation. The
 C-010-specific patch `0002-g1-scripted-forced-demote-c010.patch` adds only the
 named scripted G1 test module and differs from C-009 patch 0002 only in the
-ordinary session request admission fence. Patch 0003 is unchanged and changes
-only Python wheel metadata for the CUDA12 compatibility route. The formal
-runtime wheel is the prebuilt G0 payload plus that metadata rewrite, not a
-recompiled copy of the current source tree. Its C-010 provenance sidecar binds
-the new test-only patch hash without claiming that the wheel payload contains
-that test module.
+ordinary request and close-session control admission fences. Patch 0003 is
+unchanged and changes only Python wheel metadata for the CUDA12 compatibility
+route. The formal runtime wheel is the prebuilt G0 payload plus that metadata
+rewrite, not a recompiled copy of the current source tree. Its C-010 provenance
+sidecar binds the new test-only patch hash without claiming that the wheel
+payload contains that test module.
 
 ## Host envelope and restoration
 
@@ -215,6 +217,13 @@ begins only after that exact request has reached the tokenizer receive proxy.
 This adds no endpoint, scheduler event, sleep, retry policy, or runtime API; it
 only orders the existing request submission before the existing completion
 poll.
+
+The stale-generation arm uses the same pinned arrival primitive for its
+existing `/close_session` control request. Its predicate requires both a
+`CloseSessionReqInput` instance and the exact `session_id`. Only after that
+control message reaches the tokenizer receive proxy does the unchanged
+400-step wait check that the old generation was released. No bare
+`_submit_post` remains in the scripted fixture.
 
 The positive enabled and bypass arms remain fully request-native: an ordinary
 request creates their real private Full node and no test mutates its tree, KV
