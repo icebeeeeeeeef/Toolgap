@@ -30,14 +30,41 @@ sed -n '/BEGIN_SIGNAL_CLEANUP_HELPERS/,/END_SIGNAL_CLEANUP_HELPERS/p' "$RUNNER" 
   # shellcheck source=/dev/null
   source "$TEMPORARY/helpers.sh"
   PYTHON=python3
-  perl -MPOSIX -e 'my $ready = shift; open my $out, ">", $ready or die $!; print {$out} "$$\n"; close $out; select undef, undef, undef, 0.3; setsid(); exec "sleep", "60"' "$TEMPORARY/arm-ready" &
+  python3 - "$TEMPORARY/arm-handshake.json" "$TEMPORARY/arm-ack.json" "$TEMPORARY/descendant-pid" <<'PY' &
+import json
+import os
+import pathlib
+import subprocess
+import sys
+import time
+
+handshake, ack, descendant = map(pathlib.Path, sys.argv[1:])
+os.setsid()
+pid = os.getpid()
+payload = (json.dumps({"pgid": pid, "pid": pid, "schema_version": 1}, sort_keys=True) + "\n").encode()
+fd = os.open(handshake, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+with os.fdopen(fd, "wb") as output:
+    output.write(payload)
+os.chmod(handshake, 0o444)
+deadline = time.monotonic() + 10
+while not ack.exists():
+    if time.monotonic() >= deadline:
+        raise SystemExit(1)
+    time.sleep(0.01)
+child = subprocess.Popen(["sleep", "60"])
+descendant.write_text(f"{child.pid}\n", encoding="utf-8")
+PY
   CURRENT_ARM_PID="$!"
+  wait_for_arm_handshake "$TEMPORARY/arm-handshake.json" "$TEMPORARY/arm-ack.json"
+  [[ -n "$CURRENT_ARM_PGID" && "$CURRENT_ARM_PGID" == "$CURRENT_ARM_PID" ]]
+  wait "$CURRENT_ARM_PID"
   for _ in $(seq 1 100); do
-    [[ -f "$TEMPORARY/arm-ready" ]] && break
+    [[ -f "$TEMPORARY/descendant-pid" ]] && break
     sleep 0.01
   done
-  [[ "$(cat "$TEMPORARY/arm-ready")" == "$CURRENT_ARM_PID" ]]
-  wait_for_arm_pgid
+  [[ -f "$TEMPORARY/descendant-pid" ]]
+  ! kill -0 "$CURRENT_ARM_PID" 2>/dev/null
+  kill -0 -- "-$CURRENT_ARM_PGID"
   sleep 60 &
   CURRENT_SAMPLER_PID="$!"
   printf '%s\n' "$CURRENT_ARM_PID" >"$TEMPORARY/arm-pid"

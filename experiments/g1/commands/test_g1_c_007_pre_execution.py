@@ -241,6 +241,170 @@ def write_model_milestone(run_dir: Path) -> None:
     })
 
 
+def write_plan(run_dir: Path) -> None:
+    write_read_only(run_dir / "arm-plan.json", {
+        "arms": [
+            {"arm": arm, "selector": FINALIZE.SELECTORS[arm]}
+            for arm in FINALIZE.ARMS
+        ],
+        "fresh_process_per_arm": True,
+        "selector_module": "test.registered.scripted_runtime.test_toolgap_g1_forced_demote",
+    })
+
+
+def write_resolver_milestone(run_dir: Path) -> None:
+    context = json.loads((run_dir / "attempt-context.json").read_text(encoding="utf-8"))
+    manifest = json.loads((run_dir / "input-manifest.json").read_text(encoding="utf-8"))
+    for name, content in (
+        ("resolver-install.log", "resolved\n"),
+        ("ordinary-requirements.txt", "packaging\n"),
+        ("arm-runner.py", "raise SystemExit(0)\n"),
+    ):
+        path = run_dir / name
+        path.write_text(content, encoding="utf-8")
+        path.chmod(0o444)
+    write_read_only(run_dir / "runtime-wheel-validation.json", {
+        "provenance_identity": "G0_prebuilt_runtime_payload_plus_CUDA12_metadata_rewrite",
+        "runtime_wheel_filename": FINALIZE.RUNTIME_WHEEL_FILENAME,
+        "runtime_wheel_sha256": manifest["archives"]["runtime_wheel"]["sha256"],
+        "runtime_wheel_size_bytes": manifest["archives"]["runtime_wheel"]["size_bytes"],
+        "source_rebuild": False,
+    })
+    wheels = {
+        label: {"path": f"{label}.whl", "sha256": str(index) * 64, "size_bytes": 1}
+        for index, label in enumerate((
+            "sglang_kernel", "sgl_deep_ep", "sgl_deep_gemm",
+            "torch", "torchvision", "torchaudio",
+        ), start=1)
+    }
+    wheelhouse_index = run_dir / "cuda-wheelhouse-index.json"
+    write_read_only(wheelhouse_index, {"schema_version": 1, "wheels": wheels})
+    write_read_only(run_dir / "cuda-wheelhouse-validation.json", {
+        "archive_sha256": manifest["archives"]["cuda_wheelhouse"]["sha256"],
+        "archive_size_bytes": manifest["archives"]["cuda_wheelhouse"]["size_bytes"],
+        "index_sha256": FINALIZE.sha256(wheelhouse_index),
+        "wheels": wheels,
+    })
+    work_root = Path(context["work_root"])
+    modules = {
+        label: {
+            "hash_matches_source": True,
+            "installed_under_root": True,
+            "outside_source_checkout": True,
+        }
+        for label in (
+            "session_ref_tracker", "unified_tree_core",
+            "unified_tree_core_interface", "unified_radix_cache",
+        )
+    }
+    write_read_only(run_dir / "sglang-package-provenance.json", {
+        "expected_interpreter": str(work_root / "runtime-venv/bin/python"),
+        "install_root": str(work_root / "runtime-venv"),
+        "interpreter": str(work_root / "runtime-venv/bin/python"),
+        "interpreter_matches": True,
+        "modules": modules,
+        "package_path": str(work_root / "runtime-venv/site-packages/sglang"),
+        "package_under_install_root": True,
+        "passed": True,
+        "source_root": str(work_root / "sglang"),
+        "sys_path": [],
+    })
+    distributions = [
+        {"name": name, "version": "1"}
+        for name in (
+            "sglang", "sglang-kernel", "sgl-deep-ep", "sgl-deep-gemm",
+            "torch", "torchvision", "torchaudio", "flashinfer-python",
+        )
+    ]
+    write_read_only(run_dir / "installed-distributions.json", distributions)
+    write_read_only(run_dir / "omitted-dependency-exception.json", {
+        "allowed_uninstalled_requirement": "cuda-tile==1.6.0rc5",
+        "installed_without_dependency_resolution": "flashinfer_python[cu12]==0.6.17",
+        "reason": "CUDA12 wheel route must not source-build cuda-tile on ECS",
+    })
+    write_plan(run_dir)
+    runtime_env = "\n".join((
+        "HF_HUB_OFFLINE=1",
+        "TRANSFORMERS_OFFLINE=1",
+        "SGLANG_ENABLE_UNIFIED_RADIX_TREE=1",
+        f"TOOLGAP_G1_MODEL_PATH={work_root / 'model-input/model-snapshot'}",
+        f"TREATMENT={work_root / 'sglang'}",
+        f"RUNTIME_PYTHON={work_root / 'runtime-venv/bin/python'}",
+        "ORDINARY_PYPI_INDEX=http://mirrors.cloud.aliyuncs.com/pypi/simple/",
+    )) + "\n"
+    (run_dir / "runtime.env").write_text(runtime_env, encoding="utf-8")
+    (run_dir / "runtime.env").chmod(0o444)
+
+
+def write_formal_arms_milestone(run_dir: Path) -> None:
+    arms_root = run_dir / "arms"
+    arms_root.mkdir(exist_ok=True)
+    records = []
+    cleanup_rows = []
+    for index, arm in enumerate(FINALIZE.ARMS, start=1):
+        pid = 1000 + index
+        record = {
+            "arm": arm,
+            "operation": {},
+            "target": {},
+            "component_qualification": {},
+            "priority_release": "RELEASED",
+            "released_component_leaves": 0,
+            "facade": {},
+            "nodes": [],
+            "freed_device_ids": [],
+            "route_counters": {},
+            "capacity": {},
+        }
+        if arm == "stock_eviction_liveness":
+            record["stock_eviction"] = {}
+        records.append(record)
+        row = {
+            "arm": arm, "pid": pid, "pgid": pid,
+            "listener_clean": True, "pgid_clean": True, "gpu_delta_clean": True,
+        }
+        cleanup_rows.append(row)
+        files = {
+            "command.txt": FINALIZE.SELECTORS[arm] + "\n",
+            "log": "completed\n",
+            "pid": f"{pid}\n",
+            "pgid": f"{pid}\n",
+            "gpu-before.txt": "",
+            "gpu-during.txt": "",
+            "gpu-attributable.txt": "",
+            "gpu-after.txt": "",
+            "gpu-leaked.txt": "",
+            "listeners-before.txt": "",
+            "listeners-after.txt": "",
+            "listeners-leaked.txt": "",
+            "process-group-after.txt": "",
+        }
+        for suffix, content in files.items():
+            path = arms_root / f"{arm}.{suffix}"
+            path.write_text(content, encoding="utf-8")
+            path.chmod(0o444)
+        write_read_only(arms_root / f"{arm}.record.json", record)
+        write_read_only(arms_root / f"{arm}.cleanup.json", row)
+        write_read_only(arms_root / f"{arm}.launcher-handshake.json", {
+            "pgid": pid, "pid": pid, "schema_version": 1,
+        })
+        write_read_only(arms_root / f"{arm}.launcher-ack.json", {
+            "pid": pid, "schema_version": 1,
+        })
+        write_read_only(arms_root / f"{arm}.gpu-samples.json", {
+            "arm_pid": pid,
+            "poll_seconds": 0.25,
+            "samples": [{"captured_at": "2026-08-25T00:00:00Z", "pids": []}],
+        })
+    write_read_only(run_dir / "arm-records.json", records)
+    write_read_only(run_dir / "cleanup.json", {"all_clean": True, "arms": cleanup_rows})
+
+
+def write_scope_milestone(run_dir: Path) -> None:
+    (run_dir / "scope-scan.log").write_text("scope=clean\n", encoding="utf-8")
+    (run_dir / "scope-scan.log").chmod(0o444)
+
+
 def reseal_index(run_dir: Path) -> None:
     for name in ("artifact-index.json", "completion-receipt.json"):
         path = run_dir / name
@@ -265,6 +429,42 @@ def refresh_receipt_for_index(run_dir: Path) -> None:
 
 
 class G1C007PreExecutionTests(unittest.TestCase):
+    def test_render_failure_seals_without_manifest_and_replays_clean_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = prepare_run(directory)
+            write_failure(run_dir, "render")
+            write_preflight(run_dir, "storage-preflight-source-restore.json", "source_restore", passed=True)
+            write_preflight(run_dir, "storage-preflight-resolver.json", "resolver", passed=True)
+            write_input_binding_milestone(run_dir)
+            write_source_restore_milestone(run_dir)
+            write_model_milestone(run_dir)
+            write_resolver_milestone(run_dir)
+            write_formal_arms_milestone(run_dir)
+            write_scope_milestone(run_dir)
+            self.assertEqual(FINALIZE.invalid(argparse.Namespace(
+                run_dir=run_dir,
+                reason=failure_reason("render"),
+            )), 0)
+            self.assertFalse((run_dir / "manifest.json").exists())
+            handshake = run_dir / "arms/enabled.launcher-handshake.json"
+            handshake_document = json.loads(handshake.read_text(encoding="utf-8"))
+            handshake.chmod(0o644)
+            write_read_only(handshake, {**handshake_document, "pgid": handshake_document["pgid"] + 1})
+            reseal_index(run_dir)
+            with self.assertRaises(ValueError):
+                FINALIZE.verify(argparse.Namespace(run_dir=run_dir))
+            handshake.chmod(0o644)
+            write_read_only(handshake, handshake_document)
+            reseal_index(run_dir)
+            self.assertEqual(FINALIZE.verify(argparse.Namespace(run_dir=run_dir)), 0)
+            scope = run_dir / "scope-scan.log"
+            scope.chmod(0o644)
+            scope.write_text("scope=invalid\n", encoding="utf-8")
+            scope.chmod(0o444)
+            reseal_index(run_dir)
+            with self.assertRaises(ValueError):
+                FINALIZE.verify(argparse.Namespace(run_dir=run_dir))
+
     def test_unindexed_regular_file_cannot_verify(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             run_dir = prepare_run(directory)

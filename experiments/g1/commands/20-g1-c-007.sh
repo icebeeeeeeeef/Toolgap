@@ -28,6 +28,7 @@ CUDA_HOME="${G1_C_007_CUDA_HOME:-/usr/local/cuda-12.8}"
 readonly FINALIZER="$REPO_ROOT/experiments/g1/commands/g1_c_007_finalize.py"
 readonly EXTRACTOR="$REPO_ROOT/experiments/g1/commands/g1_c_007_extract_records.py"
 readonly GPU_SAMPLER="$REPO_ROOT/experiments/g1/commands/g1_c_007_gpu_sampler.py"
+readonly ARM_LAUNCHER="$REPO_ROOT/experiments/g1/commands/g1_c_007_arm_launcher.py"
 readonly TEMPLATE="$REPO_ROOT/experiments/g1/manifest.g1-c-007.template.json"
 readonly MODEL_HELPER="$REPO_ROOT/experiments/g0/commands/g0_c_016_model_seed.py"
 readonly PROVENANCE="$REPO_ROOT/experiments/g0/commands/g0_c_008_package_provenance.py"
@@ -75,6 +76,14 @@ stop_current_sampler() {
   fi
   CURRENT_SAMPLER_PID=""
 }
+wait_for_runtime_group_exit() {
+  local pgid="$1" attempts=0
+  while kill -0 -- "-$pgid" 2>/dev/null; do
+    (( attempts += 1 ))
+    (( attempts < 100 )) || return 1
+    sleep 0.05
+  done
+}
 stop_current_arm_group() {
   local arm_pid="${CURRENT_ARM_PID:-}" pgid="${CURRENT_ARM_PGID:-}"
   if valid_runtime_pid "$arm_pid" && [[ "$pgid" == "$arm_pid" ]] && kill -0 -- "-$pgid" 2>/dev/null; then
@@ -87,30 +96,71 @@ stop_current_arm_group() {
     if kill -0 "$arm_pid" 2>/dev/null; then kill -KILL "$arm_pid" 2>/dev/null || true; fi
   fi
   if valid_runtime_pid "$arm_pid"; then wait "$arm_pid" 2>/dev/null || true; fi
+  if valid_runtime_pid "$pgid" && [[ "$pgid" == "$arm_pid" ]]; then
+    wait_for_runtime_group_exit "$pgid" || true
+  fi
   CURRENT_ARM_PID=""
   CURRENT_ARM_PGID=""
 }
-wait_for_arm_pgid() {
+wait_for_arm_handshake() {
+  local handshake="$1" ack="$2"
   valid_runtime_pid "${CURRENT_ARM_PID:-}" || return 1
-  "$PYTHON" - "$CURRENT_ARM_PID" <<'PY' || return 1
+  "$PYTHON" - "$CURRENT_ARM_PID" "$handshake" <<'PY' || return 1
+import json
 import os
+import pathlib
 import sys
 import time
 
 pid = int(sys.argv[1])
+path = pathlib.Path(sys.argv[2])
 deadline = time.monotonic() + 10
 while True:
-    try:
-        pgid = os.getpgid(pid)
-    except ProcessLookupError:
+    if path.is_symlink():
         raise SystemExit(1)
-    if pgid == pid:
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        document = None
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        document = None
+    if document is not None:
+        if (
+            document != {"pgid": pid, "pid": pid, "schema_version": 1}
+            or type(document.get("pid")) is not int
+            or type(document.get("pgid")) is not int
+            or type(document.get("schema_version")) is not int
+            or path.stat().st_mode & 0o222
+            or not path.is_file()
+        ):
+            raise SystemExit(1)
+        try:
+            if os.getpgid(pid) != pid:
+                raise SystemExit(1)
+        except ProcessLookupError:
+            raise SystemExit(1)
         raise SystemExit(0)
     if time.monotonic() >= deadline:
         raise SystemExit(1)
-    time.sleep(0.05)
+    time.sleep(0.01)
 PY
   CURRENT_ARM_PGID="$CURRENT_ARM_PID"
+  "$PYTHON" - "$CURRENT_ARM_PID" "$ack" <<'PY' || return 1
+import json
+import os
+import pathlib
+import sys
+
+pid = int(sys.argv[1])
+path = pathlib.Path(sys.argv[2])
+payload = (json.dumps({"pid": pid, "schema_version": 1}, sort_keys=True) + "\n").encode()
+descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+with os.fdopen(descriptor, "wb") as output:
+    output.write(payload)
+    output.flush()
+    os.fsync(output.fileno())
+path.chmod(0o444)
+PY
 }
 cleanup_active_processes() {
   stop_current_sampler
@@ -276,7 +326,7 @@ except ValueError as error:
     raise ValueError("runner failure exit code is invalid") from error
 phases = {
     "bootstrap", "input_binding", "source_restore", "model",
-    "resolver", "formal_arms", "scope", "seal",
+    "resolver", "formal_arms", "scope", "render", "seal",
 }
 if phase not in phases or not 1 <= exit_code <= 255:
     raise ValueError("runner failure evidence differs")
@@ -352,7 +402,7 @@ os.chmod(output, 0o444)
 PY
 capture_environment
 
-for command in nvidia-smi sha256sum tar timeout setsid ss; do require "$command"; done
+for command in nvidia-smi sha256sum tar timeout ss; do require "$command"; done
 "$PYTHON" -c 'import ensurepip, sys, venv; assert sys.version_info[:2] == (3, 12), sys.version'
 [[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || die 'requires Linux x86_64'
 grep -Eq '^ID=ubuntu$' /etc/os-release && grep -Eq '^VERSION_ID="?24\.04"?$' /etc/os-release || die 'requires Ubuntu 24.04'
@@ -621,7 +671,10 @@ run_arm() {
   ss -ltnH | LC_ALL=C sort -u >"$arm_dir/$arm.listeners-before.txt"
   (
     cd "$TREATMENT"
-    exec setsid timeout --signal=TERM --kill-after=30s "${LONG_TIMEOUT_SECONDS}s" \
+    exec "$PYTHON" "$ARM_LAUNCHER" \
+      --handshake "$arm_dir/$arm.launcher-handshake.json" \
+      --ack "$arm_dir/$arm.launcher-ack.json" -- \
+      timeout --signal=TERM --kill-after=30s "${LONG_TIMEOUT_SECONDS}s" \
       env -u PYTHONPATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 SGLANG_ENABLE_UNIFIED_RADIX_TREE=1 \
       TOOLGAP_G1_MODEL_PATH="$MODEL_ROOT" "$RUNTIME_VENV/bin/python" "$RUN_DIR/arm-runner.py" \
       "$TREATMENT/test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py" "$selector"
@@ -629,7 +682,8 @@ run_arm() {
   pid="$!"
   CURRENT_ARM_PID="$pid"
   CURRENT_ARM_PGID=""
-  wait_for_arm_pgid || die "arm $arm did not form its own process group"
+  wait_for_arm_handshake "$arm_dir/$arm.launcher-handshake.json" "$arm_dir/$arm.launcher-ack.json" \
+    || die "arm $arm launcher handshake failed"
   pgid="$CURRENT_ARM_PGID"
   printf '%s\n' "$pid" >"$arm_dir/$arm.pid"
   printf '%s\n' "$pgid" >"$arm_dir/$arm.pgid"
@@ -703,6 +757,7 @@ os.chmod(out, 0o444)
 if hits: raise SystemExit(1)
 PY
 
+PHASE="render"
 TERMINAL="$("$PYTHON" - "$RUN_DIR/arm-records.json" "$FINALIZER" <<'PY'
 import importlib.util, json, pathlib, sys
 records, module = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])

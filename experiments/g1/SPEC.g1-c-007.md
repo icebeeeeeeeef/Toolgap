@@ -151,9 +151,13 @@ absolute `work_root` and validates completed-stage evidence rather than trusting
 the claimed phase alone. A `source_restore` failure requires completed input
 binding; `model` requires source provenance; `resolver` requires the model
 receipt; `formal_arms` requires resolver/runtime setup; `scope` requires all
-seven arm and cleanup records; and `seal` requires clean scope plus the rendered
-manifest checksum. The currently failing stage may be incomplete, but every
-earlier milestone must be present and structurally valid.
+seven arm and cleanup records; `render` requires those arm milestones plus a
+clean scope scan but permits the manifest to be absent; and `seal` requires
+clean scope plus the rendered manifest checksum. The runner enters `render`
+after scope succeeds and before classification/render/checksum, and enters
+`seal` only after the manifest checksum exists. The currently failing stage may
+be incomplete, but every earlier milestone must be present and structurally
+valid.
 
 The generated arm runner defines `main()` and invokes it only under
 `if __name__ == "__main__"`. A multiprocessing spawn child may therefore
@@ -173,10 +177,15 @@ immutable sample ledger is replayed into `during`, with
 `attributable = during - before` and `leaked = attributable intersection after`.
 The only accepted selector set is:
 
-After launching an arm under `setsid`, the runner polls the real child PGID for
-at most ten seconds and accepts group cleanup only after `pgid == pid`. If the
-child exits or the deadline expires, failure cleanup falls back to the child PID
-without signaling an unrelated process group.
+The internal arm launcher calls `setsid` before importing or executing any arm
+workload. It then creates a read-only, exclusive PID/PGID handshake and waits up
+to ten seconds for a read-only parent acknowledgement. The parent requires the
+handshake PID to equal the background PID and `pgid == pid`, records that PGID,
+and only then writes the acknowledgement that permits the launcher to `exec`
+the bounded workload. Both files are per-arm sealed evidence. Failure before
+the handshake cannot start workload descendants; after the handshake, cleanup
+uses the recorded group even if its leader has already exited, then waits for
+the group to disappear.
 
 | Arm | Selector | Required observation |
 | --- | --- | --- |

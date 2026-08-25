@@ -69,6 +69,7 @@ FAILURE_PHASES = (
     "resolver",
     "formal_arms",
     "scope",
+    "render",
     "seal",
 )
 BASE_ARTIFACTS = (
@@ -716,6 +717,7 @@ PHASE_REQUIRED_MILESTONES = {
     "resolver": ("input_binding", "source_restore", "model"),
     "formal_arms": ("input_binding", "source_restore", "model", "resolver"),
     "scope": ("input_binding", "source_restore", "model", "resolver", "formal_arms"),
+    "render": ("input_binding", "source_restore", "model", "resolver", "formal_arms", "scope"),
     "seal": ("input_binding", "source_restore", "model", "resolver", "formal_arms", "scope", "manifest"),
 }
 
@@ -1097,6 +1099,26 @@ def validate_cleanup(run_dir: Path) -> None:
             absolute_regular(source, f"{arm} {suffix}")
             if source.read_text(encoding="utf-8") != expected + "\n":
                 raise ValueError(f"{arm} {suffix} evidence differs")
+        handshake_path = arm_root / f"{arm}.launcher-handshake.json"
+        ack_path = arm_root / f"{arm}.launcher-ack.json"
+        absolute_regular(handshake_path, f"{arm} launcher handshake")
+        absolute_regular(ack_path, f"{arm} launcher ack")
+        handshake = load_json(handshake_path, f"{arm} launcher handshake")
+        ack = load_json(ack_path, f"{arm} launcher ack")
+        if (
+            handshake != {"pgid": item["pgid"], "pid": item["pid"], "schema_version": 1}
+            or ack != {"pid": item["pid"], "schema_version": 1}
+            or type(handshake.get("pid")) is not int
+            or type(handshake.get("pgid")) is not int
+            or type(handshake.get("schema_version")) is not int
+            or type(ack.get("pid")) is not int
+            or type(ack.get("schema_version")) is not int
+            or handshake_path.stat().st_mode & 0o222
+            or ack_path.stat().st_mode & 0o222
+        ):
+            raise ValueError(f"{arm} launcher handshake differs")
+        if load_json(arm_root / f"{arm}.cleanup.json", f"{arm} cleanup row") != item:
+            raise ValueError(f"{arm} cleanup row aggregate differs")
         for suffix in (
             "gpu-before.txt", "gpu-samples.json", "gpu-during.txt", "gpu-attributable.txt", "gpu-after.txt", "gpu-leaked.txt",
             "listeners-before.txt", "listeners-after.txt", "listeners-leaked.txt", "process-group-after.txt",
@@ -1128,6 +1150,7 @@ def required_artifacts(run_dir: Path) -> tuple[str, ...]:
     dynamic = tuple(
         f"arms/{arm}.{suffix}" for arm in ARMS for suffix in (
             "command.txt", "log", "record.json", "cleanup.json", "pid", "pgid",
+            "launcher-handshake.json", "launcher-ack.json",
             "gpu-before.txt", "gpu-samples.json", "gpu-during.txt", "gpu-attributable.txt", "gpu-after.txt", "gpu-leaked.txt",
             "listeners-before.txt", "listeners-after.txt", "listeners-leaked.txt", "process-group-after.txt",
         )

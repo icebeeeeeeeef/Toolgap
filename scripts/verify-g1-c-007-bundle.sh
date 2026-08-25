@@ -9,9 +9,11 @@ TEMPLATE="$ROOT/experiments/g1/manifest.g1-c-007.template.json"
 BOOTSTRAP="$ROOT/experiments/g1/commands/00-g1-c-007-bootstrap.sh"
 RUNNER="$ROOT/experiments/g1/commands/20-g1-c-007.sh"
 BUILDER="$ROOT/experiments/g1/commands/g1_c_007_bundle_manifest.py"
+ARM_LAUNCHER="$ROOT/experiments/g1/commands/g1_c_007_arm_launcher.py"
 EXTRACTOR="$ROOT/experiments/g1/commands/g1_c_007_extract_records.py"
 FINALIZER="$ROOT/experiments/g1/commands/g1_c_007_finalize.py"
 TESTS="$ROOT/experiments/g1/commands/test_g1_c_007_finalize.py"
+ARM_LAUNCHER_TESTS="$ROOT/experiments/g1/commands/test_g1_c_007_arm_launcher.py"
 GPU_SAMPLER="$ROOT/experiments/g1/commands/g1_c_007_gpu_sampler.py"
 GPU_SAMPLER_TESTS="$ROOT/experiments/g1/commands/test_g1_c_007_gpu_sampler.py"
 SIGNAL_CLEANUP_TESTS="$ROOT/experiments/g1/commands/test_g1_c_007_signal_cleanup.sh"
@@ -26,16 +28,17 @@ HOST_MISMATCH_TESTS="$ROOT/experiments/g1/commands/test_g1_c_007_host_mismatch.s
 REVIEW="$ROOT/worklog/reviews/2026-08-25/g1-c-007-code-quality-review.md"
 ANCHOR="$ROOT/scripts/anchor-g1-c-007-oss.sh"
 
-for path in "$SPEC" "$TEMPLATE" "$BOOTSTRAP" "$RUNNER" "$BUILDER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS" "$SIGNAL_CLEANUP_TESTS" "$SOURCE_RESTORE_TESTS" "$RUNTIME_WHEEL_NAME_TESTS" "$ARM_RUNNER_SPAWN_TESTS" "$STORAGE_PREFLIGHT_TESTS" "$BUILDER_TESTS" "$PRE_EXECUTION_TESTS" "$FAILURE_EVIDENCE_TESTS" "$HOST_MISMATCH_TESTS" "$REVIEW" "$ANCHOR"; do
+for path in "$SPEC" "$TEMPLATE" "$BOOTSTRAP" "$RUNNER" "$BUILDER" "$ARM_LAUNCHER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$ARM_LAUNCHER_TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS" "$SIGNAL_CLEANUP_TESTS" "$SOURCE_RESTORE_TESTS" "$RUNTIME_WHEEL_NAME_TESTS" "$ARM_RUNNER_SPAWN_TESTS" "$STORAGE_PREFLIGHT_TESTS" "$BUILDER_TESTS" "$PRE_EXECUTION_TESTS" "$FAILURE_EVIDENCE_TESTS" "$HOST_MISMATCH_TESTS" "$REVIEW" "$ANCHOR"; do
   test -f "$path"
 done
 bash -n "$BOOTSTRAP"
 bash -n "$RUNNER"
 bash -n "$ANCHOR"
-"$PYTHON" -m py_compile "$BUILDER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS" "$BUILDER_TESTS" "$PRE_EXECUTION_TESTS"
+"$PYTHON" -m py_compile "$BUILDER" "$ARM_LAUNCHER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$ARM_LAUNCHER_TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS" "$BUILDER_TESTS" "$PRE_EXECUTION_TESTS"
 "$PYTHON" "$BUILDER_TESTS"
 "$PYTHON" "$PRE_EXECUTION_TESTS"
 "$PYTHON" "$TESTS"
+"$PYTHON" "$ARM_LAUNCHER_TESTS"
 "$PYTHON" "$GPU_SAMPLER_TESTS"
 bash "$SIGNAL_CLEANUP_TESTS"
 bash "$SOURCE_RESTORE_TESTS"
@@ -162,7 +165,7 @@ for path in "${FROZEN[@]}"; do
 done
 git -C "$ROOT" diff --quiet "$PREDECESSOR" -- "${FROZEN[@]}"
 
-"$PYTHON" - "$ROOT" "$SPEC" "$TEMPLATE" "$RUNNER" "$BUILDER" "$FINALIZER" "$ANCHOR" <<'PY'
+"$PYTHON" - "$ROOT" "$SPEC" "$TEMPLATE" "$RUNNER" "$BUILDER" "$ARM_LAUNCHER" "$FINALIZER" "$ANCHOR" <<'PY'
 import hashlib
 import importlib.util
 import json
@@ -170,10 +173,11 @@ import pathlib
 import re
 import sys
 
-root, spec_path, template_path, runner_path, builder_path, finalizer_path, anchor_path = map(pathlib.Path, sys.argv[1:])
+root, spec_path, template_path, runner_path, builder_path, launcher_path, finalizer_path, anchor_path = map(pathlib.Path, sys.argv[1:])
 spec = spec_path.read_text(encoding="utf-8")
 runner = runner_path.read_text(encoding="utf-8")
 builder = builder_path.read_text(encoding="utf-8")
+launcher = launcher_path.read_text(encoding="utf-8")
 finalizer = finalizer_path.read_text(encoding="utf-8")
 anchor = anchor_path.read_text(encoding="utf-8")
 template = json.loads(template_path.read_text(encoding="utf-8"))
@@ -216,7 +220,9 @@ assert set(module.SELECTORS) == set(module.ARMS)
 for arm, selector in module.SELECTORS.items():
     assert selector in runner
 assert "fresh_process_per_arm" in runner
-assert "exec setsid timeout" in runner
+assert 'exec "$PYTHON" "$ARM_LAUNCHER"' in runner
+assert "wait_for_arm_handshake" in runner and "launcher-handshake.json" in runner
+assert "os.setsid()" in launcher and "os.O_EXCL" in launcher and "wait_for_ack" in launcher
 assert "G1_C_007_INPUT_OSS_RECEIPT" in runner
 assert "--find-links" in runner and "mirrors.cloud.aliyuncs.com" in runner
 assert "pip install --upgrade pip" not in runner
@@ -224,7 +230,7 @@ assert "g1_c_007_gpu_sampler.py" in runner
 assert "--poll-seconds 0.25" in runner
 assert "gpu-samples.json" in runner and "gpu-during.txt" in runner and "gpu-attributable.txt" in runner
 assert "cleanup_active_processes" in runner and "CURRENT_ARM_PGID" in runner
-assert "wait_for_arm_pgid" in runner and "os.getpgid(pid)" in runner
+assert "os.getpgid(pid)" in runner and "launcher-ack.json" in runner
 assert "trap 'seal_invalid \"$?\"' EXIT" in runner
 assert "PATCHES=(" in runner
 assert "apply_frozen_patches" in runner
@@ -241,6 +247,8 @@ assert runner.index('record_failure_evidence "$code"') < runner.index('"$PYTHON"
 assert '"work_root": str(work_root)' in runner
 assert runner.index("capture_environment") < runner.index("requires Linux x86_64")
 assert runner.rindex('PHASE="seal"') > runner.index('sha256sum manifest.json')
+assert runner.rindex('PHASE="render"') > runner.index('scope=clean')
+assert runner.rindex('PHASE="render"') < runner.index('sha256sum manifest.json')
 assert "def main() -> int:" in runner
 assert 'if __name__ == "__main__":' in runner
 assert "raise SystemExit(main())" in runner
@@ -287,9 +295,11 @@ for label in ("patch_one", "patch_two", "patch_three"):
 for relative in (
     "experiments/g1/SPEC.g1-c-007.md",
     "experiments/g1/commands/20-g1-c-007.sh",
+    "experiments/g1/commands/g1_c_007_arm_launcher.py",
     "experiments/g1/commands/g1_c_007_finalize.py",
     "experiments/g1/commands/g1_c_007_gpu_sampler.py",
     "experiments/g1/commands/test_g1_c_007_runtime_wheel_name.sh",
+    "experiments/g1/commands/test_g1_c_007_arm_launcher.py",
     "experiments/g1/commands/test_g1_c_007_arm_runner_spawn.sh",
     "experiments/g1/commands/test_g1_c_007_storage_preflight.sh",
     "experiments/g1/commands/test_g1_c_007_bundle_manifest.py",
@@ -317,6 +327,7 @@ assert "MINIMUM_FREE_BYTES" in builder and "storage_preflight" in builder
 assert "validate_storage_preflight" in finalizer and "storage-preflight-resolver.json" in finalizer
 assert "validate_pre_execution_evidence" in finalizer and "pre_execution_failure_reason" in finalizer
 assert "PHASE_REQUIRED_MILESTONES" in finalizer and '"work_root"' in finalizer
+assert '"render"' in finalizer and "launcher handshake differs" in finalizer
 assert "artifact index does not equal the sealed regular-file set" in finalizer
 assert "rejection contract" in finalizer and "stock eviction liveness" in finalizer
 assert "arm record aggregate differs from individual evidence" in finalizer
