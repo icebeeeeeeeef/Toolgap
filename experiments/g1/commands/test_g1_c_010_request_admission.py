@@ -74,6 +74,13 @@ class FakeCloseSessionReqInput:
         self.session_id = session_id
 
 
+def equal_but_distinct(value: str) -> str:
+    actual = (" " + value)[1:]
+    assert actual == value
+    assert actual is not value
+    return actual
+
+
 @contextmanager
 def scripted_runtime_modules(*, submit, await_arrival):
     names = (
@@ -172,13 +179,15 @@ class G1C010RequestAdmissionTests(unittest.TestCase):
     def test_wrong_rid_does_not_satisfy_admission_fence(self) -> None:
         observed = []
         context = SimpleNamespace(admitted=False, scheduler_steps=0)
+        expected_rid = "exact-rid"
 
         def await_arrival(_context, *, predicate, **_kwargs) -> None:
             observed.append(predicate(SimpleNamespace(rid="exact-rid-stale")))
             observed.append(predicate(SimpleNamespace(rid="other-prefix")))
             observed.append(predicate(SimpleNamespace()))
             observed.append(predicate(SimpleNamespace(rid=7)))
-            observed.append(predicate(SimpleNamespace(rid="exact-rid")))
+            actual_rid = equal_but_distinct(expected_rid)
+            observed.append(predicate(SimpleNamespace(rid=actual_rid)))
             _context.admitted = observed == [False, False, False, False, True]
 
         with scripted_runtime_modules(
@@ -186,11 +195,11 @@ class G1C010RequestAdmissionTests(unittest.TestCase):
             await_arrival=await_arrival,
         ):
             handle = self.session_request(
-                context, "exact-session", "exact-rid", max_new_tokens=8
+                context, "exact-session", expected_rid, max_new_tokens=8
             )
 
         self.assertEqual(observed, [False, False, False, False, True])
-        self.assertEqual(handle.rid, "exact-rid")
+        self.assertEqual(handle.rid, expected_rid)
         self.assertTrue(context.admitted)
 
     def test_request_arrival_timeout_propagates_before_handle_or_budget(self) -> None:
@@ -280,7 +289,10 @@ class G1C010RequestAdmissionTests(unittest.TestCase):
             observed.append(
                 predicate(FakeCloseSessionReqInput(session_id="other-session"))
             )
-            observed.append(predicate(FakeCloseSessionReqInput(session_id=session_id)))
+            actual_session_id = equal_but_distinct(session_id)
+            observed.append(
+                predicate(FakeCloseSessionReqInput(session_id=actual_session_id))
+            )
 
         owner = SimpleNamespace(_complete_private_session=complete_private_session)
         globals_ = self.stale_script.__globals__
@@ -300,6 +312,51 @@ class G1C010RequestAdmissionTests(unittest.TestCase):
                 globals_["TestG1StaleGeneration"] = previous
 
         self.assertEqual(observed, [False, False, True])
+
+    def test_close_arrival_timeout_propagates_before_side_effect_budget(self) -> None:
+        session_id = "g1-stale-generation"
+        sentinel = TimeoutError("close-admission-timeout")
+
+        class CountingGenerations(dict):
+            contains_calls = 0
+
+            def __contains__(self, key) -> bool:
+                self.contains_calls += 1
+                return super().__contains__(key)
+
+        generations = CountingGenerations({session_id: 1})
+        cache = SimpleNamespace(
+            session_refs=SimpleNamespace(_session_generations=generations)
+        )
+
+        def complete_private_session(_context, _session_id, _rid):
+            if False:
+                yield
+            return cache, 1, (21,)
+
+        def await_arrival(*_args, **_kwargs) -> None:
+            raise sentinel
+
+        owner = SimpleNamespace(_complete_private_session=complete_private_session)
+        globals_ = self.stale_script.__globals__
+        previous = globals_.get("TestG1StaleGeneration")
+        globals_["TestG1StaleGeneration"] = owner
+        try:
+            with scripted_runtime_modules(
+                submit=lambda *_args, **_kwargs: None,
+                await_arrival=await_arrival,
+            ):
+                generator = self.stale_script(SimpleNamespace())
+                with self.assertRaises(TimeoutError) as caught:
+                    next(generator)
+        finally:
+            if previous is None:
+                globals_.pop("TestG1StaleGeneration", None)
+            else:
+                globals_["TestG1StaleGeneration"] = previous
+
+        self.assertIs(caught.exception, sentinel)
+        self.assertEqual(generations.contains_calls, 0)
 
     def test_completion_steps_begin_after_arrival_and_reach_frontier(self) -> None:
         context = SimpleNamespace(admitted=False, scheduler_steps=0)

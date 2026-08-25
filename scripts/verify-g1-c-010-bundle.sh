@@ -490,10 +490,13 @@ for regression in (
     "test_request_arrival_timeout_propagates_before_handle_or_budget",
     "test_delayed_close_admission_precedes_side_effect_budget",
     "test_close_predicate_rejects_wrong_type_and_session",
+    "test_close_arrival_timeout_propagates_before_side_effect_budget",
     "test_completion_steps_begin_after_arrival_and_reach_frontier",
     "test_source_forbids_fire_and_forget_submission_anywhere",
 ):
     assert regression in request_tests
+assert "equal_but_distinct" in request_tests
+assert "actual is not value" in request_tests
 assert "def _register_non_target_session_coverage(" in patch_two
 assert "ensure_session_generation(session_id)" in patch_two
 assert "component.register_session_leaf(session_id, node)" in patch_two
