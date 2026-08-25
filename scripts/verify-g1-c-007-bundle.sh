@@ -24,11 +24,12 @@ STORAGE_PREFLIGHT_TESTS="$ROOT/experiments/g1/commands/test_g1_c_007_storage_pre
 BUILDER_TESTS="$ROOT/experiments/g1/commands/test_g1_c_007_bundle_manifest.py"
 PRE_EXECUTION_TESTS="$ROOT/experiments/g1/commands/test_g1_c_007_pre_execution.py"
 FAILURE_EVIDENCE_TESTS="$ROOT/experiments/g1/commands/test_g1_c_007_failure_evidence.sh"
+CLEANUP_FAILURE_TESTS="$ROOT/experiments/g1/commands/test_g1_c_007_cleanup_failure.sh"
 HOST_MISMATCH_TESTS="$ROOT/experiments/g1/commands/test_g1_c_007_host_mismatch.sh"
 REVIEW="$ROOT/worklog/reviews/2026-08-25/g1-c-007-code-quality-review.md"
 ANCHOR="$ROOT/scripts/anchor-g1-c-007-oss.sh"
 
-for path in "$SPEC" "$TEMPLATE" "$BOOTSTRAP" "$RUNNER" "$BUILDER" "$ARM_LAUNCHER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$ARM_LAUNCHER_TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS" "$SIGNAL_CLEANUP_TESTS" "$SOURCE_RESTORE_TESTS" "$RUNTIME_WHEEL_NAME_TESTS" "$ARM_RUNNER_SPAWN_TESTS" "$STORAGE_PREFLIGHT_TESTS" "$BUILDER_TESTS" "$PRE_EXECUTION_TESTS" "$FAILURE_EVIDENCE_TESTS" "$HOST_MISMATCH_TESTS" "$REVIEW" "$ANCHOR"; do
+for path in "$SPEC" "$TEMPLATE" "$BOOTSTRAP" "$RUNNER" "$BUILDER" "$ARM_LAUNCHER" "$EXTRACTOR" "$FINALIZER" "$TESTS" "$ARM_LAUNCHER_TESTS" "$GPU_SAMPLER" "$GPU_SAMPLER_TESTS" "$SIGNAL_CLEANUP_TESTS" "$SOURCE_RESTORE_TESTS" "$RUNTIME_WHEEL_NAME_TESTS" "$ARM_RUNNER_SPAWN_TESTS" "$STORAGE_PREFLIGHT_TESTS" "$BUILDER_TESTS" "$PRE_EXECUTION_TESTS" "$FAILURE_EVIDENCE_TESTS" "$CLEANUP_FAILURE_TESTS" "$HOST_MISMATCH_TESTS" "$REVIEW" "$ANCHOR"; do
   test -f "$path"
 done
 bash -n "$BOOTSTRAP"
@@ -46,6 +47,7 @@ bash "$RUNTIME_WHEEL_NAME_TESTS"
 bash "$ARM_RUNNER_SPAWN_TESTS"
 bash "$STORAGE_PREFLIGHT_TESTS"
 bash "$FAILURE_EVIDENCE_TESTS"
+bash "$CLEANUP_FAILURE_TESTS"
 bash "$HOST_MISMATCH_TESTS"
 PREDECESSOR="0ad49f1afdf5c59285a2828afbfe36d3409caa68"
 git -C "$ROOT" diff --check "$PREDECESSOR"
@@ -230,6 +232,8 @@ assert "g1_c_007_gpu_sampler.py" in runner
 assert "--poll-seconds 0.25" in runner
 assert "gpu-samples.json" in runner and "gpu-during.txt" in runner and "gpu-attributable.txt" in runner
 assert "cleanup_active_processes" in runner and "CURRENT_ARM_PGID" in runner
+assert "cleanup could not prove process-group exit; attempt remains unsealed" in runner
+assert 'wait_for_runtime_group_exit "$pgid" || return 1' in runner
 assert "os.getpgid(pid)" in runner and "launcher-ack.json" in runner
 assert "trap 'seal_invalid \"$?\"' EXIT" in runner
 assert "PATCHES=(" in runner
@@ -305,6 +309,7 @@ for relative in (
     "experiments/g1/commands/test_g1_c_007_bundle_manifest.py",
     "experiments/g1/commands/test_g1_c_007_pre_execution.py",
     "experiments/g1/commands/test_g1_c_007_failure_evidence.sh",
+    "experiments/g1/commands/test_g1_c_007_cleanup_failure.sh",
     "experiments/g1/commands/test_g1_c_007_host_mismatch.sh",
     "scripts/anchor-g1-c-007-oss.sh",
 ):

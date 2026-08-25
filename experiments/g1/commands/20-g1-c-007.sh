@@ -97,7 +97,7 @@ stop_current_arm_group() {
   fi
   if valid_runtime_pid "$arm_pid"; then wait "$arm_pid" 2>/dev/null || true; fi
   if valid_runtime_pid "$pgid" && [[ "$pgid" == "$arm_pid" ]]; then
-    wait_for_runtime_group_exit "$pgid" || true
+    wait_for_runtime_group_exit "$pgid" || return 1
   fi
   CURRENT_ARM_PID=""
   CURRENT_ARM_PGID=""
@@ -342,17 +342,22 @@ os.chmod(output, 0o444)
 PY
 }
 # END_FAILURE_EVIDENCE_HELPER
+# BEGIN_INVALID_SEAL_HELPER
 seal_invalid() {
   local code="$1"
   trap - EXIT ERR
   trap '' HUP INT TERM
-  cleanup_active_processes
+  if ! cleanup_active_processes; then
+    printf 'g1-c-007: cleanup could not prove process-group exit; attempt remains unsealed\n' >&2
+    exit "$code"
+  fi
   if [[ -d "$RUN_DIR" && -f "$RUN_DIR/attempt-context.json" && -f "$RUN_DIR/environment.txt" && ! -e "$RUN_DIR/execution-status.json" ]]; then
     record_failure_evidence "$code" "${PHASE:-unclassified}" || true
     "$PYTHON" "$FINALIZER" invalid --run-dir "$RUN_DIR" --reason "runner failure at phase ${PHASE:-unclassified}, exit $code" || true
   fi
   exit "$code"
 }
+# END_INVALID_SEAL_HELPER
 PHASE="bootstrap"
 trap 'seal_invalid "$?"' EXIT
 trap 'seal_invalid "$?"' ERR

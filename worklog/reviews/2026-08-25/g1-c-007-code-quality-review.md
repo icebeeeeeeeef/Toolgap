@@ -24,3 +24,9 @@ kills a surviving descendant group after its leader exits. It also adds a
 post-scope `render` failure phase, so classification/render/checksum failures
 replay clean scope without falsely requiring a manifest; `seal` still requires
 the completed manifest checksum.
+
+Final review found that the group-exit deadline was still ignored after forced
+cleanup. C-007 now propagates that timeout, retains PID/PGID state, and refuses
+all terminal sealing when process-group exit is unproven. An injected timeout
+counterexample verifies nonzero exit with no finalizer call or terminal files;
+the real leader-gone descendant cleanup remains the success control.

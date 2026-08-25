@@ -185,7 +185,12 @@ and only then writes the acknowledgement that permits the launcher to `exec`
 the bounded workload. Both files are per-arm sealed evidence. Failure before
 the handshake cannot start workload descendants; after the handshake, cleanup
 uses the recorded group even if its leader has already exited, then waits for
-the group to disappear.
+the group to disappear. That bounded group-exit observation is mandatory: a
+timeout propagates as runner failure while retaining the PID/PGID identity.
+`seal_invalid` must not write failure evidence, invoke the finalizer, or create
+terminal artifacts unless cleanup proves the group is gone. Such a cleanup
+timeout leaves only unsealed raw diagnostics and is not `PASS`, `STOP`, or
+`INVALID`.
 
 | Arm | Selector | Required observation |
 | --- | --- | --- |

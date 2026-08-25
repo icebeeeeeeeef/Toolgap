@@ -55,6 +55,7 @@ STATIC_PATHS = (
     "experiments/g1/commands/test_g1_c_007_bundle_manifest.py",
     "experiments/g1/commands/test_g1_c_007_pre_execution.py",
     "experiments/g1/commands/test_g1_c_007_failure_evidence.sh",
+    "experiments/g1/commands/test_g1_c_007_cleanup_failure.sh",
     "experiments/g1/commands/test_g1_c_007_host_mismatch.sh",
     "scripts/verify-g1-c-007-bundle.sh",
     "scripts/anchor-g1-c-007-oss.sh",
