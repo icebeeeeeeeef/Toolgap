@@ -1,0 +1,231 @@
+#!/usr/bin/env python3
+"""Focused counterexamples for the C010 request-admission fence."""
+
+from __future__ import annotations
+
+import ast
+import subprocess
+import sys
+import tempfile
+import threading
+import types
+import unittest
+from contextlib import contextmanager
+from pathlib import Path
+from types import SimpleNamespace
+
+
+ROOT = Path(__file__).resolve().parents[3]
+PATCH = ROOT / "upstream/sglang/patches/0002-g1-scripted-forced-demote-c010.patch"
+SCRIPTED_TEST = Path(
+    "test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py"
+)
+
+
+def applied_test_source() -> str:
+    with tempfile.TemporaryDirectory(prefix="g1-c-010-admission-") as directory:
+        checkout = Path(directory)
+        subprocess.run(["git", "init", "-q"], cwd=checkout, check=True)
+        subprocess.run(["git", "apply", str(PATCH)], cwd=checkout, check=True)
+        return (checkout / SCRIPTED_TEST).read_text(encoding="utf-8")
+
+
+def load_function(source: str, name: str, *, class_name: str | None = None):
+    tree = ast.parse(source)
+    body = tree.body
+    if class_name is not None:
+        owner = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == class_name
+        )
+        body = owner.body
+    function = next(
+        node
+        for node in body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == name
+    )
+    function.decorator_list = []
+    module = ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[]))
+    namespace = {
+        "Any": object,
+        "Generator": object,
+        "_MAX_NEW_TOKENS": 8,
+        "_MAX_STEPS": 400,
+        "_PROMPT_LEN": 256,
+    }
+    exec(compile(module, str(PATCH), "exec"), namespace)
+    return namespace[name]
+
+
+class FakeHandle:
+    def __init__(self, *, rid: str, context: object) -> None:
+        self.rid = rid
+        self.context = context
+
+    @property
+    def finished(self) -> bool:
+        return self.context.admitted and self.context.scheduler_steps >= 2
+
+
+@contextmanager
+def scripted_runtime_modules(*, submit, await_arrival):
+    names = (
+        "sglang",
+        "sglang.test",
+        "sglang.test.scripted_runtime",
+        "sglang.test.scripted_runtime.context",
+        "sglang.test.scripted_runtime.context.http_post",
+        "sglang.test.scripted_runtime.req_handle",
+    )
+    previous = {name: sys.modules.get(name) for name in names}
+    modules = {name: types.ModuleType(name) for name in names}
+    modules[names[-2]]._submit_post = submit
+    modules[names[-2]]._http_post_and_await_recv_msg = await_arrival
+    modules[names[-1]].ScriptedReqHandle = FakeHandle
+    sys.modules.update(modules)
+    try:
+        yield
+    finally:
+        for name, module in previous.items():
+            if module is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = module
+
+
+class G1C010RequestAdmissionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.source = applied_test_source()
+        cls.session_request = staticmethod(
+            load_function(cls.source, "_session_request")
+        )
+        cls.complete_session = staticmethod(
+            load_function(
+                cls.source,
+                "_complete_private_session",
+                class_name="_G1ScriptedTestCase",
+            )
+        )
+
+    def test_delayed_admission_blocks_helper_before_scheduler_budget_starts(self) -> None:
+        posted = threading.Event()
+        release = threading.Event()
+        context = SimpleNamespace(admitted=False, scheduler_steps=0)
+        result = []
+
+        def submit(*_args, **_kwargs) -> None:
+            posted.set()
+
+        def await_arrival(_context, *, path, json, predicate, description) -> None:
+            self.assertEqual(path, "/generate")
+            self.assertEqual(json["rid"], "delayed-rid")
+            self.assertEqual(description, "request with rid 'delayed-rid'")
+            posted.set()
+            self.assertTrue(release.wait(1.0))
+            self.assertTrue(predicate(SimpleNamespace(rid="delayed-rid")))
+            _context.admitted = True
+
+        def invoke() -> None:
+            result.append(
+                self.session_request(
+                    context,
+                    "delayed-session",
+                    "delayed-rid",
+                    max_new_tokens=8,
+                )
+            )
+
+        with scripted_runtime_modules(submit=submit, await_arrival=await_arrival):
+            worker = threading.Thread(target=invoke)
+            worker.start()
+            self.assertTrue(posted.wait(1.0))
+            self.assertTrue(worker.is_alive(), "helper returned before exact-rid admission")
+            self.assertEqual(context.scheduler_steps, 0)
+            release.set()
+            worker.join(1.0)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(result[0].rid, "delayed-rid")
+        self.assertTrue(context.admitted)
+
+    def test_wrong_rid_does_not_satisfy_admission_fence(self) -> None:
+        observed = []
+        context = SimpleNamespace(admitted=False, scheduler_steps=0)
+
+        def await_arrival(_context, *, predicate, **_kwargs) -> None:
+            observed.append(predicate(SimpleNamespace(rid="wrong-rid")))
+            observed.append(predicate(SimpleNamespace(rid="exact-rid")))
+            _context.admitted = observed == [False, True]
+
+        with scripted_runtime_modules(
+            submit=lambda *_args, **_kwargs: None,
+            await_arrival=await_arrival,
+        ):
+            handle = self.session_request(
+                context, "exact-session", "exact-rid", max_new_tokens=8
+            )
+
+        self.assertEqual(observed, [False, True])
+        self.assertEqual(handle.rid, "exact-rid")
+        self.assertTrue(context.admitted)
+
+    def test_completion_steps_begin_after_arrival_and_reach_frontier(self) -> None:
+        context = SimpleNamespace(admitted=False, scheduler_steps=0)
+        sentinel = (object(), 7, (21,))
+
+        def await_arrival(_context, **_kwargs) -> None:
+            self.assertEqual(_context.scheduler_steps, 0)
+            _context.admitted = True
+
+        def settled_frontier(_context, _session_id):
+            yield
+            return sentinel
+
+        globals_ = self.complete_session.__globals__
+        old_request = globals_.get("_session_request")
+        old_frontier = globals_.get("_wait_for_settled_private_frontier")
+        globals_["_session_request"] = self.session_request
+        globals_["_wait_for_settled_private_frontier"] = settled_frontier
+        try:
+            with scripted_runtime_modules(
+                submit=lambda *_args, **_kwargs: None,
+                await_arrival=await_arrival,
+            ):
+                generator = self.complete_session(context, "session", "rid")
+                self.assertIsNone(next(generator))
+                context.scheduler_steps = 1
+                self.assertIsNone(next(generator))
+                context.scheduler_steps = 2
+                self.assertIsNone(next(generator))
+                with self.assertRaises(StopIteration) as finished:
+                    next(generator)
+        finally:
+            if old_request is None:
+                globals_.pop("_session_request", None)
+            else:
+                globals_["_session_request"] = old_request
+            if old_frontier is None:
+                globals_.pop("_wait_for_settled_private_frontier", None)
+            else:
+                globals_["_wait_for_settled_private_frontier"] = old_frontier
+
+        self.assertEqual(finished.exception.value, sentinel)
+        self.assertTrue(context.admitted)
+
+    def test_source_forbids_fire_and_forget_session_submission(self) -> None:
+        tree = ast.parse(self.source)
+        function = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == "_session_request"
+        )
+        names = {node.id for node in ast.walk(function) if isinstance(node, ast.Name)}
+        self.assertIn("_http_post_and_await_recv_msg", names)
+        self.assertNotIn("_submit_post", names)
+
+
+if __name__ == "__main__":
+    unittest.main()
