@@ -97,11 +97,13 @@ drain. The independently reviewed G0-C-017/001 successor now replaces that Gate
 decision with [`PASS`](../experiments/g0/RESULTS.md), recorded by
 [D032](DECISIONS.md#2026-08-21--d032-accept-g0-c-017-successor-pass-and-authorize-g1-planning-only).
 The narrow package/ordinary-serving integration finding is `experimentally
-validated`; the overall project remains `roadmap`. The
-[G1 mechanism protocol](../experiments/g1/SPEC.md) is frozen, but it is not an
-executable runtime revision: implementation and any formal GPU attempt still
-need their separate owner authorizations and a later frozen source/run SPEC.
-Later Gates are not expanded into a second project-wide execution outline.
+validated`; the overall project remains `roadmap`. The independently reviewed
+[G1-C-010/A1 result](../experiments/g1/RESULTS.md) also closes G1 at `PASS` for
+the frozen Full-only physical mechanism: exact checked demotion produced
+allocator-visible capacity while bypass did not. This does not prove G2
+lifecycle correctness, G3 baseline value, performance, or general
+compatibility. Later Gates are not expanded into a second project-wide
+execution outline.
 
 The frozen [G0-C-ATOMIC-007](../experiments/g0/SPEC.g0-c-007.md) pre-rental
 protocol was never executed and is retained after deterministic pre-run review
