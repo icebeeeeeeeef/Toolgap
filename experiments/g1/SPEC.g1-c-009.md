@@ -279,10 +279,22 @@ empty target, and no backend or node outcome. This is an execution result only;
 the project claim remains `roadmap` until the canonical Gate process accepts
 it.
 
-Every live node observation is also Full-only schema evidence: `lock_refs` has
-exactly one nonnegative integer, `session_ref` is nonnegative, NodeIds and
-allocator device indices are nonnegative, and device indices contain no
-duplicates. Their observed order is preserved rather than canonicalized.
+Every live node observation is also pinned-source schema evidence. Although
+this experiment qualifies only `FULL`, SGLang's `component_data` retains the
+fixed `FULL`, `SWA`, and `MAMBA` slots, so `lock_refs` has exactly three
+nonnegative integers; the observed C-008 write-through shape is `[1, 0, 0]`.
+`session_ref` is nonnegative. Every NodeId sequence contains unique,
+nonnegative exact integers, and before/after observation NodeIds exactly match
+the requested order. Enabled binds requested, eligible, scheduled, completed,
+node-outcome, and physical-demote NodeIds; each nonempty outcome is
+`COMPLETED/DEMOTED`. Bypass and stock liveness bind requested/eligible and
+leave scheduled, completed, node outcomes, and physical-demote IDs empty.
+Stock candidates are unique nonnegative NodeIds. Allocator device indices are
+nonnegative and unique per observation; enabled observations are also globally
+unique. Per-node freed indices flatten exactly to the aggregate freed indices,
+and any nonempty freed evidence exactly matches the original device-tail order.
+Malformed or contradictory IDs are `INVALID`; a structurally consistent empty
+enabled free result remains the causal missing-reclaim `STOP` case.
 
 `STOP` is permitted only after the enabled and bypass records are formally
 complete, and only for the two causal counterexamples: enabled lacks

@@ -752,7 +752,11 @@ def record_errors(record: object, expected_arm: str) -> list[str]:
         errors.append("target")
     else:
         for key in ("requested_node_ids", "eligible_node_ids", "scheduled_node_ids", "completed_node_ids"):
-            if not isinstance(target[key], list) or not all(type(value) is int for value in target[key]):
+            if (
+                not isinstance(target[key], list)
+                or not all(type(value) is int and value >= 0 for value in target[key])
+                or len(target[key]) != len(set(target[key]))
+            ):
                 errors.append(f"target:{key}")
         for phase in ("before", "after"):
             observations = target[phase]
@@ -764,11 +768,20 @@ def record_errors(record: object, expected_arm: str) -> list[str]:
                     f"target:{phase}[{index}]:{error}"
                     for error in observation_errors(observation)
                 )
+            if (
+                all(isinstance(observation, dict) for observation in observations)
+                and [observation.get("node_id") for observation in observations]
+                != target["requested_node_ids"]
+            ):
+                errors.append(f"target:{phase}:node_ids")
     counters = record["route_counters"]
     if not isinstance(counters, dict) or set(counters) != COUNTER_FIELDS or any(
         type(counters.get(key)) is not int or counters[key] < 0
         for key in COUNTER_FIELDS if key != "physical_demote_node_ids"
-    ) or not isinstance(counters.get("physical_demote_node_ids"), list) or not all(type(item) is int for item in counters["physical_demote_node_ids"]):
+    ) or not isinstance(counters.get("physical_demote_node_ids"), list) or not all(
+        type(item) is int and item >= 0
+        for item in counters["physical_demote_node_ids"]
+    ) or len(counters["physical_demote_node_ids"]) != len(set(counters["physical_demote_node_ids"])):
         errors.append("route_counters")
     capacity = record["capacity"]
     if not isinstance(capacity, dict) or set(capacity) != {"before", "after"}:
@@ -786,9 +799,34 @@ def record_errors(record: object, expected_arm: str) -> list[str]:
         or not all(isinstance(record["facade"].get(field), str) for field in ("disposition", "reason"))
     ):
         errors.append("facade")
-    if not isinstance(record["nodes"], list) or not all(isinstance(item, dict) for item in record["nodes"]):
+    nodes = record["nodes"]
+    if not isinstance(nodes, list) or not all(isinstance(item, dict) for item in nodes):
         errors.append("nodes")
-    if not isinstance(record["freed_device_ids"], list) or not all(type(value) is int for value in record["freed_device_ids"]):
+    else:
+        node_ids = []
+        for index, node in enumerate(nodes):
+            freed = node.get("freed_device_ids")
+            if (
+                set(node) != {"node_id", "disposition", "reason", "freed_device_ids"}
+                or type(node.get("node_id")) is not int
+                or node["node_id"] < 0
+                or not isinstance(node.get("disposition"), str)
+                or not isinstance(node.get("reason"), str)
+                or not isinstance(freed, list)
+                or not all(type(value) is int and value >= 0 for value in freed)
+                or len(freed) != len(set(freed))
+            ):
+                errors.append(f"nodes:{index}")
+            else:
+                node_ids.append(node["node_id"])
+        if len(node_ids) != len(set(node_ids)):
+            errors.append("nodes:duplicate_ids")
+    freed_device_ids = record["freed_device_ids"]
+    if (
+        not isinstance(freed_device_ids, list)
+        or not all(type(value) is int and value >= 0 for value in freed_device_ids)
+        or len(freed_device_ids) != len(set(freed_device_ids))
+    ):
         errors.append("freed_device_ids")
     if expected_arm == "stock_eviction_liveness":
         errors.extend(stock_eviction_errors(record))
@@ -827,7 +865,7 @@ def observation_errors(observation: object) -> list[str]:
     lock_refs = observation["lock_refs"]
     if (
         not isinstance(lock_refs, list)
-        or len(lock_refs) != 1
+        or len(lock_refs) != 3
         or not all(type(item) is int and item >= 0 for item in lock_refs)
     ):
         return ["lock_refs"]
@@ -856,7 +894,7 @@ def stock_eviction_errors(record: dict[str, object]) -> list[str]:
     if (
         not isinstance(candidates, list)
         or not candidates
-        or any(type(node_id) is not int for node_id in candidates)
+        or any(type(node_id) is not int or node_id < 0 for node_id in candidates)
         or candidates != sorted(set(candidates))
     ):
         return ["stock_eviction:candidates"]
@@ -914,7 +952,8 @@ def stock_eviction_errors(record: dict[str, object]) -> list[str]:
 
 def enabled_context_errors(record: dict[str, object]) -> list[str]:
     target, counters = record["target"], record["route_counters"]
-    before = target["before"]
+    requested = target["requested_node_ids"]
+    before, nodes = target["before"], record["nodes"]
     errors = []
     if record["priority_release"] != "RELEASED":
         errors.append("enabled priority release differs")
@@ -930,8 +969,34 @@ def enabled_context_errors(record: dict[str, object]) -> list[str]:
         errors.append("enabled target observation count differs")
     if counters["checked_facade"] != 1 or counters["checked_backend"] < 1 or counters["stock_evict"] != 0:
         errors.append("enabled route is not the checked non-stock route")
-    if not target["requested_node_ids"]:
-        errors.append("enabled target is empty")
+    if (
+        not requested
+        or target["eligible_node_ids"] != requested
+        or target["scheduled_node_ids"] != requested
+        or target["completed_node_ids"] != requested
+        or counters["physical_demote_node_ids"] != requested
+    ):
+        errors.append("enabled target identity differs")
+    if (
+        [node["node_id"] for node in nodes] != requested
+        or any(
+            node["disposition"] != "COMPLETED" or node["reason"] != "DEMOTED"
+            for node in nodes
+        )
+    ):
+        errors.append("enabled node outcomes differ")
+    original_device_ids = [
+        device_id for observation in before for device_id in observation["device_ids"]
+    ]
+    node_freed_device_ids = [
+        device_id for node in nodes for device_id in node["freed_device_ids"]
+    ]
+    if len(original_device_ids) != len(set(original_device_ids)):
+        errors.append("enabled original allocator IDs are not globally unique")
+    if node_freed_device_ids != record["freed_device_ids"]:
+        errors.append("enabled node frees differ from aggregate frees")
+    elif record["freed_device_ids"] and record["freed_device_ids"] != original_device_ids:
+        errors.append("enabled freed allocator IDs differ from the original device tails")
     return errors
 
 
@@ -953,6 +1018,7 @@ def enabled_stop_reasons(record: dict[str, object]) -> list[str]:
 
 
 def bypass_context_errors(record: dict[str, object]) -> list[str]:
+    target = record["target"]
     counters, capacity = record["route_counters"], record["capacity"]
     errors = []
     if record["priority_release"] != "RELEASED":
@@ -963,7 +1029,17 @@ def bypass_context_errors(record: dict[str, object]) -> list[str]:
         errors.append("bypass route differs")
     if capacity["after"]["available_size"] < capacity["before"]["available_size"]:
         errors.append("bypass allocator capacity regressed")
-    before, after = record["target"]["before"], record["target"]["after"]
+    requested = target["requested_node_ids"]
+    before, after = target["before"], target["after"]
+    if (
+        not requested
+        or target["eligible_node_ids"] != requested
+        or target["scheduled_node_ids"] != []
+        or target["completed_node_ids"] != []
+        or record["nodes"] != []
+        or counters["physical_demote_node_ids"] != []
+    ):
+        errors.append("bypass target identity differs")
     if len(before) != len(after):
         errors.append("bypass target observation count differs")
     elif any(set(item.get("device_ids", [])) - set(before[index].get("device_ids", [])) for index, item in enumerate(after)):
@@ -1121,6 +1197,8 @@ def liveness_passes(record: dict[str, object]) -> bool:
     stock = record.get("stock_eviction")
     if not isinstance(stock, dict):
         return False
+    target = record["target"]
+    requested = target["requested_node_ids"]
     victims, results = stock.get("victims"), stock.get("results")
     return (
         record["priority_release"] == "RELEASED"
@@ -1128,7 +1206,13 @@ def liveness_passes(record: dict[str, object]) -> bool:
         and record["route_counters"]["checked_facade"] == 0
         and record["route_counters"]["checked_backend"] == 0
         and record["route_counters"]["physical_demote"] == 0
+        and record["route_counters"]["physical_demote_node_ids"] == []
         and record["route_counters"]["cache_owned_drain"] == 0
+        and bool(requested)
+        and target["eligible_node_ids"] == requested
+        and target["scheduled_node_ids"] == []
+        and target["completed_node_ids"] == []
+        and record["nodes"] == []
         and record["freed_device_ids"] == []
         and isinstance(stock.get("candidate_ids_before"), list) and bool(stock["candidate_ids_before"])
         and type(stock.get("observed_calls")) is int and stock["observed_calls"] > 0

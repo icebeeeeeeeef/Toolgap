@@ -273,9 +273,12 @@ for fragment in (
     "REJECTED/STALE_GENERATION", "source-backed rejection-oracle mapping",
     "same nonempty unique sequence", "eligible and completed IDs must be empty",
     "non-boolean supplied and current generations differ", "empty target",
+    "fixed `FULL`, `SWA`, and `MAMBA` slots", "exactly three",
+    "requested, eligible, scheduled, completed", "globally",
+    "flatten exactly to the aggregate freed indices",
     "reason must also be replayable", "all locks are zero", "from `1` to `0`",
-    "exactly one nonnegative integer", "allocator device indices are nonnegative",
-    "observed order is preserved",
+    "Allocator device indices are", "Malformed or contradictory IDs are `INVALID`",
+    "causal missing-reclaim `STOP` case",
     "pre-execution-failure.json", "real filename stem", "inherits this `sys.path`",
 ):
     assert fragment in spec, fragment
@@ -461,10 +464,21 @@ assert 'self.assertEqual(ancestor.component_data["FULL"].session_ref, 1)' in sha
 assert 'self.assertEqual(component._session_leaves[second_session], {target})' in shared_tests
 assert "arm record aggregate differs from individual evidence" in finalizer
 assert "observation_errors" in finalizer and "LIVE_OBSERVATION_FIELDS" in finalizer
-assert 'len(lock_refs) != 1' in finalizer
+assert 'len(lock_refs) != 3' in finalizer
 assert 'observation["session_ref"] < 0' in finalizer
 assert 'observation["node_id"] < 0' in finalizer
 assert 'len(device_ids) != len(set(device_ids))' in finalizer
+assert 'len(target[key]) != len(set(target[key]))' in finalizer
+assert 'target["eligible_node_ids"] != requested' in finalizer
+assert 'target["completed_node_ids"] != requested' in finalizer
+assert 'counters["physical_demote_node_ids"] != requested' in finalizer
+assert 'node["disposition"] != "COMPLETED" or node["reason"] != "DEMOTED"' in finalizer
+assert 'len(original_device_ids) != len(set(original_device_ids))' in finalizer
+assert 'node_freed_device_ids != record["freed_device_ids"]' in finalizer
+assert 'record["freed_device_ids"] != original_device_ids' in finalizer
+assert 'any(type(node_id) is not int or node_id < 0 for node_id in candidates)' in finalizer
+assert '[data.lock_ref for data in node.component_data]' in patch_two
+assert '[1, 0, 0]' in (root / "experiments/g1/commands/test_g1_c_009_finalize.py").read_text(encoding="utf-8")
 assert "validate_gpu_samples" in finalizer and "GPU sampler union differs" in finalizer
 assert "stock_eviction_errors" in finalizer and "no_allocator_reclaim" in finalizer
 print("G1-C-009 static contract checks passed")

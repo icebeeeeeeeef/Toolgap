@@ -42,3 +42,12 @@ Full-only qualification also fixes observation cardinality: one component
 means exactly one lock counter. The common live-observation validator now owns
 that invariant plus nonnegative reference counts, NodeIds, unique allocator
 indices, and bool rejection, so every arm receives the same schema gate.
+
+Correction: the one-counter conclusion above was false. Pinned SGLang keeps
+three fixed `FULL/SWA/MAMBA` `component_data` slots and the observer serializes
+all three; C-008 write-through recorded `[1, 0, 0]`. The validator now requires
+that three-slot shape. The same review also exposed unbound NodeId and allocator
+identities, so C-009 now binds each arm's target-stage sequences and requires
+unique nonnegative IDs, exact enabled outcomes, and consistent per-node,
+aggregate, and original allocator indices. Empty consistent enabled frees remain
+the missing-reclaim `STOP`; malformed or contradictory identity is `INVALID`.

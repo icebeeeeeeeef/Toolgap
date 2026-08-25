@@ -28,7 +28,7 @@ def record(arm: str) -> dict[str, object]:
         "host_committed": True,
         "write_through_pending": False,
         "load_back_pending": False,
-        "lock_refs": [0],
+        "lock_refs": [0, 0, 0],
         "session_ref": 1,
         "device_leaf": True,
         "device_ids": [42],
@@ -60,6 +60,12 @@ def record(arm: str) -> dict[str, object]:
     if arm == "enabled":
         value["facade"] = {"disposition": "ACCEPTED", "reason": "ACCEPTED"}
         value["freed_device_ids"] = [42]
+        value["nodes"] = [{
+            "node_id": 7,
+            "disposition": "COMPLETED",
+            "reason": "DEMOTED",
+            "freed_device_ids": [42],
+        }]
         value["route_counters"] = {
             **route, "physical_demote": 1, "cache_owned_drain": 1,
             "physical_demote_node_ids": [7],
@@ -118,12 +124,13 @@ def record(arm: str) -> dict[str, object]:
                 for observation in (before, after):
                     observation["host_committed"] = False
                     observation["write_through_pending"] = True
+                    observation["lock_refs"] = [1, 0, 0]
             elif reason == "NON_TARGET_SESSION_COVERAGE":
                 before["session_ref"] = 2
                 after["session_ref"] = 1
             elif reason == "DEVICE_LOCKED":
                 for observation in (before, after):
-                    observation["lock_refs"] = [1]
+                    observation["lock_refs"] = [1, 0, 0]
             value["nodes"] = [{
                 "node_id": 7,
                 "disposition": "DEFERRED",
@@ -135,6 +142,30 @@ def record(arm: str) -> dict[str, object]:
 
 def records() -> list[dict[str, object]]:
     return [record(arm) for arm in FINALIZE.ARMS]
+
+
+def append_enabled_node(value: dict[str, object], node_id: int, device_id: int) -> None:
+    target = value["target"]
+    before = copy.deepcopy(target["before"][0])
+    before["node_id"] = node_id
+    before["device_ids"] = [device_id]
+    after = copy.deepcopy(target["after"][0])
+    after["node_id"] = node_id
+    for field in (
+        "requested_node_ids", "eligible_node_ids",
+        "scheduled_node_ids", "completed_node_ids",
+    ):
+        target[field].append(node_id)
+    target["before"].append(before)
+    target["after"].append(after)
+    value["freed_device_ids"].append(device_id)
+    value["route_counters"]["physical_demote_node_ids"].append(node_id)
+    value["nodes"].append({
+        "node_id": node_id,
+        "disposition": "COMPLETED",
+        "reason": "DEMOTED",
+        "freed_device_ids": [device_id],
+    })
 
 
 class G1C001TerminalTests(unittest.TestCase):
@@ -160,6 +191,7 @@ class G1C001TerminalTests(unittest.TestCase):
     def test_enabled_missing_reclaim_stops(self) -> None:
         value = records()
         value[0]["freed_device_ids"] = []
+        value[0]["nodes"][0]["freed_device_ids"] = []
         self.assertEqual(FINALIZE.classify_records(value)[0], "STOP")
 
     def test_bypass_physical_reclaim_stops(self) -> None:
@@ -276,7 +308,7 @@ class G1C001TerminalTests(unittest.TestCase):
             "not_device_leaf": lambda item: item["target"]["after"][0].__setitem__("device_leaf", False),
             "write_pending": lambda item: item["target"]["before"][0].__setitem__("write_through_pending", True),
             "load_pending": lambda item: item["target"]["after"][0].__setitem__("load_back_pending", True),
-            "device_lock": lambda item: item["target"]["before"][0].__setitem__("lock_refs", [1]),
+            "device_lock": lambda item: item["target"]["before"][0].__setitem__("lock_refs", [1, 0, 0]),
         }
         for label, mutate in mutators.items():
             with self.subTest(label=label):
@@ -288,7 +320,7 @@ class G1C001TerminalTests(unittest.TestCase):
         for phase in ("before", "after"):
             with self.subTest(phase=phase):
                 value = records()
-                value[4]["target"][phase][0]["lock_refs"] = [0]
+                value[4]["target"][phase][0]["lock_refs"] = [0, 0, 0]
                 self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
     def test_device_locked_reason_requires_prior_checks_clear(self) -> None:
@@ -361,11 +393,11 @@ class G1C001TerminalTests(unittest.TestCase):
         value[0]["target"]["before"][0]["device_ids"] = [42, "bad"]
         self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
-    def test_full_only_observations_require_exactly_one_lock_ref(self) -> None:
+    def test_full_only_observations_require_exactly_three_lock_refs(self) -> None:
         live_arm_indexes = (0, 1, 2, 3, 4, 6)
         for arm_index in live_arm_indexes:
             for phase in ("before", "after"):
-                for lock_refs in ([], [0, 0]):
+                for lock_refs in ([], [0, 0], [0, 0, 0, 0]):
                     with self.subTest(
                         arm=FINALIZE.ARMS[arm_index],
                         phase=phase,
@@ -375,7 +407,7 @@ class G1C001TerminalTests(unittest.TestCase):
                         value[arm_index]["target"][phase][0]["lock_refs"] = lock_refs
                         self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
-        for lock_refs in ([], [1, 1]):
+        for lock_refs in ([], [1, 0, 0, 0]):
             with self.subTest(arm="reject_device_locked", lock_refs=lock_refs):
                 value = records()
                 value[4]["target"]["before"][0]["lock_refs"] = lock_refs
@@ -383,8 +415,8 @@ class G1C001TerminalTests(unittest.TestCase):
 
     def test_live_observation_counters_and_indices_are_nonnegative_integers(self) -> None:
         mutators = {
-            "bool_lock_ref": lambda item: item.__setitem__("lock_refs", [True]),
-            "negative_lock_ref": lambda item: item.__setitem__("lock_refs", [-1]),
+            "bool_lock_ref": lambda item: item.__setitem__("lock_refs", [True, 0, 0]),
+            "negative_lock_ref": lambda item: item.__setitem__("lock_refs", [-1, 0, 0]),
             "bool_session_ref": lambda item: item.__setitem__("session_ref", True),
             "negative_session_ref": lambda item: item.__setitem__("session_ref", -1),
             "bool_device_id": lambda item: item.__setitem__("device_ids", [True]),
@@ -407,6 +439,109 @@ class G1C001TerminalTests(unittest.TestCase):
         value[0]["target"]["before"][0]["node_id"] = -1
         self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
         self.assertTrue(FINALIZE.observation_errors({"node_id": -1, "live": False}))
+
+    def test_c008_write_through_record_uses_real_three_slot_lock_shape(self) -> None:
+        write_through = record("reject_write_through_pending")
+        self.assertEqual(
+            [item["lock_refs"] for item in write_through["target"]["before"]],
+            [[1, 0, 0]],
+        )
+        self.assertEqual(
+            [item["lock_refs"] for item in write_through["target"]["after"]],
+            [[1, 0, 0]],
+        )
+        self.assertEqual(
+            FINALIZE.record_errors(write_through, "reject_write_through_pending"),
+            [],
+        )
+        self.assertEqual(FINALIZE.classify_records(records())[0], "PASS")
+
+    def test_enabled_node_identity_forgery_is_invalid(self) -> None:
+        mutators = {
+            "wrong_before_id": lambda item: item["target"]["before"][0].__setitem__("node_id", 99),
+            "wrong_after_id": lambda item: item["target"]["after"][0].__setitem__("node_id", 99),
+            "negative_requested_id": lambda item: item["target"].__setitem__("requested_node_ids", [-1]),
+            "eligible_empty": lambda item: item["target"].__setitem__("eligible_node_ids", []),
+            "scheduled_99": lambda item: item["target"].__setitem__("scheduled_node_ids", [99]),
+            "completed_empty": lambda item: item["target"].__setitem__("completed_node_ids", []),
+            "nodes_empty": lambda item: item.__setitem__("nodes", []),
+            "physical_99": lambda item: item["route_counters"].__setitem__("physical_demote_node_ids", [99]),
+            "wrong_node_disposition": lambda item: item["nodes"][0].__setitem__("disposition", "DEFERRED"),
+            "wrong_node_reason": lambda item: item["nodes"][0].__setitem__("reason", "DEFERRED"),
+        }
+        for label, mutate in mutators.items():
+            with self.subTest(label=label):
+                value = records()
+                mutate(value[0])
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_enabled_duplicate_node_ids_are_invalid_even_when_aligned(self) -> None:
+        value = records()
+        append_enabled_node(value[0], node_id=7, device_id=43)
+        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_bypass_requires_exact_unexecuted_target_identity(self) -> None:
+        mutators = {
+            "scheduled": lambda item: item["target"].__setitem__("scheduled_node_ids", [7]),
+            "completed": lambda item: item["target"].__setitem__("completed_node_ids", [7]),
+            "node_outcome": lambda item: item.__setitem__("nodes", [{
+                "node_id": 7, "disposition": "COMPLETED",
+                "reason": "DEMOTED", "freed_device_ids": [],
+            }]),
+            "physical_ids": lambda item: item["route_counters"].__setitem__("physical_demote_node_ids", [7]),
+        }
+        for label, mutate in mutators.items():
+            with self.subTest(label=label):
+                value = records()
+                mutate(value[1])
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_bypass_duplicate_observations_are_invalid(self) -> None:
+        value = records()
+        bypass = value[1]
+        for field in ("requested_node_ids", "eligible_node_ids"):
+            bypass["target"][field] = [7, 7]
+        for phase in ("before", "after"):
+            bypass["target"][phase].append(copy.deepcopy(bypass["target"][phase][0]))
+        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_liveness_target_and_candidates_are_bound(self) -> None:
+        mutators = {
+            "target_not_eligible": lambda item: item["target"].__setitem__("eligible_node_ids", []),
+            "wrong_before_id": lambda item: item["target"]["before"][0].__setitem__("node_id", 99),
+            "negative_candidate": lambda item: item["stock_eviction"].__setitem__("candidate_ids_before", [-1, 7]),
+            "duplicate_candidate": lambda item: item["stock_eviction"].__setitem__("candidate_ids_before", [7, 7]),
+        }
+        for label, mutate in mutators.items():
+            with self.subTest(label=label):
+                value = records()
+                mutate(value[6])
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_allocator_id_forgery_is_structural_invalid(self) -> None:
+        mutators = {
+            "negative_top_level_free": lambda item: item.__setitem__("freed_device_ids", [-1]),
+            "duplicate_top_level_free": lambda item: item.__setitem__("freed_device_ids", [42, 42]),
+            "negative_node_free": lambda item: item["nodes"][0].__setitem__("freed_device_ids", [-1]),
+            "duplicate_node_free": lambda item: item["nodes"][0].__setitem__("freed_device_ids", [42, 42]),
+            "node_aggregate_mismatch": lambda item: item["nodes"][0].__setitem__("freed_device_ids", []),
+        }
+        for label, mutate in mutators.items():
+            with self.subTest(label=label):
+                value = records()
+                mutate(value[0])
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_enabled_cross_node_device_ids_are_globally_unique(self) -> None:
+        value = records()
+        append_enabled_node(value[0], node_id=8, device_id=42)
+        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_enabled_nonempty_freed_ids_must_equal_original_allocator_ids(self) -> None:
+        value = records()
+        value[0]["freed_device_ids"] = [43]
+        value[0]["nodes"][0]["freed_device_ids"] = [43]
+        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
     def test_minimal_stock_victim_is_invalid(self) -> None:
         value = records()
