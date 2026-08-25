@@ -991,6 +991,7 @@ def stock_eviction_errors(record: dict[str, object]) -> list[str]:
             or before["device_leaf"] is not True or not before["device_ids"]
             or after["node_id"] != node_id
             or (after["live"] is True and after["device_ids"] != [])
+            or (after["live"] is True and after["device_leaf"] is not False)
         ):
             return [f"stock_eviction:victims[{index}]:transition"]
         before_capacity_errors = capacity_sample_errors(victim["capacity_before"])
@@ -1053,12 +1054,28 @@ def enabled_context_errors(record: dict[str, object]) -> list[str]:
     node_freed_device_ids = [
         device_id for node in nodes for device_id in node["freed_device_ids"]
     ]
+    expected_node_frees = [
+        before[index].get("device_ids", []) if shape == "demoted" else []
+        for index, shape in enumerate(after_shapes)
+    ]
+    expected_freed_device_ids = [
+        device_id for freed_ids in expected_node_frees for device_id in freed_ids
+    ]
     if len(original_device_ids) != len(set(original_device_ids)):
         errors.append("enabled original allocator IDs are not globally unique")
-    if node_freed_device_ids != record["freed_device_ids"]:
-        errors.append("enabled node frees differ from aggregate frees")
-    elif record["freed_device_ids"] and record["freed_device_ids"] != original_device_ids:
-        errors.append("enabled freed allocator IDs differ from the original device tails")
+    if [node["freed_device_ids"] for node in nodes] != expected_node_frees:
+        errors.append("enabled per-node frees differ from after source shapes")
+    if (
+        node_freed_device_ids != record["freed_device_ids"]
+        or record["freed_device_ids"] != expected_freed_device_ids
+    ):
+        errors.append("enabled aggregate frees differ from after source shapes")
+    capacity_before = record["capacity"]["before"]["available_size"]
+    capacity_after = record["capacity"]["after"]["available_size"]
+    if capacity_after < capacity_before:
+        errors.append("enabled allocator capacity regressed")
+    if all(shape == "unchanged" for shape in after_shapes) and capacity_after != capacity_before:
+        errors.append("enabled unchanged source shape changed allocator capacity")
     return errors
 
 
@@ -1294,10 +1311,7 @@ def liveness_passes(record: dict[str, object]) -> bool:
         and target["completed_node_ids"] == []
         and record["nodes"] == []
         and all(observation_is_prepared(item) for item in target["before"])
-        and all(
-            observation["live"] is not True or observation["session_ref"] == 0
-            for observation in target["after"]
-        )
+        and liveness_target_after_passes(target, victims)
         and record["freed_device_ids"] == []
         and isinstance(stock.get("candidate_ids_before"), list) and bool(stock["candidate_ids_before"])
         and type(stock.get("observed_calls")) is int and stock["observed_calls"] > 0
@@ -1305,6 +1319,31 @@ def liveness_passes(record: dict[str, object]) -> bool:
         and isinstance(results, list) and any(isinstance(item, dict) and item.get("num_tokens_evicted", 0) > 0 for item in results)
         and record["route_counters"]["stock_evict"] == stock["observed_calls"]
     )
+
+
+def liveness_target_after_passes(
+    target: dict[str, object], victims: list[dict[str, object]]
+) -> bool:
+    victim_after = {victim["node_id"]: victim["after"] for victim in victims}
+    for before, after in zip(target["before"], target["after"]):
+        if after["live"] is True:
+            if (
+                after["host_committed"] is not True
+                or after["write_through_pending"] is not False
+                or after["load_back_pending"] is not False
+                or after["session_ref"] != 0
+            ):
+                return False
+            if after["device_ids"]:
+                if (
+                    after["device_leaf"] is not True
+                    or after["device_ids"] != before["device_ids"]
+                ):
+                    return False
+                continue
+        if victim_after.get(after["node_id"]) != after:
+            return False
+    return True
 
 
 def classify_records(records: object) -> tuple[str, list[str]]:

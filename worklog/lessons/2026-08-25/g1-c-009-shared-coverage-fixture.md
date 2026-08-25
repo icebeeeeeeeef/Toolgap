@@ -61,3 +61,11 @@ before observations, per-snapshot allocator uniqueness, exact route counts,
 prepared source state, post-release references, and every rejection/liveness
 predicate. Only after all non-causal checks pass may enabled missing reclaim or
 bypass observed reclaim become `STOP`.
+
+The final matrix also rejected treating individually valid fields as a coherent
+effect. Enabled now binds each node's freed IDs to that node's before/after
+shape and binds unchanged shapes to unchanged capacity; cross-node attribution
+or freed-but-resident evidence is `INVALID`. Stock liveness now preserves a
+prepared live target or requires an exact same-NodeId victim-after observation
+for empty/tombstone mutations, so unrelated pressure evidence cannot explain a
+target transition.

@@ -93,9 +93,12 @@ def record(arm: str) -> dict[str, object]:
             }],
             "victims": [{
                 "node_id": 7,
-                "before": copy.deepcopy(observation),
+                "before": {
+                    **copy.deepcopy(observation), "session_ref": 0,
+                },
                 "after": {
-                    **copy.deepcopy(observation), "device_ids": [], "device_leaf": False,
+                    **copy.deepcopy(observation), "device_ids": [],
+                    "device_leaf": False, "session_ref": 0,
                 },
                 "capacity_before": {"available_size": 1, "is_not_in_free_group": True},
                 "capacity_after": {"available_size": 2, "is_not_in_free_group": True},
@@ -193,6 +196,14 @@ def append_unexecuted_node(value: dict[str, object], node_id: int, device_id: in
         value["nodes"].append(outcome)
 
 
+def retarget_stock_victim(value: dict[str, object], node_id: int) -> None:
+    victim = value["stock_eviction"]["victims"][0]
+    value["stock_eviction"]["candidate_ids_before"] = [node_id]
+    victim["node_id"] = node_id
+    victim["before"]["node_id"] = node_id
+    victim["after"]["node_id"] = node_id
+
+
 class G1C001TerminalTests(unittest.TestCase):
     def test_storage_preflight_minimum_is_manifest_bound(self) -> None:
         manifest = {
@@ -261,8 +272,12 @@ class G1C001TerminalTests(unittest.TestCase):
 
     def test_noncausal_failure_precedes_enabled_causal_stop(self) -> None:
         value = records()
-        value[0]["freed_device_ids"] = []
-        value[0]["nodes"][0]["freed_device_ids"] = []
+        enabled = value[0]
+        enabled["freed_device_ids"] = []
+        enabled["nodes"][0]["freed_device_ids"] = []
+        enabled["target"]["after"][0]["device_ids"] = [42]
+        enabled["target"]["after"][0]["device_leaf"] = True
+        enabled["capacity"]["after"]["available_size"] = 1
         value[2]["facade"]["reason"] = "ACCEPTED"
         self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
@@ -667,6 +682,41 @@ class G1C001TerminalTests(unittest.TestCase):
                 mutate(value[0]["target"])
                 self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
+    def test_enabled_after_shape_binds_frees_and_capacity(self) -> None:
+        mutators = {
+            "unchanged_with_frees": lambda item: (
+                item["target"]["after"][0].__setitem__("device_ids", [42]),
+                item["target"]["after"][0].__setitem__("device_leaf", True),
+            ),
+            "unchanged_with_capacity_increase": lambda item: (
+                item["target"]["after"][0].__setitem__("device_ids", [42]),
+                item["target"]["after"][0].__setitem__("device_leaf", True),
+                item.__setitem__("freed_device_ids", []),
+                item["nodes"][0].__setitem__("freed_device_ids", []),
+            ),
+            "demoted_without_frees": lambda item: (
+                item.__setitem__("freed_device_ids", []),
+                item["nodes"][0].__setitem__("freed_device_ids", []),
+            ),
+        }
+        for label, mutate in mutators.items():
+            with self.subTest(label=label):
+                value = records()
+                mutate(value[0])
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+        value = records()
+        value[0]["capacity"]["after"]["available_size"] = 1
+        self.assertEqual(FINALIZE.classify_records(value)[0], "STOP")
+
+    def test_enabled_frees_cannot_be_attributed_to_another_node(self) -> None:
+        value = records()
+        enabled = value[0]
+        append_enabled_node(enabled, node_id=8, device_id=43)
+        enabled["nodes"][0]["freed_device_ids"] = [42, 43]
+        enabled["nodes"][1]["freed_device_ids"] = []
+        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
     def test_bypass_after_requires_unchanged_or_instrumented_demoted_shape(self) -> None:
         mutators = {
             "tombstone": lambda item: item.__setitem__(
@@ -708,6 +758,43 @@ class G1C001TerminalTests(unittest.TestCase):
                     value[6]["target"]["eligible_node_ids"] = []
                 mutate(value[6]["target"])
                 self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_liveness_after_requires_preserved_state_or_matching_victim(self) -> None:
+        mutators = {
+            "host_loss": lambda item: item["target"]["after"][0].__setitem__("host_committed", False),
+            "write_pending": lambda item: item["target"]["after"][0].__setitem__("write_through_pending", True),
+            "load_pending": lambda item: item["target"]["after"][0].__setitem__("load_back_pending", True),
+            "device_leaf_mismatch": lambda item: item["target"]["after"][0].__setitem__("device_leaf", False),
+            "changed_device_ids": lambda item: item["target"]["after"][0].__setitem__("device_ids", [43]),
+            "empty_unbound": lambda item: (
+                item["target"]["after"][0].__setitem__("device_ids", []),
+                item["target"]["after"][0].__setitem__("device_leaf", False),
+                retarget_stock_victim(item, 8),
+            ),
+            "tombstone_unbound": lambda item: (
+                item["target"].__setitem__("after", [{"node_id": 7, "live": False}]),
+                retarget_stock_victim(item, 8),
+            ),
+        }
+        for label, mutate in mutators.items():
+            with self.subTest(label=label):
+                value = records()
+                mutate(value[6])
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_liveness_target_eviction_is_replayed_from_matching_victim(self) -> None:
+        value = records()
+        liveness = value[6]
+        liveness["target"]["after"][0] = copy.deepcopy(
+            liveness["stock_eviction"]["victims"][0]["after"]
+        )
+        self.assertEqual(FINALIZE.classify_records(value)[0], "PASS")
+
+        value = records()
+        tombstone = {"node_id": 7, "live": False}
+        value[6]["target"]["after"] = [copy.deepcopy(tombstone)]
+        value[6]["stock_eviction"]["victims"][0]["after"] = tombstone
+        self.assertEqual(FINALIZE.classify_records(value)[0], "PASS")
 
     def test_enabled_tombstone_preparation_is_invalid_without_exception(self) -> None:
         value = records()

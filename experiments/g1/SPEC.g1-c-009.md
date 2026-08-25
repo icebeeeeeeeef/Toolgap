@@ -297,7 +297,10 @@ with empty device IDs and `device_leaf == false`; tombstones, host loss, and
 hybrids are `INVALID`. For bypass, demoted after NodeIds exactly equal the
 instrumented physical-demote NodeIds. Stock liveness requires the same prepared
 before state and `session_ref == 0` for any live after observation, but permits
-pressure-time locks and eviction tombstones. Enabled binds requested, eligible,
+pressure-time locks. A live target that retains device IDs must preserve the
+before IDs and device-leaf state. An empty-device or tombstone target after is
+accepted only when the same NodeId has a stock-victim record whose `after`
+observation is exactly equal, so pressure explains the mutation. Enabled binds requested, eligible,
 scheduled, completed,
 node-outcome, and physical-demote NodeIds; each nonempty outcome is
 `COMPLETED/DEMOTED`. Its physical-demote and cache-drain counts each equal the
@@ -307,6 +310,13 @@ physical demote; a causal bypass counterexample may report requested physical
 IDs only when the demote count, ID count, and cache-drain count agree.
 Enabled and each non-stale rejection also require `checked_backend` to equal
 the requested NodeId count; stale rejection requires zero backend calls.
+For each ordered enabled node, a demoted after shape requires that node's freed
+IDs to exactly equal its own before device IDs; an unchanged after shape
+requires empty node frees. The aggregate is the ordered flattening of those
+per-node values, so frees cannot be reassigned across nodes. An all-unchanged
+record also requires unchanged allocator capacity and is the coherent
+missing-reclaim `STOP`; a demoted record with exact frees is `STOP` when
+capacity is unchanged and can `PASS` only when capacity increases.
 Stock candidates are unique nonnegative NodeIds. Allocator device indices are
 nonnegative and unique per observation; enabled observations are also globally
 unique. Per-node freed indices flatten exactly to the aggregate freed indices,
