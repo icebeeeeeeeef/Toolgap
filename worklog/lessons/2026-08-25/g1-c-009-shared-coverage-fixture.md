@@ -22,3 +22,13 @@ placement. Patch 0001 aggregates a fully deferred checked request as facade
 node outcome. Stale generation is different: it returns facade
 `REJECTED/STALE_GENERATION` before any backend outcome. C-009 replays these
 source-owned mappings exactly instead of moving node reasons onto the facade.
+
+Post-commit review found that matching only facade/node reason and requested
+node IDs still admitted forged rejection records. C-009 now replays each
+rejection's full action and target boundary: exact operation schema, unique
+requested/scheduled/node identity, empty eligible/completed sets, exact live
+before/after coverage with unchanged device IDs, reason-specific pending,
+shared-session, or lock state, and the separate empty stale-generation shape.
+The shared-coverage focused model also replays source-owned frontier markers
+and ancestor path counts through first-session priority release, proving the
+second session remains protected after the `2` to `1` transition.

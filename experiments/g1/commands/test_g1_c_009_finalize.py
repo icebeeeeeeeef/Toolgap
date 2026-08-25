@@ -95,9 +95,35 @@ def record(arm: str) -> dict[str, object]:
         if reason == "STALE_GENERATION":
             value["facade"] = {"disposition": "REJECTED", "reason": reason}
             value["priority_release"] = "NOT_RELEASED"
+            value["released_component_leaves"] = 0
             value["route_counters"] = {**route, "checked_backend": 0}
+            value["operation"] = {
+                "session_id": arm,
+                "supplied_generation": 1,
+                "current_generation": 2,
+            }
+            value["target"] = {
+                "requested_node_ids": [], "eligible_node_ids": [],
+                "scheduled_node_ids": [], "completed_node_ids": [],
+                "before": [], "after": [],
+            }
         else:
             value["facade"] = {"disposition": "DEFERRED", "reason": "DEFERRED"}
+            value["target"]["eligible_node_ids"] = []
+            value["target"]["scheduled_node_ids"] = [7]
+            before = value["target"]["before"][0]
+            after = value["target"]["after"][0]
+            after["session_ref"] = 0
+            if reason == "WRITE_THROUGH_PENDING":
+                for observation in (before, after):
+                    observation["host_committed"] = False
+                    observation["write_through_pending"] = True
+            elif reason == "NON_TARGET_SESSION_COVERAGE":
+                before["session_ref"] = 2
+                after["session_ref"] = 1
+            elif reason == "DEVICE_LOCKED":
+                for observation in (before, after):
+                    observation["lock_refs"] = [1]
             value["nodes"] = [{
                 "node_id": 7,
                 "disposition": "DEFERRED",
@@ -192,6 +218,114 @@ class G1C001TerminalTests(unittest.TestCase):
             {"disposition": "REJECTED", "reason": "STALE_GENERATION"},
         )
         self.assertEqual(FINALIZE.classify_records(records())[0], "PASS")
+
+    def test_deferred_rejection_target_forgery_is_invalid(self) -> None:
+        mutators = {
+            "eligible": lambda item: item["target"].__setitem__("eligible_node_ids", [7]),
+            "missing_scheduled": lambda item: item["target"].__setitem__("scheduled_node_ids", []),
+            "completed": lambda item: item["target"].__setitem__("completed_node_ids", [7]),
+            "missing_before": lambda item: item["target"].__setitem__("before", []),
+            "missing_after": lambda item: item["target"].__setitem__("after", []),
+            "device_removed": lambda item: item["target"]["after"][0].__setitem__("device_ids", []),
+            "zero_released_leaves": lambda item: item.__setitem__("released_component_leaves", 0),
+            "fake_physical_ids": lambda item: item["route_counters"].__setitem__("physical_demote_node_ids", [7]),
+            "extra_operation_target": lambda item: item["operation"].__setitem__("node_id", 7),
+        }
+        for label, mutate in mutators.items():
+            with self.subTest(label=label):
+                value = records()
+                mutate(value[2])
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_deferred_duplicate_ids_are_invalid_even_when_sets_align(self) -> None:
+        value = records()
+        deferred = value[2]
+        for field in ("requested_node_ids", "scheduled_node_ids"):
+            deferred["target"][field] = [7, 7]
+        for field in ("before", "after"):
+            deferred["target"][field] = [
+                copy.deepcopy(deferred["target"][field][0]),
+                copy.deepcopy(deferred["target"][field][0]),
+            ]
+        deferred["nodes"] = [
+            copy.deepcopy(deferred["nodes"][0]),
+            copy.deepcopy(deferred["nodes"][0]),
+        ]
+        self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_write_through_reason_requires_persistent_pending_state(self) -> None:
+        mutators = {
+            "before_not_pending": lambda item: item["target"]["before"][0].__setitem__("write_through_pending", False),
+            "after_not_pending": lambda item: item["target"]["after"][0].__setitem__("write_through_pending", False),
+            "before_claims_committed": lambda item: item["target"]["before"][0].__setitem__("host_committed", True),
+            "after_claims_committed": lambda item: item["target"]["after"][0].__setitem__("host_committed", True),
+        }
+        for label, mutate in mutators.items():
+            with self.subTest(label=label):
+                value = records()
+                mutate(value[2])
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_non_target_reason_requires_shared_coverage_transition(self) -> None:
+        mutators = {
+            "before_not_shared": lambda item: item["target"]["before"][0].__setitem__("session_ref", 1),
+            "after_not_remaining": lambda item: item["target"]["after"][0].__setitem__("session_ref", 0),
+            "host_not_committed": lambda item: item["target"]["before"][0].__setitem__("host_committed", False),
+            "not_device_leaf": lambda item: item["target"]["after"][0].__setitem__("device_leaf", False),
+        }
+        for label, mutate in mutators.items():
+            with self.subTest(label=label):
+                value = records()
+                mutate(value[3])
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_device_locked_reason_requires_live_lock(self) -> None:
+        for phase in ("before", "after"):
+            with self.subTest(phase=phase):
+                value = records()
+                value[4]["target"][phase][0]["lock_refs"] = [0]
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_each_deferred_reason_preserves_nonempty_device_ids(self) -> None:
+        for arm_index in (2, 3, 4):
+            for phase in ("before", "after"):
+                with self.subTest(arm=FINALIZE.ARMS[arm_index], phase=phase):
+                    value = records()
+                    value[arm_index]["target"][phase][0]["device_ids"] = []
+                    self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_stale_generation_contract_forgery_is_invalid(self) -> None:
+        mutators = {
+            "missing_current_generation": lambda item: item["operation"].pop("current_generation"),
+            "same_generation": lambda item: item["operation"].__setitem__("current_generation", 1),
+            "bool_supplied_generation": lambda item: item["operation"].__setitem__("supplied_generation", True),
+            "bool_current_generation": lambda item: item["operation"].__setitem__("current_generation", True),
+            "extra_operation_field": lambda item: item["operation"].__setitem__("extra", 3),
+            "released_leaves": lambda item: item.__setitem__("released_component_leaves", 1),
+            "node_outcome": lambda item: item.__setitem__("nodes", [{
+                "node_id": 7, "disposition": "DEFERRED",
+                "reason": "DEVICE_LOCKED", "freed_device_ids": [],
+            }]),
+        }
+        for label, mutate in mutators.items():
+            with self.subTest(label=label):
+                value = records()
+                mutate(value[5])
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
+
+    def test_stale_generation_target_must_be_completely_empty(self) -> None:
+        for field in (
+            "requested_node_ids", "eligible_node_ids", "scheduled_node_ids",
+            "completed_node_ids", "before", "after",
+        ):
+            with self.subTest(field=field):
+                value = records()
+                stale = value[5]
+                if field in {"before", "after"}:
+                    stale["target"][field] = [copy.deepcopy(record("enabled")["target"]["before"][0])]
+                else:
+                    stale["target"][field] = [7]
+                self.assertEqual(FINALIZE.classify_records(value)[0], "INVALID")
 
     def test_malformed_record_is_invalid(self) -> None:
         value = copy.deepcopy(records())

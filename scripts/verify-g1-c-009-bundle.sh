@@ -241,6 +241,7 @@ builder = builder_path.read_text(encoding="utf-8")
 launcher = launcher_path.read_text(encoding="utf-8")
 finalizer = finalizer_path.read_text(encoding="utf-8")
 anchor = anchor_path.read_text(encoding="utf-8")
+shared_tests = (root / "experiments/g1/commands/test_g1_c_009_shared_coverage.py").read_text(encoding="utf-8")
 template = json.loads(template_path.read_text(encoding="utf-8"))
 
 assert template["identity"] == {
@@ -270,6 +271,8 @@ for fragment in (
     "after three complete arm records", "((21,), (24,))",
     "DEFERRED/DEFERRED", "WRITE_THROUGH_PENDING",
     "REJECTED/STALE_GENERATION", "source-backed rejection-oracle mapping",
+    "same nonempty unique sequence", "eligible and completed IDs must be empty",
+    "non-boolean supplied and current generations differ", "empty target",
     "pre-execution-failure.json", "real filename stem", "inherits this `sys.path`",
 ):
     assert fragment in spec, fragment
@@ -433,8 +436,21 @@ assert '"render"' in finalizer and "launcher handshake differs" in finalizer
 assert "artifact index does not equal the sealed regular-file set" in finalizer
 assert "rejection contract" in finalizer and "stock eviction liveness" in finalizer
 assert "rejection_nodes_pass" in finalizer
+assert "rejection_observations_pass" in finalizer
+assert "stale_rejection_context_pass" in finalizer
+assert 'set(operation) != {"session_id", "supplied_generation"}' in finalizer
+assert 'target["scheduled_node_ids"] != requested' in finalizer
+assert 'target["eligible_node_ids"] != []' in finalizer
+assert 'target["completed_node_ids"] != []' in finalizer
+assert 'record["released_component_leaves"] > 0' in finalizer
+assert 'operation["supplied_generation"] != operation["current_generation"]' in finalizer
 assert '{"disposition": "DEFERRED", "reason": "DEFERRED"}' in finalizer
 assert '{"disposition": "REJECTED", "reason": reason}' in finalizer
+assert "release_session_priority" in shared_tests
+assert "session_ids" in shared_tests and "ancestor" in shared_tests
+assert 'self.assertEqual(target.component_data["FULL"].session_ref, 1)' in shared_tests
+assert 'self.assertEqual(ancestor.component_data["FULL"].session_ref, 1)' in shared_tests
+assert 'self.assertEqual(component._session_leaves[second_session], {target})' in shared_tests
 assert "arm record aggregate differs from individual evidence" in finalizer
 assert "observation_errors" in finalizer and "LIVE_OBSERVATION_FIELDS" in finalizer
 assert "validate_gpu_samples" in finalizer and "GPU sampler union differs" in finalizer

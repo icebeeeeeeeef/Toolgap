@@ -259,11 +259,20 @@ enabled acceptance with a committed host copy, nonempty exact freed IDs and an
 increase in allocator `available_size`, bypass priority-only behavior, each
 rejection reason with no physical free or capacity increase, and observed stock
 eviction with a real victim. For write-through pending, non-target session
-coverage, and device lock, the facade must be `DEFERRED/DEFERRED` and each
-node outcome must carry the arm-specific reason. Stale generation must be
-`REJECTED/STALE_GENERATION` with no backend or node outcome. This is an
-execution result only; the project claim remains `roadmap` until the canonical
-Gate process accepts it.
+coverage, and device lock, the operation must contain exactly `session_id` and
+`supplied_generation`; requested, scheduled, and node-outcome IDs must be the
+same nonempty unique sequence; eligible and completed IDs must be empty; and
+live before/after observations must exactly cover those IDs while preserving
+nonempty device IDs. Released component leaves must be positive. The facade
+must be `DEFERRED/DEFERRED` and each node outcome must carry the arm-specific
+reason. Write-through observations remain pending, non-target coverage changes
+`session_ref` from `2` to `1` while preserving committed host/device-leaf
+state, and device-lock observations retain a positive lock. Stale generation
+must be `REJECTED/STALE_GENERATION` with an exact three-field operation whose
+non-boolean supplied and current generations differ, zero released leaves, an
+empty target, and no backend or node outcome. This is an execution result only;
+the project claim remains `roadmap` until the canonical Gate process accepts
+it.
 
 `STOP` is permitted only after the enabled and bypass records are formally
 complete, and only for the two causal counterexamples: enabled lacks

@@ -58,18 +58,47 @@ class FakeComponent:
 
     def register_session_leaf(self, session_id: str, node: FakeNode) -> None:
         self._session_leaves.setdefault(session_id, set()).add(node)
-        node.component_data["FULL"].session_ref += 1
+        covered = node
+        while covered is not None:
+            covered.component_data["FULL"].session_ref += 1
+            covered = getattr(covered, "parent", None)
+        data = node.component_data["FULL"]
+        if data.session_ids is None:
+            data.session_ids = set()
+        data.session_ids.add(session_id)
+
+    def release_session(self, session_id: str) -> int:
+        leaves = tuple(self._session_leaves.get(session_id, ()))
+        for leaf in leaves:
+            covered = leaf
+            while covered is not None:
+                covered.component_data["FULL"].session_ref -= 1
+                covered = getattr(covered, "parent", None)
+            data = leaf.component_data["FULL"]
+            data.session_ids.remove(session_id)
+            if not data.session_ids:
+                data.session_ids = None
+        self._session_leaves.pop(session_id, None)
+        return len(leaves)
 
 
 class FakeSessionRefs:
-    def __init__(self, first_session: str) -> None:
+    def __init__(self, first_session: str, component: FakeComponent) -> None:
         self._session_generations = {first_session: 1}
+        self._component = component
 
     def ensure_session_generation(self, session_id: str) -> int:
         assert session_id not in self._session_generations
         generation = max(self._session_generations.values()) + 1
         self._session_generations[session_id] = generation
         return generation
+
+    def release_session_priority(self, session_id: str, generation: int):
+        if self._session_generations.get(session_id) != generation:
+            return None
+        return SimpleNamespace(
+            released_component_leaves=self._component.release_session(session_id)
+        )
 
 
 class G1C009SharedCoverageTests(unittest.TestCase):
@@ -85,13 +114,17 @@ class G1C009SharedCoverageTests(unittest.TestCase):
         register = load_registration_helper(source)
         first_session = "g1-shared-first"
         second_session = "g1-shared-second"
+        ancestor = FakeNode(11)
         target = FakeNode(21)
+        target.parent = ancestor
+        ancestor.component_data["FULL"].session_ids = None
+        target.component_data["FULL"].session_ids = {first_session}
         component = FakeComponent(first_session, target)
         cache = SimpleNamespace(
             tree_components=("FULL",),
             components={"FULL": component},
             tree_core=SimpleNamespace(node_by_id=lambda node_id: target),
-            session_refs=FakeSessionRefs(first_session),
+            session_refs=FakeSessionRefs(first_session, component),
         )
 
         registered = register(cache, second_session, (target.id,))
@@ -99,7 +132,19 @@ class G1C009SharedCoverageTests(unittest.TestCase):
         self.assertEqual(registered, (21,))
         self.assertEqual(component._session_leaves[second_session], {target})
         self.assertEqual(target.component_data["FULL"].session_ref, 2)
+        self.assertEqual(target.component_data["FULL"].session_ids, {first_session, second_session})
+        self.assertEqual(ancestor.component_data["FULL"].session_ref, 2)
+        self.assertIsNone(ancestor.component_data["FULL"].session_ids)
         self.assertIn(second_session, cache.session_refs._session_generations)
+
+        released = cache.session_refs.release_session_priority(first_session, 1)
+
+        self.assertEqual(released.released_component_leaves, 1)
+        self.assertEqual(target.component_data["FULL"].session_ref, 1)
+        self.assertEqual(ancestor.component_data["FULL"].session_ref, 1)
+        self.assertEqual(target.component_data["FULL"].session_ids, {second_session})
+        self.assertNotIn(first_session, component._session_leaves)
+        self.assertEqual(component._session_leaves[second_session], {target})
 
 
 if __name__ == "__main__":

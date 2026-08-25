@@ -975,6 +975,62 @@ def bypass_stop_reasons(record: dict[str, object]) -> list[str]:
     return reasons
 
 
+def rejection_observations_pass(
+    record: dict[str, object], reason: str
+) -> bool:
+    operation = record["operation"]
+    target = record["target"]
+    requested = target["requested_node_ids"]
+    if (
+        set(operation) != {"session_id", "supplied_generation"}
+        or type(operation["supplied_generation"]) is not int
+        or not requested
+        or len(requested) != len(set(requested))
+        or target["eligible_node_ids"] != []
+        or target["scheduled_node_ids"] != requested
+        or target["completed_node_ids"] != []
+    ):
+        return False
+    before = {item["node_id"]: item for item in target["before"]}
+    after = {item["node_id"]: item for item in target["after"]}
+    if (
+        len(before) != len(target["before"])
+        or len(after) != len(target["after"])
+        or set(before) != set(requested)
+        or set(after) != set(requested)
+    ):
+        return False
+    if any(
+        observation["live"] is not True
+        or not observation["device_ids"]
+        for observation in (*before.values(), *after.values())
+    ) or any(after[node_id]["device_ids"] != before[node_id]["device_ids"] for node_id in requested):
+        return False
+    if reason == "WRITE_THROUGH_PENDING":
+        return all(
+            observation["write_through_pending"] is True
+            and observation["host_committed"] is False
+            for observation in (*before.values(), *after.values())
+        )
+    if reason == "NON_TARGET_SESSION_COVERAGE":
+        return all(
+            before[node_id]["session_ref"] == 2
+            and after[node_id]["session_ref"] == 1
+            and before[node_id]["host_committed"] is True
+            and after[node_id]["host_committed"] is True
+            and before[node_id]["device_leaf"] is True
+            and after[node_id]["device_leaf"] is True
+            for node_id in requested
+        )
+    if reason == "DEVICE_LOCKED":
+        return all(
+            any(value > 0 for value in before[node_id]["lock_refs"])
+            and any(value > 0 for value in after[node_id]["lock_refs"])
+            for node_id in requested
+        )
+    return False
+
+
 def rejection_nodes_pass(record: dict[str, object], reason: str) -> bool:
     nodes = record["nodes"]
     if reason == "STALE_GENERATION":
@@ -988,8 +1044,19 @@ def rejection_nodes_pass(record: dict[str, object], reason: str) -> bool:
             for node in nodes
     ):
         return False
-    return sorted(node["node_id"] for node in nodes) == sorted(
-        record["target"]["requested_node_ids"]
+    return [node["node_id"] for node in nodes] == record["target"]["requested_node_ids"]
+
+
+def stale_rejection_context_pass(record: dict[str, object]) -> bool:
+    operation = record["operation"]
+    target = record["target"]
+    return (
+        set(operation) == {"session_id", "supplied_generation", "current_generation"}
+        and type(operation["supplied_generation"]) is int
+        and type(operation["current_generation"]) is int
+        and operation["supplied_generation"] != operation["current_generation"]
+        and record["released_component_leaves"] == 0
+        and all(target[field] == [] for field in TARGET_FIELDS)
     )
 
 
@@ -1007,8 +1074,11 @@ def rejection_passes(record: dict[str, object], reason: str) -> bool:
         and counters["checked_facade"] == 1
         and (counters["checked_backend"] == 0 if stale else counters["checked_backend"] >= 1)
         and rejection_nodes_pass(record, reason)
+        and (stale_rejection_context_pass(record) if stale else rejection_observations_pass(record, reason))
+        and (record["released_component_leaves"] == 0 if stale else record["released_component_leaves"] > 0)
         and record["freed_device_ids"] == []
         and counters["physical_demote"] == 0
+        and counters["physical_demote_node_ids"] == []
         and counters["cache_owned_drain"] == 0
         and counters["stock_evict"] == 0
         and record["capacity"]["before"]["available_size"] == record["capacity"]["after"]["available_size"]
