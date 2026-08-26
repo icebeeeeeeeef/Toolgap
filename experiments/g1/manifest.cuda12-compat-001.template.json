@@ -1,0 +1,118 @@
+{
+  "identity": {
+    "attempt_id": "__GENERATED__",
+    "bundle_id": "CUDA12-COMPAT-001",
+    "claim_state": "roadmap",
+    "gate": "G1",
+    "gate_decision": "N/A",
+    "kind": "preformal_cuda12_compatibility_probe",
+    "spec_path": "experiments/g1/SPEC.cuda12-compat-001.md",
+    "spec_sha256": "__GENERATED__",
+    "toolgap_commit": "__GENERATED__",
+    "toolgap_tree": "__GENERATED__"
+  },
+  "model": {
+    "inventory_path": "experiments/g1/artifacts/model-files.g1-preflight-001.json",
+    "local_only": true,
+    "repository": "Qwen/Qwen3-0.6B",
+    "revision": "c1899de289a04d12100db370d81485cdf75e47ca"
+  },
+  "outcome": {
+    "claim_state": "roadmap",
+    "gate_decision": "N/A: CUDA 12 compatibility probe only"
+  },
+  "planned_success_artifacts": [
+    "attempt-context.json",
+    "environment.txt",
+    "source-seed.txt",
+    "input-manifest-verify.log",
+    "input-manifest.json",
+    "input-oss-receipt.json",
+    "bootstrap-receipt.json",
+    "runtime-wheel.whl",
+    "runtime-wheel-provenance.json",
+    "runtime-wheel-validation.json",
+    "cuda-wheelhouse-index.json",
+    "cuda-wheelhouse-validation.json",
+    "toolgap-seed-verify.log",
+    "source-restore.log",
+    "model-seed-prepare.log",
+    "model-snapshot.json",
+    "resolver-install.log",
+    "cu13-distributions-before-removal.txt",
+    "cu13-distributions-after-removal.txt",
+    "dependency-lock.txt",
+    "installed-distributions.json",
+    "runtime-install-report.json",
+    "cuda-wheelhouse-install-report.json",
+    "ordinary-dependency-requirements.txt",
+    "flashinfer-exception-install-report.json",
+    "omitted-dependency-exception.json",
+    "ordinary-dependency-report.json",
+    "torch-cuda-probe.log",
+    "cuda-sm86.cu",
+    "cuda-sm86-build.log",
+    "cuda-sm86-output.log",
+    "sglang-provenance.json",
+    "test-module-provenance.json",
+    "runtime.env",
+    "manifest.json",
+    "manifest.sha256",
+    "restricted-startup-command.txt",
+    "restricted-startup.log",
+    "startup.pid",
+    "startup.pgid",
+    "startup-gpu-pids-before.txt",
+    "startup-gpu-pids-during.txt",
+    "startup-gpu-pids-attributable.txt",
+    "startup-gpu-pids-after.txt",
+    "startup-gpu-pids-leaked.txt",
+    "startup-process-group-after.txt",
+    "startup-listeners-after.txt",
+    "shutdown.log",
+    "scope-scan.log"
+  ],
+  "prohibited_operations": [
+    "request_construction",
+    "model_inference_http",
+    "cache_lifecycle",
+    "priority_release",
+    "demotion",
+    "eviction",
+    "allocator_measurement",
+    "liveness_control",
+    "benchmark",
+    "g1_gate_result"
+  ],
+  "terminals": [
+    "BLOCKED_HOST_IDENTITY",
+    "BLOCKED_DEPENDENCY_TRANSPORT",
+    "BLOCKED_DEPENDENCY_RESOLUTION",
+    "RUNTIME_INCOMPATIBLE",
+    "TOOLKIT_COMPILER_FAILED",
+    "SGLANG_STARTUP_JIT_FAILED",
+    "SGLANG_STARTUP_FAILED_OTHER",
+    "INVALID_SCOPE",
+    "COMPATIBLE_FOR_RESTRICTED_STARTUP_ONLY"
+  ],
+  "source": {
+    "base_commit": "92b1d382c7f4d1c82ed3a76345d6f625f1fc54a2",
+    "base_tree": "25e9bf86d04c27fe380024d9c8c421c3b5b51f3c",
+    "patches": [
+      {
+        "path": "upstream/sglang/patches/0001-atomic-checked-demote.patch",
+        "sha256": "e69776678909b4ee49b1c0fa4a8e208666893b659c0508387c83fcdf11e82a9a"
+      },
+      {
+        "path": "upstream/sglang/patches/0002-g1-scripted-forced-demote.patch",
+        "sha256": "e4ca3377abab478c97a9a3c1296cf449e9c6a97a7bb288c76a04fae4406d24f7"
+      },
+      {
+        "path": "upstream/sglang/patches/0003-cuda12-compat-packaging.patch",
+        "sha256": "65c67694c4da74e0c5541930d786d74aa85f07d2abeb6f40e4ea3a0da8270ce3"
+      }
+    ],
+    "remote": "https://github.com/sgl-project/sglang.git",
+    "source_seed_sha256": "2d40db92ff1a21cb78e95f4da98352f1fa17086e1a16a82e95070f05e1460400"
+  }
+}

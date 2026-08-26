@@ -23,6 +23,28 @@
   `docs/DEMOTION_CONTRACT.md` owns checked-demotion semantics, and
   `experiments/<gate>/` owns frozen execution evidence.
 
+## Verification discipline
+
+- Protection and tests must serve the real behavior under study or a concrete
+  evidence property. Do not let verifier self-protection, speculative threats,
+  or test-framework hardening displace the shortest path to runtime evidence.
+- A pre-run check may block execution only when its failure can credibly change
+  runtime behavior, admit different frozen inputs, produce a false Gate result,
+  lose cleanup, or make sealed evidence unverifiable in the trusted operator
+  environment. Record other hardening as non-blocking tooling debt.
+- Do not treat simultaneous malicious rewrites of the implementation, verifier,
+  normalization, golden values, tests, and caller environment as the default
+  threat model. Expanding the threat model requires a separately accepted
+  contract and a finite stopping rule.
+- Before adding a guard, mutation, review round, or frozen revision, identify
+  the concrete wrong result it prevents and ask whether a bounded smoke or
+  formal run would provide more direct evidence. If omitting it still permits a
+  reproducible and auditable result, it must not block the main path.
+- A new frozen experiment revision requires a material change to runtime
+  behavior, input identity, Gate semantics, cleanup, or evidence integrity;
+  verifier-only defense is insufficient. See
+  `worklog/lessons/2026-08-26/g1-verifier-overdefense.md` for the failure mode.
+
 ## Ownership boundary
 
 - ToolGap may own logical lifecycle identity, admissibility, idempotence,

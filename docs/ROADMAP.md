@@ -109,9 +109,20 @@ and invoke physical demotion through maintainable seams?
 
 ## G1 — Forced Host-Tier Mechanism
 
-G0 PASS authorizes preparation and review of a separate G1 plan and frozen
-SPEC. It does not authorize G1 execution; that requires an explicit later
-decision after the G1 contract and evidence protocol are accepted.
+Independently reviewed G1-C-010/A1 established the accepted `PASS`; sealed and
+externally anchored [G1-C-020/A1](../experiments/g1/RESULTS.md) is the latest
+formal confirmation. On the frozen A10/CUDA 12.8/Qwen3-0.6B Full-only runtime,
+the enabled path freed exact device IDs and increased allocator-visible
+capacity, while bypass released only target-session priority and preserved the
+device tail and capacity. Seven rejection/liveness controls passed, including
+real load-back-pending and absent committed-host-copy states, and no arm process
+group, newly introduced listener, or attributable GPU PID remained after
+cleanup. This is a narrow `experimentally validated` physical-mechanism result;
+the overall project remains `roadmap`.
+
+G1 does not prove output equivalence, recovery, asynchronous lifecycle safety,
+performance, general compatibility, or production API/policy behavior. Those
+claims remain owned by later Gates.
 
 ### Decision question
 

@@ -1,0 +1,31 @@
+diff --git a/python/pyproject.toml b/python/pyproject.toml
+index a773f66bc..afa298985 100755
+--- a/python/pyproject.toml
++++ b/python/pyproject.toml
+@@ -23,7 +23,7 @@ dependencies = [
+   "blobfile==3.0.0",
+   "build",
+   "compressed-tensors",
+-  "cuda-python>=13.0",
++  "cuda-python>=12,<13",
+   # Transitive dep of flashinfer-python, pinned because 1.6.0rc6 shipped no cp310 linux x86_64 wheel.
+   "cuda-tile==1.6.0rc5",
+   "datasets",
+@@ -33,7 +33,7 @@ dependencies = [
+   "einops",
+   "fastapi",
+   "flash-attn-4>=4.0.0b18",
+-  "flashinfer_python[cu13]==0.6.17", # keep it aligned with jit-cache version in Dockerfile
++  "flashinfer_python[cu12]==0.6.17", # keep it aligned with jit-cache version in Dockerfile
+   "gguf",
+-  "humming-kernels[cu13]==0.1.10",
++  "humming-kernels[cu12]==0.1.10",
+   "interegular",
+@@ -47,6 +47,6 @@ dependencies = [
+   "numba==0.65.1",
+   "numpy",
+-  "nvidia-cutlass-dsl[cu13]==4.6.2",
++  "nvidia-cutlass-dsl==4.6.2",
+   "nvidia-mathdx==25.6.0",
+   "nvidia-ml-py",
+   "openai==2.6.1",

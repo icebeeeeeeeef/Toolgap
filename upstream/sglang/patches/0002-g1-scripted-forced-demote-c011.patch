@@ -1,0 +1,1316 @@
+diff --git a/test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py b/test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py
+new file mode 100644
+index 0000000..b462afa
+--- /dev/null
++++ b/test/registered/scripted_runtime/test_toolgap_g1_forced_demote.py
+@@ -0,0 +1,1310 @@
++"""G1 test-only forced Host-tier reclamation protocol for the pinned SGLang tree.
++
++This module is intentionally a scripted-runtime test. It has no production HTTP
++route and invokes the cache facade only after ordinary ``/generate`` traffic
++has made the observed state. A GPU execution becomes G1 evidence only under a
++separately frozen and approved runtime revision.
++"""
++
++from __future__ import annotations
++
++import json
++import os
++import unittest
++from collections.abc import Generator
++from dataclasses import dataclass, field
++from pathlib import Path
++from types import SimpleNamespace
++from typing import Any, Callable
++from unittest.mock import patch
++
++from sglang.test.ci.ci_register import register_cuda_ci
++from sglang.test.scripted_runtime.context import ScriptedContext
++from sglang.test.scripted_runtime.test_case import ScriptedTestCase
++
++
++register_cuda_ci(est_time=420, stage="extra-a", runner_config="1-gpu-large")
++
++_PROMPT_LEN = 256
++_MAX_NEW_TOKENS = 8
++_MAX_STEPS = 400
++_LOCAL_MODEL_PATH_ENV = "TOOLGAP_G1_MODEL_PATH"
++_ENGINE_KWARGS = {
++    "chunked_prefill_size": 64,
++    "page_size": 1,
++    "enable_hierarchical_cache": True,
++    "hicache_write_policy": "write_through",
++    "enable_session_radix_cache": True,
++    "max_total_tokens": 4096,
++}
++
++
++def _require_local_model_path() -> str:
++    value = os.environ.get(_LOCAL_MODEL_PATH_ENV)
++    if not value:
++        raise RuntimeError(
++            f"{_LOCAL_MODEL_PATH_ENV} must name the sealed local model directory"
++        )
++    model_path = Path(value)
++    if not model_path.is_absolute() or not model_path.is_dir():
++        raise RuntimeError(
++            f"{_LOCAL_MODEL_PATH_ENV} must name an existing absolute directory: {value!r}"
++        )
++    return str(model_path)
++
++
++_RECORD_FIELDS = frozenset(
++    {
++        "arm",
++        "operation",
++        "target",
++        "component_qualification",
++        "priority_release",
++        "released_component_leaves",
++        "facade",
++        "nodes",
++        "freed_device_ids",
++        "route_counters",
++        "capacity",
++        "host_pool",
++    }
++)
++_SPEC_FIELD_REQUIREMENTS = {
++    "arm": "SPEC.md section 3 enabled/bypass arm identity",
++    "operation": "ROADMAP.md G1 operation identity requirement",
++    "target": "ROADMAP.md G1 requested/eligible/scheduled/completed target requirement",
++    "component_qualification": (
++        "IMPLEMENTATION_DESIGN.md section 2 Full-only prerequisite"
++    ),
++    "priority_release": "SPEC.md section 4 requirement 2",
++    "released_component_leaves": "IMPLEMENTATION_DESIGN.md section 5 rejection records",
++    "facade": "SPEC.md section 4 requirement 2",
++    "nodes": "SPEC.md section 4 requirements 2-3",
++    "freed_device_ids": "SPEC.md section 4 requirement 3",
++    "route_counters": "SPEC.md sections 3-4 immediate route exclusions",
++    "capacity": "SPEC.md sections 3-4 allocator-visible capacity samples",
++    "host_pool": "SPEC.md section 5 Host-copy rejection reservation evidence",
++}
++
++
++@dataclass
++class _RouteCounters:
++    checked_facade: int = 0
++    checked_backend: int = 0
++    physical_demote: int = 0
++    cache_owned_drain: int = 0
++    stock_evict: int = 0
++    physical_demote_node_ids: list[int] = field(default_factory=list)
++
++    def as_dict(self) -> dict[str, Any]:
++        return {
++            "checked_facade": self.checked_facade,
++            "checked_backend": self.checked_backend,
++            "physical_demote": self.physical_demote,
++            "cache_owned_drain": self.cache_owned_drain,
++            "stock_evict": self.stock_evict,
++            "physical_demote_node_ids": self.physical_demote_node_ids,
++        }
++
++
++def _new_record(
++    cache: Any,
++    *,
++    arm: str,
++    operation: dict[str, Any],
++    target: dict[str, Any],
++    priority_release: str,
++    released_component_leaves: int,
++    facade: dict[str, Any],
++    nodes: list[dict[str, Any]],
++    freed_device_ids: list[int],
++    counters: _RouteCounters,
++    capacity_before: dict[str, Any],
++    capacity_after: dict[str, Any],
++    host_pool: dict[str, Any] | None = None,
++) -> dict[str, Any]:
++    record = {
++        "arm": arm,
++        "operation": operation,
++        "target": target,
++        "component_qualification": {
++            "components": [component.name for component in cache.tree_components],
++            "supports_swa": cache.supports_swa(),
++            "allocator_class": type(cache.token_to_kv_pool_allocator).__name__,
++            "page_size": cache.page_size,
++        },
++        "priority_release": priority_release,
++        "released_component_leaves": released_component_leaves,
++        "facade": facade,
++        "nodes": nodes,
++        "freed_device_ids": freed_device_ids,
++        "route_counters": counters.as_dict(),
++        "capacity": {"before": capacity_before, "after": capacity_after},
++        "host_pool": {} if host_pool is None else host_pool,
++    }
++    _validate_record(record)
++    return record
++
++
++def _validate_record(record: dict[str, Any]) -> None:
++    missing = _RECORD_FIELDS - set(record)
++    assert not missing, f"G1 record missing fields: {sorted(missing)}"
++    assert set(_SPEC_FIELD_REQUIREMENTS) == _RECORD_FIELDS
++    qualification = record["component_qualification"]
++    assert qualification["components"] == ["FULL"], qualification
++    assert not qualification["supports_swa"], qualification
++    assert isinstance(qualification["allocator_class"], str), qualification
++    assert qualification["page_size"] > 0, qualification
++    operation = record["operation"]
++    assert isinstance(operation["session_id"], str), operation
++    assert isinstance(operation["supplied_generation"], int), operation
++    target = record["target"]
++    assert set(target) == {
++        "requested_node_ids",
++        "eligible_node_ids",
++        "scheduled_node_ids",
++        "completed_node_ids",
++        "before",
++        "after",
++    }, target
++    assert all(isinstance(node_id, int) for node_id in target["requested_node_ids"])
++    assert all(isinstance(node_id, int) for node_id in target["eligible_node_ids"])
++    assert all(isinstance(node_id, int) for node_id in target["scheduled_node_ids"])
++    assert all(isinstance(node_id, int) for node_id in target["completed_node_ids"])
++    assert record["priority_release"] in {"RELEASED", "NOT_RELEASED"}
++    assert record["released_component_leaves"] >= 0
++    assert isinstance(record["nodes"], list)
++    assert isinstance(record["freed_device_ids"], list)
++    assert all(isinstance(index, int) for index in record["freed_device_ids"])
++    assert set(record["route_counters"]) == {
++        "checked_facade",
++        "checked_backend",
++        "physical_demote",
++        "cache_owned_drain",
++        "stock_evict",
++        "physical_demote_node_ids",
++    }
++    for sample in record["capacity"].values():
++        assert set(sample) == {"available_size", "is_not_in_free_group"}
++        assert sample["available_size"] >= 0
++        assert sample["is_not_in_free_group"] is True
++    assert isinstance(record["host_pool"], dict)
++    json.dumps(record, sort_keys=True)
++
++
++def _capacity_sample(cache: Any) -> dict[str, Any]:
++    allocator = cache.token_to_kv_pool_allocator
++    assert allocator.is_not_in_free_group is True, allocator
++    return {
++        "available_size": allocator.available_size(),
++        "is_not_in_free_group": allocator.is_not_in_free_group,
++    }
++
++
++def _node_observations(cache: Any, node_ids: tuple[int, ...]) -> list[dict[str, Any]]:
++    full_component = cache.tree_components[0]
++    observations = []
++    for node_id in node_ids:
++        try:
++            node = cache.tree_core.node_by_id(node_id)
++        except KeyError:
++            observations.append({"node_id": node_id, "live": False})
++            continue
++        full_data = node.component_data[full_component]
++        value = full_data.value
++        observations.append(
++            {
++                "node_id": node_id,
++                "live": True,
++                "device_ids": (
++                    [] if value is None else [int(index) for index in value.tolist()]
++                ),
++                "host_committed": full_data.host_value is not None
++                and node.write_through_pending_id is None
++                and node.load_back_pending_id is None,
++                "host_value_present": full_data.host_value is not None,
++                "write_through_pending": node.write_through_pending_id is not None,
++                "load_back_pending": node.load_back_pending_id is not None,
++                "lock_refs": [data.lock_ref for data in node.component_data],
++                "session_ref": full_data.session_ref,
++                "device_leaf": node in cache.tree_core.evictable_device_leaves,
++            }
++        )
++    return observations
++
++
++def _target_record(
++    requested_node_ids: tuple[int, ...],
++    before: list[dict[str, Any]],
++    after: list[dict[str, Any]],
++    outcome: Any | None,
++) -> dict[str, Any]:
++    outcome_nodes = () if outcome is None else outcome.nodes
++    scheduled = tuple(node.node_id for node in outcome_nodes)
++    completed = tuple(
++        node.node_id for node in outcome_nodes if node.disposition == "COMPLETED"
++    )
++    eligible = tuple(
++        observation["node_id"]
++        for observation in before
++        if observation["live"]
++        and observation["host_committed"]
++        and observation["device_leaf"]
++        and not any(observation["lock_refs"])
++        and observation["session_ref"] == 1
++    )
++    return {
++        "requested_node_ids": list(requested_node_ids),
++        "eligible_node_ids": list(eligible),
++        "scheduled_node_ids": list(scheduled),
++        "completed_node_ids": list(completed),
++        "before": before,
++        "after": after,
++    }
++
++
++def _session_request(
++    t: Any,
++    session_id: str,
++    rid: str,
++    *,
++    max_new_tokens: int,
++    input_ids: list[int] | None = None,
++) -> Any:
++    """Submit an ordinary radix-native session request through the existing route."""
++    from sglang.test.scripted_runtime.context.http_post import (
++        _http_post_and_await_recv_msg,
++    )
++    from sglang.test.scripted_runtime.req_handle import ScriptedReqHandle
++
++    _http_post_and_await_recv_msg(
++        t,
++        path="/generate",
++        json={
++            "input_ids": [7] * _PROMPT_LEN if input_ids is None else input_ids,
++            "rid": rid,
++            "session_id": session_id,
++            "stream": True,
++            "sampling_params": {
++                "max_new_tokens": max_new_tokens,
++                "ignore_eos": True,
++                "temperature": 0,
++            },
++        },
++        predicate=lambda obj: getattr(obj, "rid", None) == rid,
++        description=f"request with rid {rid!r}",
++    )
++    return ScriptedReqHandle(rid=rid, context=t)
++
++
++def _session_frontier(cache: Any, session_id: str) -> tuple[int, ...]:
++    full_component = cache.components[cache.tree_components[0]]
++    return tuple(
++        sorted(node.id for node in full_component._session_leaves.get(session_id, ()))
++    )
++
++
++def _frontier_input_ids(cache: Any, node_id: int) -> list[int]:
++    node = cache.tree_core.node_by_id(node_id)
++    token_segments = []
++    while node is not cache.tree_core.root_node:
++        assert node.key is not None, node_id
++        token_segments.append(node.key.raw_token_ids())
++        node = node.parent
++    return [
++        int(token_id)
++        for segment in reversed(token_segments)
++        for token_id in segment
++    ]
++
++
++def _wait_for_settled_private_frontier(
++    t: Any, session_id: str
++) -> Generator[None, None, tuple[Any, int, tuple[int, ...]]]:
++    cache = t.scheduler.tree_cache
++    for _ in range(_MAX_STEPS):
++        node_ids = _session_frontier(cache, session_id)
++        if node_ids:
++            nodes = [cache.tree_core.node_by_id(node_id) for node_id in node_ids]
++            if _is_settled_private_frontier(cache, nodes):
++                generation = cache.session_refs._session_generations[session_id]
++                return cache, generation, node_ids
++        yield
++    raise AssertionError(
++        f"session {session_id!r} never reached a settled private frontier"
++    )
++
++
++def _is_settled_private_frontier(cache: Any, nodes: list[Any]) -> bool:
++    return all(
++        node.component_data[cache.tree_components[0]].value is not None
++        and node.component_data[cache.tree_components[0]].host_value is not None
++        and node.write_through_pending_id is None
++        and node.load_back_pending_id is None
++        and all(data.lock_ref == 0 for data in node.component_data)
++        for node in nodes
++    )
++
++
++def _reject_record(
++    cache: Any,
++    *,
++    arm: str,
++    operation: dict[str, Any],
++    requested_node_ids: tuple[int, ...],
++    target_before: list[dict[str, Any]],
++    outcome: Any,
++    counters: _RouteCounters,
++    before: dict[str, Any],
++    after: dict[str, Any],
++    host_pool: dict[str, Any] | None = None,
++) -> dict[str, Any]:
++    assert not _freed_ids(outcome), outcome
++    assert counters.physical_demote == 0, counters
++    assert counters.cache_owned_drain == 0, counters
++    assert counters.stock_evict == 0, counters
++    assert after["available_size"] == before["available_size"], (before, after, outcome)
++    record = _new_record(
++        cache,
++        arm=arm,
++        operation=operation,
++        target=_target_record(
++            requested_node_ids,
++            target_before,
++            _node_observations(cache, requested_node_ids),
++            outcome,
++        ),
++        priority_release=outcome.priority_release,
++        released_component_leaves=outcome.released_component_leaves,
++        facade={"disposition": outcome.disposition, "reason": outcome.reason},
++        nodes=_outcome_nodes(outcome),
++        freed_device_ids=[],
++        counters=counters,
++        capacity_before=before,
++        capacity_after=after,
++        host_pool=host_pool,
++    )
++    print(json.dumps(record, sort_keys=True))
++    return record
++
++
++def _outcome_nodes(outcome: Any) -> list[dict[str, Any]]:
++    return [
++        {
++            "node_id": node.node_id,
++            "disposition": node.disposition,
++            "reason": node.reason,
++            "freed_device_ids": list(node.freed_device_ids),
++        }
++        for node in outcome.nodes
++    ]
++
++
++def _freed_ids(outcome: Any) -> list[int]:
++    return [index for node in outcome.nodes for index in node.freed_device_ids]
++
++
++def _assert_priority_release(
++    cache: Any,
++    session_id: str,
++    generation: int,
++    requested_node_ids: tuple[int, ...],
++    released: Any,
++) -> None:
++    assert released is not None
++    assert released.session_id == session_id, released
++    assert released.generation == generation, released
++    assert (
++        tuple(dict(released.frontier_node_ids)["FULL"]) == requested_node_ids
++    ), released
++    assert released.released_component_leaves > 0, released
++    assert _session_frontier(cache, session_id) == (), session_id
++
++
++def _assert_checked_priority_release(
++    cache: Any,
++    session_id: str,
++    requested_node_ids: tuple[int, ...],
++    outcome: Any,
++) -> None:
++    assert outcome.priority_release == "RELEASED", outcome
++    assert outcome.released_component_leaves > 0, outcome
++    assert _session_frontier(cache, session_id) == (), session_id
++    assert tuple(node.node_id for node in outcome.nodes) == requested_node_ids, outcome
++
++
++def _assert_deferred_node_reason(outcome: Any, reason: str) -> None:
++    assert outcome.disposition == "DEFERRED", outcome
++    assert outcome.reason == "DEFERRED", outcome
++    assert outcome.nodes, outcome
++    assert {node.reason for node in outcome.nodes} == {reason}, outcome
++
++
++def _instrument_immediate_window(
++    cache: Any, counters: _RouteCounters, action: Callable[[], Any]
++) -> Any:
++    tree_core = cache.tree_core
++    original_checked = cache.checked_demote_session
++    original_backend = tree_core.demote_session_checked
++    original_demote = getattr(tree_core, "demote")
++    original_drain = cache._free_values
++    original_evict = getattr(cache, "evict")
++
++    def checked(*args, **kwargs):
++        counters.checked_facade += 1
++        return original_checked(*args, **kwargs)
++
++    def backend(*args, **kwargs):
++        counters.checked_backend += 1
++        return original_backend(*args, **kwargs)
++
++    def demote(*args, **kwargs):
++        counters.physical_demote += 1
++        node_id = args[0] if args else kwargs["node_id"]
++        counters.physical_demote_node_ids.append(node_id)
++        return original_demote(*args, **kwargs)
++
++    def drain(*args, **kwargs):
++        counters.cache_owned_drain += 1
++        return original_drain(*args, **kwargs)
++
++    def evict(*args, **kwargs):
++        counters.stock_evict += 1
++        return original_evict(*args, **kwargs)
++
++    with (
++        patch.object(cache, "checked_demote_session", side_effect=checked),
++        patch.object(tree_core, "demote_session_checked", side_effect=backend),
++        patch.object(tree_core, "demote", side_effect=demote),
++        patch.object(cache, "_free_values", side_effect=drain),
++        patch.object(cache, "evict", side_effect=evict),
++    ):
++        return action()
++
++
++class TestG1RecordSchema(unittest.TestCase):
++    def test_checked_facade_type_is_available_to_the_scripted_protocol(self):
++        source = (
++            Path(__file__).resolve().parents[3]
++            / "python/sglang/srt/mem_cache/unified_radix_cache.py"
++        ).read_text(encoding="utf-8")
++        self.assertIn(
++            "class SessionCheckedDemoteOutcome", source,
++            "the scripted G1 protocol requires the typed checked facade outcome",
++        )
++
++    def test_json_record_schema_has_all_required_observations(self):
++        cache = SimpleNamespace(
++            tree_components=(SimpleNamespace(name="FULL"),),
++            supports_swa=lambda: False,
++            token_to_kv_pool_allocator=SimpleNamespace(),
++            page_size=1,
++        )
++        record = _new_record(
++            cache,
++            arm="schema",
++            operation={"session_id": "schema", "supplied_generation": 1},
++            target={
++                "requested_node_ids": [],
++                "eligible_node_ids": [],
++                "scheduled_node_ids": [],
++                "completed_node_ids": [],
++                "before": [],
++                "after": [],
++            },
++            priority_release="NOT_RELEASED",
++            released_component_leaves=0,
++            facade={"disposition": "REJECTED", "reason": "STALE_GENERATION"},
++            nodes=[],
++            freed_device_ids=[],
++            counters=_RouteCounters(),
++            capacity_before={"available_size": 2, "is_not_in_free_group": True},
++            capacity_after={"available_size": 2, "is_not_in_free_group": True},
++        )
++        self.assertEqual(set(record), _RECORD_FIELDS)
++        self.assertEqual(set(_SPEC_FIELD_REQUIREMENTS), _RECORD_FIELDS)
++
++
++class _G1ScriptedTestCase(ScriptedTestCase):
++    ENGINE_KWARGS = _ENGINE_KWARGS
++
++    @classmethod
++    def setUpClass(cls) -> None:
++        cls.ENGINE_KWARGS = {
++            **cls.ENGINE_KWARGS,
++            "model_path": _require_local_model_path(),
++        }
++        super().setUpClass()
++
++    @staticmethod
++    def _complete_private_session(
++        t: Any, session_id: str, rid: str
++    ) -> Generator[None, None, tuple[Any, int, tuple[int, ...]]]:
++        handle = _session_request(t, session_id, rid, max_new_tokens=_MAX_NEW_TOKENS)
++        for _ in range(_MAX_STEPS):
++            if handle.finished:
++                break
++            yield
++        else:
++            raise AssertionError(f"session request {rid!r} did not finish")
++        return (yield from _wait_for_settled_private_frontier(t, session_id))
++
++
++class TestG1PreflightStartup(_G1ScriptedTestCase):
++    ENGINE_KWARGS = {**_ENGINE_KWARGS, "skip_server_warmup": True}
++
++    def test_local_model_starts_without_runtime_script(self):
++        self.assertIsNotNone(self.server)
++        print(
++            json.dumps(
++                {
++                    "base_url": self.server._base_url,
++                    "kind": "G1_PREFLIGHT_SERVER_STARTED",
++                    "skip_server_warmup": self.ENGINE_KWARGS["skip_server_warmup"],
++                },
++                sort_keys=True,
++            )
++        )
++
++
++class TestG1EnabledArm(_G1ScriptedTestCase):
++    def test_enabled_checked_demotion_records_allocator_visible_release(self):
++        self.server.execute_script(self._script_enabled)
++
++    @staticmethod
++    def _script_enabled(t: ScriptedContext):
++        session_id = "g1-enabled"
++        cache, generation, target_nodes = (
++            yield from TestG1EnabledArm._complete_private_session(
++                t, "g1-enabled", "g1-enabled-request"
++            )
++        )
++        target_before = _node_observations(cache, target_nodes)
++        assert all(
++            observation["host_committed"]
++            and observation["device_leaf"]
++            and observation["device_ids"]
++            for observation in target_before
++        ), target_before
++        counters = _RouteCounters()
++        before = _capacity_sample(cache)
++        outcome = _instrument_immediate_window(
++            cache,
++            counters,
++            lambda: cache.checked_demote_session(session_id, generation),
++        )
++        after = _capacity_sample(cache)
++        _assert_checked_priority_release(cache, session_id, target_nodes, outcome)
++        assert outcome.disposition == "ACCEPTED", outcome
++        assert counters.checked_facade == 1, counters
++        assert counters.checked_backend >= 1, counters
++        assert counters.stock_evict == 0, counters
++        target_after = _node_observations(cache, target_nodes)
++        record = _new_record(
++            cache,
++            arm="enabled",
++            operation={"session_id": session_id, "supplied_generation": generation},
++            target=_target_record(target_nodes, target_before, target_after, outcome),
++            priority_release=outcome.priority_release,
++            released_component_leaves=outcome.released_component_leaves,
++            facade={"disposition": outcome.disposition, "reason": outcome.reason},
++            nodes=_outcome_nodes(outcome),
++            freed_device_ids=_freed_ids(outcome),
++            counters=counters,
++            capacity_before=before,
++            capacity_after=after,
++        )
++        print(json.dumps(record, sort_keys=True))
++
++
++class TestG1BypassArm(_G1ScriptedTestCase):
++    def test_bypass_releases_priority_without_physical_reclamation(self):
++        self.server.execute_script(self._script_bypass)
++
++    @staticmethod
++    def _script_bypass(t: ScriptedContext):
++        session_id = "g1-bypass"
++        cache, generation, target_nodes = (
++            yield from TestG1BypassArm._complete_private_session(
++                t, "g1-bypass", "g1-bypass-request"
++            )
++        )
++        target_before = _node_observations(cache, target_nodes)
++        assert all(
++            observation["device_ids"] for observation in target_before
++        ), target_before
++        counters = _RouteCounters()
++        before = _capacity_sample(cache)
++        released = _instrument_immediate_window(
++            cache,
++            counters,
++            lambda: cache.session_refs.release_session_priority(session_id, generation),
++        )
++        after = _capacity_sample(cache)
++        _assert_priority_release(cache, session_id, generation, target_nodes, released)
++        assert counters.checked_facade == 0, counters
++        assert counters.checked_backend == 0, counters
++        assert counters.stock_evict == 0, counters
++        target_after = _node_observations(cache, target_nodes)
++        record = _new_record(
++            cache,
++            arm="bypass",
++            operation={"session_id": session_id, "supplied_generation": generation},
++            target=_target_record(target_nodes, target_before, target_after, None),
++            priority_release="RELEASED",
++            released_component_leaves=released.released_component_leaves,
++            facade={"disposition": "BYPASSED", "reason": "PRIORITY_RELEASE_ONLY"},
++            nodes=[],
++            freed_device_ids=[],
++            counters=counters,
++            capacity_before=before,
++            capacity_after=after,
++        )
++        print(json.dumps(record, sort_keys=True))
++
++
++class TestG1WriteThroughPending(_G1ScriptedTestCase):
++    def test_uncommitted_host_copy_is_deferred_without_physical_free(self):
++        self.server.execute_script(self._script_write_through_pending)
++
++    @staticmethod
++    def _script_write_through_pending(t: Any):
++        session_id = "g1-write-through-pending"
++        handle = _session_request(
++            t, session_id, "g1-write-through-pending-request", max_new_tokens=0
++        )
++        cache = t.scheduler.tree_cache
++        for _ in range(_MAX_STEPS):
++            node_ids = _session_frontier(cache, session_id)
++            if node_ids:
++                nodes = [cache.tree_core.node_by_id(node_id) for node_id in node_ids]
++                if (
++                    all(node.write_through_pending_id is not None for node in nodes)
++                    and all(node.load_back_pending_id is None for node in nodes)
++                    and any(
++                        data.lock_ref > 0
++                        for node in nodes
++                        for data in node.component_data
++                    )
++                ):
++                    break
++            assert not handle.finished or node_ids, (
++                "normal request finished before a session frontier was observable"
++            )
++            yield
++        else:
++            raise AssertionError(
++                "normal request never exposed a session frontier with a pending "
++                "write-through acknowledgement"
++            )
++
++        generation = cache.session_refs._session_generations[session_id]
++        target_before = _node_observations(cache, node_ids)
++        counters = _RouteCounters()
++        before = _capacity_sample(cache)
++        outcome = _instrument_immediate_window(
++            cache,
++            counters,
++            lambda: cache.checked_demote_session(session_id, generation),
++        )
++        after = _capacity_sample(cache)
++        _assert_checked_priority_release(cache, session_id, node_ids, outcome)
++        _assert_deferred_node_reason(outcome, "WRITE_THROUGH_PENDING")
++        assert counters.checked_facade == 1, counters
++        assert counters.checked_backend >= 1, counters
++        _reject_record(
++            cache,
++            arm="reject_write_through_pending",
++            operation={"session_id": session_id, "supplied_generation": generation},
++            requested_node_ids=node_ids,
++            target_before=target_before,
++            outcome=outcome,
++            counters=counters,
++            before=before,
++            after=after,
++        )
++
++
++class TestG1LoadBackPending(_G1ScriptedTestCase):
++    def test_inflight_host_to_device_load_is_deferred_without_physical_free(self):
++        self.server.execute_script(self._script_load_back_pending)
++
++    @staticmethod
++    def _script_load_back_pending(t: Any):
++        session_id = "g1-load-back-pending"
++        cache, generation, target_nodes = (
++            yield from TestG1LoadBackPending._complete_private_session(
++                t, session_id, "g1-load-back-pending-first"
++            )
++        )
++        assert len(target_nodes) == 1, target_nodes
++        target_input_ids = _frontier_input_ids(cache, target_nodes[0])
++        assert target_input_ids[:_PROMPT_LEN] == [7] * _PROMPT_LEN, target_input_ids
++        original_evict_device_leaf = cache._evict_device_leaf
++        stock_victims = []
++
++        def observe_stock_victim(node_id, *args, **kwargs):
++            stock_victims.append(node_id)
++            return original_evict_device_leaf(node_id, *args, **kwargs)
++
++        capacity_before_pressure = _capacity_sample(cache)
++        with patch.object(
++            cache, "_evict_device_leaf", side_effect=observe_stock_victim
++        ):
++            pressure = t.start_req(
++                prompt_len=capacity_before_pressure["available_size"] + 1,
++                max_new_tokens=1,
++                ignore_eos=True,
++                prompt_token=9,
++            )
++            for _ in range(_MAX_STEPS):
++                target_after_pressure = _node_observations(cache, target_nodes)
++                if all(
++                    observation["live"]
++                    and not observation["device_ids"]
++                    and observation["host_committed"]
++                    for observation in target_after_pressure
++                ):
++                    break
++                assert not pressure.finished, (
++                    "pressure request finished before target eviction"
++                )
++                yield
++            else:
++                raise AssertionError(
++                    "ordinary pressure did not make the target host-only"
++                )
++
++        assert set(target_nodes).issubset(stock_victims), (
++            target_nodes,
++            stock_victims,
++        )
++        loader = _session_request(
++            t,
++            session_id,
++            "g1-load-back-pending-loader",
++            max_new_tokens=64,
++            input_ids=target_input_ids,
++        )
++        for _ in range(_MAX_STEPS):
++            nodes = [cache.tree_core.node_by_id(node_id) for node_id in target_nodes]
++            target_before = _node_observations(cache, target_nodes)
++            load_back_is_live = all(
++                node.load_back_pending_id in cache.ongoing_load_back
++                and cache.ongoing_load_back[node.load_back_pending_id].node_id
++                == node.load_back_pending_id
++                for node in nodes
++            )
++            if (
++                all(
++                    observation["live"]
++                    and observation["device_ids"]
++                    and observation["load_back_pending"]
++                    and not observation["write_through_pending"]
++                    for observation in target_before
++                )
++                and all(
++                    any(data.lock_ref > 0 for data in node.component_data)
++                    for node in nodes
++                )
++                and load_back_is_live
++            ):
++                break
++            assert not loader.finished, (
++                "load-back request finished before pending state"
++            )
++            yield
++        else:
++            raise AssertionError("normal request never exposed an in-flight load-back")
++
++        counters = _RouteCounters()
++        before = _capacity_sample(cache)
++        outcome = _instrument_immediate_window(
++            cache,
++            counters,
++            lambda: cache.checked_demote_session(session_id, generation),
++        )
++        after = _capacity_sample(cache)
++        _assert_checked_priority_release(cache, session_id, target_nodes, outcome)
++        _assert_deferred_node_reason(outcome, "LOAD_BACK_PENDING")
++        assert counters.checked_facade == 1, counters
++        assert counters.checked_backend >= 1, counters
++        _reject_record(
++            cache,
++            arm="reject_load_back_pending",
++            operation={"session_id": session_id, "supplied_generation": generation},
++            requested_node_ids=target_nodes,
++            target_before=target_before,
++            outcome=outcome,
++            counters=counters,
++            before=before,
++            after=after,
++        )
++
++
++class TestG1HostCopyNotCommitted(_G1ScriptedTestCase):
++    ENGINE_KWARGS = {**_ENGINE_KWARGS, "skip_server_warmup": True}
++
++    def test_settled_missing_host_copy_is_deferred_without_physical_free(self):
++        self.server.execute_script(self._script_host_copy_not_committed)
++
++    @staticmethod
++    def _script_host_copy_not_committed(t: Any):
++        session_id = "g1-host-copy-not-committed"
++        cache = t.scheduler.tree_cache
++        host_pool = cache.cache_controller.mem_pool_host
++        logical_size = host_pool.logical_size
++        available_before = host_pool.available_size()
++        assert logical_size > 0, logical_size
++        assert available_before == logical_size, (available_before, logical_size)
++        reservation = host_pool.alloc(available_before)
++        assert reservation is not None, available_before
++        reserved_indices = [int(index) for index in reservation.tolist()]
++        assert len(reserved_indices) == available_before, (
++            len(reserved_indices),
++            available_before,
++        )
++        assert reserved_indices == list(range(logical_size)), reserved_indices
++        available_reserved = host_pool.available_size()
++        assert available_reserved == 0, available_reserved
++
++        handle = _session_request(
++            t,
++            session_id,
++            "g1-host-copy-not-committed-request",
++            max_new_tokens=_MAX_NEW_TOKENS,
++        )
++        for _ in range(_MAX_STEPS):
++            node_ids = _session_frontier(cache, session_id)
++            target_before_release = _node_observations(cache, node_ids)
++            if (
++                handle.finished
++                and node_ids
++                and all(
++                    observation["live"]
++                    and observation["device_ids"]
++                    and not observation["host_value_present"]
++                    and not observation["write_through_pending"]
++                    and not observation["load_back_pending"]
++                    and not any(observation["lock_refs"])
++                    and observation["session_ref"] == 1
++                    and observation["device_leaf"]
++                    for observation in target_before_release
++                )
++            ):
++                break
++            yield
++        else:
++            raise AssertionError(
++                "normal request never reached a private device-resident frontier "
++                "after Host allocation refusal"
++            )
++
++        generation = cache.session_refs._session_generations[session_id]
++        released_count = host_pool.free(reservation)
++        available_after_release = host_pool.available_size()
++        assert released_count == len(reserved_indices), (
++            released_count,
++            len(reserved_indices),
++        )
++        assert available_after_release == logical_size, (
++            available_after_release,
++            logical_size,
++        )
++
++        # No scheduler yield occurs between releasing the test reservation and
++        # invoking the checked action, so no Host-copy retry can run here.
++        target_before = _node_observations(cache, node_ids)
++        assert target_before == target_before_release, (
++            target_before_release,
++            target_before,
++        )
++        counters = _RouteCounters()
++        before = _capacity_sample(cache)
++        outcome = _instrument_immediate_window(
++            cache,
++            counters,
++            lambda: cache.checked_demote_session(session_id, generation),
++        )
++        after = _capacity_sample(cache)
++        _assert_checked_priority_release(cache, session_id, node_ids, outcome)
++        _assert_deferred_node_reason(outcome, "HOST_COPY_NOT_COMMITTED")
++        assert counters.checked_facade == 1, counters
++        assert counters.checked_backend >= 1, counters
++        _reject_record(
++            cache,
++            arm="reject_host_copy_not_committed",
++            operation={"session_id": session_id, "supplied_generation": generation},
++            requested_node_ids=node_ids,
++            target_before=target_before,
++            outcome=outcome,
++            counters=counters,
++            before=before,
++            after=after,
++            host_pool={
++                "logical_size": logical_size,
++                "available_before_reservation": available_before,
++                "reserved_indices": reserved_indices,
++                "available_while_reserved": available_reserved,
++                "release_returned": released_count,
++                "available_after_release": available_after_release,
++            },
++        )
++
++
++def _register_non_target_session_coverage(
++    cache: Any, session_id: str, target_nodes: tuple[int, ...]
++) -> tuple[int, ...]:
++    assert target_nodes, target_nodes
++    full_component = cache.tree_components[0]
++    component = cache.components[full_component]
++    nodes = tuple(cache.tree_core.node_by_id(node_id) for node_id in target_nodes)
++    assert all(
++        node.component_data[full_component].session_ref == 1 for node in nodes
++    ), target_nodes
++    assert session_id not in cache.session_refs._session_generations, session_id
++    cache.session_refs.ensure_session_generation(session_id)
++    for node in nodes:
++        component.register_session_leaf(session_id, node)
++    registered = _session_frontier(cache, session_id)
++    assert registered == target_nodes, (registered, target_nodes)
++    assert all(
++        node.component_data[full_component].session_ref == 2 for node in nodes
++    ), target_nodes
++    return registered
++
++
++class TestG1NonTargetCoverage(_G1ScriptedTestCase):
++    def test_shared_target_is_deferred_for_the_other_session(self):
++        self.server.execute_script(self._script_non_target_coverage)
++
++    @staticmethod
++    def _script_non_target_coverage(t: Any):
++        cache, generation, target_nodes = (
++            yield from TestG1NonTargetCoverage._complete_private_session(
++                t, "g1-shared-first", "g1-shared-first-request"
++            )
++        )
++        other_nodes = _register_non_target_session_coverage(
++            cache, "g1-shared-second", target_nodes
++        )
++        full_component = cache.tree_components[0]
++        for node_id in target_nodes:
++            node = cache.tree_core.node_by_id(node_id)
++            assert node.component_data[full_component].session_ref == 2, node_id
++
++        target_before = _node_observations(cache, target_nodes)
++        counters = _RouteCounters()
++        before = _capacity_sample(cache)
++        outcome = _instrument_immediate_window(
++            cache,
++            counters,
++            lambda: cache.checked_demote_session("g1-shared-first", generation),
++        )
++        after = _capacity_sample(cache)
++        _assert_checked_priority_release(
++            cache, "g1-shared-first", target_nodes, outcome
++        )
++        _assert_deferred_node_reason(outcome, "NON_TARGET_SESSION_COVERAGE")
++        assert _session_frontier(cache, "g1-shared-second") == other_nodes
++        for node_id in target_nodes:
++            node = cache.tree_core.node_by_id(node_id)
++            assert node.component_data[full_component].session_ref == 1, node_id
++        assert counters.checked_facade == 1, counters
++        assert counters.checked_backend >= 1, counters
++        _reject_record(
++            cache,
++            arm="reject_non_target_session_coverage",
++            operation={
++                "session_id": "g1-shared-first",
++                "supplied_generation": generation,
++            },
++            requested_node_ids=target_nodes,
++            target_before=target_before,
++            outcome=outcome,
++            counters=counters,
++            before=before,
++            after=after,
++        )
++
++
++class TestG1DeviceLocked(_G1ScriptedTestCase):
++    def test_active_request_is_deferred_at_the_device_lock_check(self):
++        self.server.execute_script(self._script_device_locked)
++
++    @staticmethod
++    def _script_device_locked(t: Any):
++        session_id = "g1-device-locked"
++        cache, generation, target_nodes = (
++            yield from TestG1DeviceLocked._complete_private_session(
++                t, session_id, "g1-device-locked-first"
++            )
++        )
++        assert len(target_nodes) == 1, target_nodes
++        target_input_ids = _frontier_input_ids(cache, target_nodes[0])
++        assert target_input_ids[:_PROMPT_LEN] == [7] * _PROMPT_LEN
++        active = _session_request(
++            t,
++            session_id,
++            "g1-device-locked-active",
++            max_new_tokens=64,
++            input_ids=target_input_ids,
++        )
++        for _ in range(_MAX_STEPS):
++            nodes = [cache.tree_core.node_by_id(node_id) for node_id in target_nodes]
++            structural_clear = not cache.tree_core.has_ongoing_insert() and not any(
++                component.is_evict_device_ongoing
++                for component in cache.tree_core.components_by_type.values()
++            )
++            if (
++                not active.finished
++                and structural_clear
++                and all(
++                    node.component_data[cache.tree_components[0]].value is not None
++                    and node.write_through_pending_id is None
++                    and node.load_back_pending_id is None
++                    for node in nodes
++                )
++                and any(
++                    data.lock_ref > 0 for node in nodes for data in node.component_data
++                )
++            ):
++                break
++            yield
++        else:
++            raise AssertionError(
++                "normal active request did not expose the original target with all "
++                "prior checks clear and a positive device lock"
++            )
++
++        counters = _RouteCounters()
++        target_before = _node_observations(cache, target_nodes)
++        before = _capacity_sample(cache)
++        outcome = _instrument_immediate_window(
++            cache,
++            counters,
++            lambda: cache.checked_demote_session(session_id, generation),
++        )
++        after = _capacity_sample(cache)
++        _assert_checked_priority_release(cache, session_id, target_nodes, outcome)
++        _assert_deferred_node_reason(outcome, "DEVICE_LOCKED")
++        assert counters.checked_facade == 1, counters
++        assert counters.checked_backend >= 1, counters
++        _reject_record(
++            cache,
++            arm="reject_device_locked",
++            operation={"session_id": session_id, "supplied_generation": generation},
++            requested_node_ids=target_nodes,
++            target_before=target_before,
++            outcome=outcome,
++            counters=counters,
++            before=before,
++            after=after,
++        )
++
++
++class TestG1StaleGeneration(_G1ScriptedTestCase):
++    def test_stale_generation_is_rejected_before_priority_release(self):
++        self.server.execute_script(self._script_stale_generation)
++
++    @staticmethod
++    def _script_stale_generation(t: Any):
++        session_id = "g1-stale-generation"
++        cache, old_generation, _ = (
++            yield from TestG1StaleGeneration._complete_private_session(
++                t, session_id, "g1-stale-generation-first"
++            )
++        )
++        from sglang.srt.managers.io_struct import CloseSessionReqInput
++        from sglang.test.scripted_runtime.context.http_post import (
++            _http_post_and_await_recv_msg,
++        )
++
++        _http_post_and_await_recv_msg(
++            t,
++            path="/close_session",
++            json={"session_id": session_id},
++            predicate=lambda obj: isinstance(obj, CloseSessionReqInput)
++            and obj.session_id == session_id,
++            description=f"close session {session_id!r}",
++        )
++        for _ in range(_MAX_STEPS):
++            if session_id not in cache.session_refs._session_generations:
++                break
++            yield
++        else:
++            raise AssertionError("close_session did not release the old generation")
++
++        _, new_generation, _ = (
++            yield from TestG1StaleGeneration._complete_private_session(
++                t, session_id, "g1-stale-generation-second"
++            )
++        )
++        assert new_generation != old_generation, (old_generation, new_generation)
++        counters = _RouteCounters()
++        before = _capacity_sample(cache)
++        outcome = _instrument_immediate_window(
++            cache,
++            counters,
++            lambda: cache.checked_demote_session(session_id, old_generation),
++        )
++        after = _capacity_sample(cache)
++        assert outcome.priority_release == "NOT_RELEASED", outcome
++        assert outcome.reason == "STALE_GENERATION", outcome
++        assert outcome.nodes == (), outcome
++        assert counters.checked_facade == 1, counters
++        assert counters.checked_backend == 0, counters
++        _reject_record(
++            cache,
++            arm="reject_stale_generation",
++            operation={
++                "session_id": session_id,
++                "supplied_generation": old_generation,
++                "current_generation": new_generation,
++            },
++            requested_node_ids=(),
++            target_before=[],
++            outcome=outcome,
++            counters=counters,
++            before=before,
++            after=after,
++        )
++
++
++class TestG1StockEvictionLiveness(_G1ScriptedTestCase):
++    def test_stock_eviction_remains_reachable_after_bypass(self):
++        self.server.execute_script(self._script_stock_eviction_liveness)
++
++    @staticmethod
++    def _script_stock_eviction_liveness(t: Any):
++        session_id = "g1-stock-liveness"
++        cache, generation, target_nodes = (
++            yield from TestG1StockEvictionLiveness._complete_private_session(
++                t, "g1-stock-liveness", "g1-stock-liveness-session"
++            )
++        )
++        target_before = _node_observations(cache, target_nodes)
++        immediate_counters = _RouteCounters()
++        before = _capacity_sample(cache)
++        released = _instrument_immediate_window(
++            cache,
++            immediate_counters,
++            lambda: cache.session_refs.release_session_priority(session_id, generation),
++        )
++        after = _capacity_sample(cache)
++        _assert_priority_release(cache, session_id, generation, target_nodes, released)
++        assert immediate_counters.checked_facade == 0, immediate_counters
++        assert immediate_counters.physical_demote == 0, immediate_counters
++        assert after["available_size"] == before["available_size"], (before, after)
++
++        stock_counters = _RouteCounters()
++        original_evict = getattr(cache, "evict")
++        original_evict_device_leaf = cache._evict_device_leaf
++        stock_evict_results = []
++        stock_victims = []
++
++        def observed_stock_evict(*args, **kwargs):
++            stock_counters.stock_evict += 1
++            result = original_evict(*args, **kwargs)
++            stock_evict_results.append(
++                {
++                    "num_tokens_evicted": result.num_tokens_evicted,
++                    "swa_num_tokens_evicted": result.swa_num_tokens_evicted,
++                    "mamba_num_evicted": result.mamba_num_evicted,
++                }
++            )
++            return result
++
++        def observed_stock_victim(node_id, *args, **kwargs):
++            victim_before = _node_observations(cache, (node_id,))[0]
++            capacity_before_victim = _capacity_sample(cache)
++            result = original_evict_device_leaf(node_id, *args, **kwargs)
++            capacity_after_victim = _capacity_sample(cache)
++            victim_after = _node_observations(cache, (node_id,))[0]
++            stock_victims.append(
++                {
++                    "node_id": node_id,
++                    "before": victim_before,
++                    "after": victim_after,
++                    "capacity_before": capacity_before_victim,
++                    "capacity_after": capacity_after_victim,
++                }
++            )
++            return result
++
++        capacity_before_pressure = _capacity_sample(cache)
++        victim_candidates_before = tuple(
++            sorted(node.id for node in cache.tree_core.evictable_device_leaves)
++        )
++        assert victim_candidates_before, (
++            "pressure control needs a real evictable victim"
++        )
++        with (
++            patch.object(cache, "evict", side_effect=observed_stock_evict),
++            patch.object(
++                cache, "_evict_device_leaf", side_effect=observed_stock_victim
++            ),
++        ):
++            pressure = t.start_req(
++                prompt_len=capacity_before_pressure["available_size"] + 1,
++                max_new_tokens=1,
++                ignore_eos=True,
++                prompt_token=9,
++            )
++            for _ in range(_MAX_STEPS):
++                if stock_victims and any(
++                    result["num_tokens_evicted"] > 0 for result in stock_evict_results
++                ):
++                    break
++                assert not pressure.finished, (
++                    "pressure request finished before stock eviction"
++                )
++                yield
++            else:
++                raise AssertionError("ordinary pressure did not reclaim a stock victim")
++
++        capacity_after_pressure = _capacity_sample(cache)
++        assert stock_counters.stock_evict > 0, stock_counters
++        assert any(
++            result["num_tokens_evicted"] > 0 for result in stock_evict_results
++        ), stock_evict_results
++        assert stock_victims, stock_victims
++        assert all(
++            victim["node_id"] in victim_candidates_before
++            and victim["before"]["device_ids"]
++            and (
++                not victim["after"]["live"]
++                or not victim["after"]["device_ids"]
++            )
++            for victim in stock_victims
++        ), stock_victims
++        record = _new_record(
++            cache,
++            arm="stock_eviction_liveness",
++            operation={"session_id": session_id, "supplied_generation": generation},
++            target=_target_record(
++                target_nodes,
++                target_before,
++                _node_observations(cache, target_nodes),
++                None,
++            ),
++            priority_release="RELEASED",
++            released_component_leaves=released.released_component_leaves,
++            facade={"disposition": "BYPASSED", "reason": "PRIORITY_RELEASE_ONLY"},
++            nodes=[],
++            freed_device_ids=[],
++            counters=stock_counters,
++            capacity_before=capacity_before_pressure,
++            capacity_after=capacity_after_pressure,
++        )
++        record["stock_eviction"] = {
++            "candidate_ids_before": victim_candidates_before,
++            "observed_calls": stock_counters.stock_evict,
++            "results": stock_evict_results,
++            "victims": stock_victims,
++        }
++        print(json.dumps(record, sort_keys=True))
++
++
++if __name__ == "__main__":
++    unittest.main(verbosity=2)
