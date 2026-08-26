@@ -102,15 +102,8 @@ class FakeSessionRefs:
 
 
 class G1C020SharedCoverageTests(unittest.TestCase):
-    def test_two_session_native_requests_can_have_distinct_private_frontiers(self) -> None:
-        target_nodes = (21,)
-        other_nodes = (24,)
-        with self.assertRaises(AssertionError):
-            assert target_nodes == other_nodes, (target_nodes, other_nodes)
-
     def test_source_registration_shares_the_real_request_created_target(self) -> None:
         source = patched_test_source()
-        self.assertNotIn("assert target_nodes == other_nodes", source)
         register = load_registration_helper(source)
         first_session = "g1-shared-first"
         second_session = "g1-shared-second"

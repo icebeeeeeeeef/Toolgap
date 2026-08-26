@@ -19,6 +19,18 @@ assert SPEC is not None and SPEC.loader is not None
 BUILDER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(BUILDER)
 
+EXPECTED_STATIC_PATHS = {
+    "experiments/g1/SPEC.g1-c-020.md",
+    "experiments/g1/manifest.g1-c-020.template.json",
+    "experiments/g1/commands/00-g1-c-020-bootstrap.sh",
+    "experiments/g1/commands/20-g1-c-020.sh",
+    "experiments/g1/commands/g1_c_020_arm_launcher.py",
+    "experiments/g1/commands/g1_c_020_finalize.py",
+    "experiments/g1/commands/g1_c_020_extract_records.py",
+    "experiments/g1/commands/g1_c_020_gpu_sampler.py",
+    "experiments/g1/artifacts/model-files.g1-preflight-001.json",
+}
+
 
 def write_seed(path: Path, top_level: str) -> None:
     payload = b"fixture\n"
@@ -57,7 +69,7 @@ def write_wheelhouse(path: Path, root: Path) -> None:
 
 
 def write_repository(root: Path) -> None:
-    for relative in BUILDER.STATIC_PATHS:
+    for relative in (*BUILDER.STATIC_PATHS, *BUILDER.PATCH_PATHS):
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         if relative == BUILDER.MODEL_INVENTORY:
@@ -115,6 +127,7 @@ def write_runtime_provenance(root: Path, wheel: Path, output: Path) -> None:
 
 class G1C007BundleManifestTests(unittest.TestCase):
     def test_cli_parser_create_then_verify_uses_local_frozen_inputs(self) -> None:
+        self.assertEqual(set(BUILDER.STATIC_PATHS), EXPECTED_STATIC_PATHS)
         with tempfile.TemporaryDirectory() as directory:
             fixture = Path(directory)
             repo = fixture / "repo"
@@ -159,7 +172,7 @@ class G1C007BundleManifestTests(unittest.TestCase):
                 manifest["storage_preflight"],
                 {"minimum_free_bytes": BUILDER.MINIMUM_FREE_BYTES},
             )
-            self.assertEqual(set(manifest["static_inputs"]), set(BUILDER.STATIC_PATHS))
+            self.assertEqual(set(manifest["static_inputs"]), EXPECTED_STATIC_PATHS)
             self.assertEqual(output.stat().st_mode & 0o777, 0o444)
             for mutate in (
                 lambda value: value.__setitem__("schema_version", True),

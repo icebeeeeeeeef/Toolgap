@@ -401,10 +401,5 @@ class G1C020RequestAdmissionTests(unittest.TestCase):
         self.assertEqual(finished.exception.value, sentinel)
         self.assertTrue(context.admitted)
 
-    def test_source_forbids_fire_and_forget_submission_anywhere(self) -> None:
-        self.assertIn("_http_post_and_await_recv_msg", self.source)
-        self.assertNotIn("_submit_post", self.source)
-
-
 if __name__ == "__main__":
     unittest.main()

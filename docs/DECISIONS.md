@@ -879,6 +879,69 @@ Affected documents and experiments:
 `../worklog/reviews/2026-08-22/write-policy-scope-steelman-review.md`. No frozen
 experiment artifact changes.
 
+## 2026-08-24 — D034: Reopen the CUDA 13 provider-host selection before G1 preflight
+
+Status: accepted
+
+Context:
+
+`G1-PREFLIGHT-001` is frozen at ToolGap commit
+`a48e8d179767da1ef9e2b036835795f4865d94ae`. Its capability envelope and
+runner require a provider CUDA 13.0 host and reject any other `nvcc` release.
+On 2026-08-24, a live `DescribeImages` query in `cn-beijing` found only the
+official Ubuntu 24.04 NVIDIA GPU image family member
+`ubuntu_24_04_x64_100G_with_gpu_driver_and_cuda_alibase_20260519.vhd`. Although
+the image name remains unchanged, its provider description reports CUDA 12.8,
+not CUDA 13.0. `DescribeInstances` found no retained earlier host with the
+previously observed CUDA 13.0 environment.
+
+Decision:
+
+Do not create a billed instance for `G1-PREFLIGHT-001` on the currently
+available CUDA 12.8 image. Preserve its seed, OSS inputs, and preflight
+contract unchanged. The host eligibility is blocked before runtime; because no
+instance or runner was started, no preflight terminal exists. Resume only when
+a provider-supported CUDA 13.0 image is available or a separately reviewed
+successor proves and freezes a different compatible accelerator contract.
+
+Alternatives considered:
+
+- treat a newer driver or the image label as a substitute for CUDA 13.0;
+- install or replace CUDA manually on the provider image;
+- weaken the runner's CUDA admission check in the frozen preflight revision;
+- run the formal G1 protocol instead of the blocked preflight.
+
+Evidence:
+
+The image API response records NVIDIA driver `580.126.09`, CUDA 12.8, and
+image version `v2026.6.9`; the image-family query has `TotalCount: 1`. The
+local source requires `cuda-python>=13.0`, and the frozen runner explicitly
+requires `nvcc` to report release 13.0. The live cloud checks and boundary are
+retained in
+`../worklog/reviews/2026-08-24/g1-preflight-provider-cuda-drift.md`.
+
+Consequences:
+
+D023's provider-host choice is reopened for this new preflight. The created
+subnet, restricted security group, imported public key, and least-privilege
+ECS role are operational preparation only; they authorize neither a billed
+host nor an experimental result. ToolGap remains `roadmap`; no G1 Gate
+decision or runtime result exists.
+
+Reopen condition:
+
+Close this decision only after a live provider query identifies a supported
+CUDA 13.0 image and the frozen host checks are re-run, or after an independent
+source/ABI review accepts a new preflight revision with a different capability
+envelope.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `../experiments/g1/SPEC.g1-preflight-001.md`,
+`../upstream/sglang/pin.g1-preflight-001.toml`, and
+`../worklog/reviews/2026-08-24/g1-preflight-provider-cuda-drift.md`. The frozen
+experiment artifacts remain unchanged.
+
 ## Decision Template
 
 ```text
