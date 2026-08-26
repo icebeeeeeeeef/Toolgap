@@ -29,4 +29,3 @@ terminal rather than after every development iteration.
 
 No verifier self-protection, new threat model, mechanism change, Gate-oracle
 change, public API, or second KV data plane is authorized by this decision.
-
