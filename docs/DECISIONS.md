@@ -4,9 +4,9 @@
 >
 > D001-D019 are `accepted` design decisions. D020 records the owner's D0
 > closure. D021 preserves the historical evidence-backed G0 `RESHAPE`; D032
-> records the accepted successor G0 `PASS`; D033 bounds `write_through` to the
-> qualification/reference role rather than a production-optimality claim.
-> Decision status remains distinct from project claim state.
+> records the accepted successor G0 `PASS`. D033-D035 keep later scope and
+> optimization choices conditional on evidence. Decision status remains
+> distinct from project claim state.
 
 ## Decision Status
 
@@ -810,76 +810,251 @@ Affected documents and experiments:
 `../experiments/g0/RESULTS.md`, `../experiments/g0/SPEC.g0-c-017.md`, and
 `../experiments/g0/artifacts/g0-c-017-independent-review.md`.
 
-## 2026-08-22 — D033: Keep write-through as the qualification mode, not the production optimum
+## 2026-08-21 — D033: Reject mainline data-plane expansion; admit PD transfer slice as future review and checksum round-trip as an instrument option
 
 Status: accepted
 
 Context:
 
-D021 selected `write_through` as the only Host semantic branch for the G0
-source contract because it produces a settled Host duplicate before a later
-demotion. Subsequent steelman review separated that experimental attribution
-choice from the production question. Eager Publication may consume D2H
-bandwidth and Host capacity for one-hit or low-reuse KV, while fixed-pin
-`write_through_selective` and `write_back` trade immediate demotion readiness
-for lower I/O or lower-tier occupancy.
+A job-description-driven capability review asked whether ToolGap should absorb
+distributed KV-store data-plane features — automatic large-value slicing with
+concurrent multi-node reads and writes, full-path zero-copy with GPUDirect,
+small-object coalescing for prefill-to-decode KV transfer, and end-to-end
+iterative CRC verification. These features match an existing mature
+distributed KV cache store's feature set. At review time G0 had just closed
+with a successor PASS (D032); G1 is specified for planning only, so the
+project holds no physical demotion, allocator, recovery, or performance
+evidence yet, and a limited rented-machine budget (at most five hosts) is
+available.
 
 Decision:
 
-Retain `write_through` for G1, G2, and the primary G3 causal comparison. The
-release-only and checked-reclamation arms must share the same committed Host
-copy so the independent variable remains immediate checked reclamation.
-
-Do not treat `write_through` as the proven production-optimal policy. Before an
-end-to-end production optimization claim, compare against tuned stock
-`write_through_selective` and `write_back` configurations under the same
-workload and joint SLO. If checked reclamation beats only its same-Publication
-baseline but not the best stock policy, retain the narrow mechanism result and
-withhold the production optimization claim. ToolGap-triggered on-demand
-Publication requires measured evidence that eager Publication is the blocking
-cost and a separate accepted contract; this decision does not authorize it.
+Reject adding any of these data-plane capabilities to the G0-G4 mainline;
+`PROJECT.md` non-goals (no new KV storage or transfer engine; no distributed,
+multi-node, or RDMA claims) remain unchanged. Admit
+`docs/future/PD_TRANSFER_SLICE.md` as a future review artifact for a narrow
+prefill-to-decode transfer lifecycle slice on a reused transport, gated on a
+real G1 physical-demotion PASS and expected to live outside the mainline
+repository. Record page-level checksum round-trip verification
+(demote-time per-page checksum, restore-time per-page self-check plus
+whole-payload check) as one admissible instrument choice for the G1/G2 SPEC
+authors when they design output-equivalence and corruption evidence; this is
+an instrument option, not a new Gate requirement and not a data plane. Direct
+the rented-machine budget first to G1-G4 real-GPU execution.
 
 Alternatives considered:
 
-- promote `write_through` from the proof mode to the unconditional production
-  policy;
-- replace the first G1 mechanism slice with hit-count-dependent
-  `write_through_selective`;
-- couple first Publication and demotion by using `write_back` in G1;
-- implement a dynamic multi-policy or ToolGap-triggered Publication controller
-  before the checked-reclamation premise is measured.
+- absorb value slicing, zero-copy/GPUDirect, and a distributed CRC-verified
+  store into the mainline: rejected as rebuilding a mature data plane,
+  violating the ownership boundary and diluting the narrow contract;
+- start the PD transfer extension now, before G1: rejected because the
+  mainline's real-CUDA evidence gap is the scarcer risk and shares the same
+  budget;
+- claim RDMA/GDR capability from commodity rented hosts: rejected; claim
+  language must name the actually measured transport;
+- make the checksum round-trip a mandatory new G2 artifact: rejected to keep
+  Gate requirements owned by their own frozen SPECs.
 
 Evidence:
 
-The fixed source sets `write_through` and `write_through_selective` publication
-thresholds separately and couples unbacked `write_back` eviction to backup plus
-demotion. G0's host-mode artifact binds a committed duplicate to D2H completion
-and both pending markers clear. The evaluation contract already requires the
-same committed Host copy for the strongest causal baseline. No runtime policy
-comparison or production result exists.
+`PROJECT.md` Section 6 already excludes new transfer engines and distributed,
+multi-node, RDMA, and production-scale claims. D032 fixes the current state:
+G0 closed, G1 unexecuted, no physical or performance evidence. The referenced
+feature list is the published capability set of an existing mature store, so
+re-implementation would duplicate a dependency-owned data plane rather than
+close a demonstrated contract gap. No experimental evidence is created or
+promoted by this decision; every affected claim remains `roadmap`.
 
 Consequences:
 
-Frozen G0 specifications and evidence remain unchanged. G1 execution remains
-unauthorized, Gate order is unchanged, and the overall project remains
-`roadmap`. `write_through_selective` and `write_back` are production-level
-challengers, not replacements for the first causal proof. Dynamic policy stays
-blocked on G5.
+The mainline scope is unchanged. `ROADMAP.md` gains a future-review pointer
+for the PD transfer slice parallel to the prefetch pointer. G1/G2 SPEC
+authors may adopt or decline the checksum instrument without reopening this
+decision. Any future PD transfer claim must satisfy the admission,
+hardware-honesty, and deletion tests in `future/PD_TRANSFER_SLICE.md`.
 
 Reopen condition:
 
-Reopen if fixed-pin policy semantics change, a stronger conforming causal
-baseline is found, or measured G3/G4 evidence identifies eager Publication as
-the decisive production cost and supports a separate on-demand-Publication
+Reopen if G1-G4 evidence shows the mainline itself needs a transfer-path
+mechanism to close its contract, if the upstream dependency's ownership of
+the physical data plane changes, or if the future review's admission
+preconditions are shown to be unsatisfiable on obtainable hardware.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `ROADMAP.md`, `future/PD_TRANSFER_SLICE.md`, and
+`../worklog/reviews/2026-08-21/data-plane-scope-review.md`.
+
+## 2026-08-22 — D034: Qualify `write_through` as a causal reference and require a stock-policy challenge
+
+Status: accepted
+
+Context:
+
+G0 selected `write_through` because its settled Full Host duplicate provides an
+auditable committed-copy predicate. That source-semantic choice isolates later
+release-only and checked-reclamation actions, but it does not establish the
+end-to-end-optimal Host-write configuration on the declared single-node
+testbed. The fixed substrate also exposes `write_through_selective` and
+`write_back`, whose Publication timing and cost can change the end-to-end
+result.
+
+Decision:
+
+Use `write_through` only as the qualification/reference mode for G1, G2, and
+the first G3 causal comparison. In that comparison, release-only and checked
+reclamation reuse the same committed Host copy; the checked-reclamation action
+must not receive a different Publication history. Before making an
+end-to-end optimization claim on the declared single-node testbed, challenge
+the candidate on the same workload and joint SLO against tuned stock
+`write_through_selective` and `write_back`. If checked reclamation wins only
+against the same-Publication reference but not the best stock policy, retain
+only the mechanism result.
+
+ToolGap-triggered on-demand Publication may be reviewed only after measurement
+shows that eager Publication is the decisive cost and an independent accepted
+contract defines its behavior. This decision does not authorize that mechanism.
+
+Alternatives considered:
+
+- treat the G0 `write_through` choice as end-to-end-optimal on the declared
+  testbed;
+- compare release-only and checked reclamation with different Host-copy
+  histories;
+- claim end-to-end value after beating only the same-Publication reference;
+- add on-demand Publication now to make the candidate look stronger.
+
+Evidence:
+
+[G0 host-mode selection](../experiments/g0/artifacts/host-mode-selection.md)
+supports only the committed Host-copy source semantics and explicitly rejects
+a runtime conclusion. D004 and `EVALUATION.md` already require a same-copy
+release-only causal baseline. There is no ToolGap runtime, Publication-cost, or
+performance evidence.
+
+Consequences:
+
+`EVALUATION.md` owns the two-level baseline protocol. G1/G2 mechanism and
+correctness work remains isolated from the G3 causal comparison, while any
+later end-to-end optimization claim on the declared single-node testbed must
+survive the strongest measured stock policy. That testbed result does not
+establish production readiness. The project claim remains `roadmap`.
+
+Reopen condition:
+
+Reopen if fixed-pin source or runtime evidence invalidates the committed-copy
+semantics, shows that a named stock policy cannot be configured fairly, or
+measures eager Publication as a decisive cost worthy of a separate contract
 review.
 
 Affected documents and experiments:
 
-`DECISIONS.md`, `EVALUATION.md`, and
-`../worklog/reviews/2026-08-22/write-policy-scope-steelman-review.md`. No frozen
-experiment artifact changes.
+`DECISIONS.md`, `EVALUATION.md`,
+`../worklog/plans/2026-08-22/write-policy-scope-decision.md`, and
+`../worklog/reviews/2026-08-22/write-policy-scope-steelman-review.md`.
 
-## 2026-08-24 — D034: Reopen the CUDA 13 provider-host selection before G1 preflight
+## 2026-08-22 — D035: Reject general Demote Pacing as the default; admit one measurement-driven conditional optimization series
+
+Status: accepted
+
+Context:
+
+Fixed pin plus `write_through` spans three distinct costs that a generic
+"Demote Pacing" label would conflate: earlier Publication, tool-gap-triggered
+checked reclamation, and later Recovery. G0 provides only source/package and
+ordinary-serving integration evidence; no current artifact identifies any of
+these stages as a performance bottleneck.
+
+Decision:
+
+Keep the stages explicit:
+
+1. **Publication:** the earlier HBM-to-Host D2H and Host commit;
+2. **checked reclamation:** after the tool gap, reuse that committed Host copy
+   and call the existing checked demote path to release the device value/HBM;
+   do not presume this stage performs D2H;
+3. **Recovery:** on resume, restore Host-to-HBM or recompute.
+
+The G1-G4 mainline question remains whether tool-gap-triggered immediate checked
+reclamation creates allocator headroom earlier than target session-priority
+release plus stock eviction and thereby increases maximum sustainable arrival
+rate under the joint SLO. G1 and G2 establish mechanism and correctness, not a
+performance win.
+
+Reject general Demote Pacing as a default implementation. Do not add a
+`PacingController`, public pacing parameters, a Gate, or a module. During G3 or
+G4, only a reproducible stage-attributed symptom may occupy one conditional
+optimization slot, and only one series may be active:
+
+- if per-node final checks, release, or free-drain in checked reclamation is
+  measured as scheduler, CPU, or allocator interference, a later SPEC revision
+  may consider candidate-owned **Checked Reclamation Chunking**. It may apply a
+  node/byte budget per scheduler cycle and stop after the required headroom is
+  reached. Resume may cancel only chunks not yet started; already released
+  content follows normal restore/recompute. Admission requires an ablation,
+  deletion test, and losing workload. This is not a current implementation;
+- if eager Publication D2H or Host occupancy is decisive, only an independent
+  review may admit **Tool-gap-triggered On-demand Publication with Pacing**;
+  D035 does not authorize it;
+- if Recovery/H2D is decisive, verify the fixed-pin restore path first. If the
+  fixed-pin profile localizes the bottleneck to the actual copy path,
+  small-transfer coalescing or pinned-buffer reuse may compete with layer-wise
+  restore for the same conditional optimization slot. These are narrow
+  upstream/shared-substrate candidates: baseline and candidate arms must share
+  the patch, it is not a ToolGap differential, and D035 does not authorize its
+  implementation;
+- event-driven completion regains candidate status only if polling wait is
+  measured on the critical path;
+- PD-transfer slicing, coalescing, and concurrent channels remain in
+  `future/PD_TRANSFER_SLICE.md`; L3 and prefetch remain outside the mainline;
+- a dynamic selector remains blocked until G5 admission.
+
+If there is no reproducible bottleneck, implement no additional optimization
+patch. No memcpy bandwidth, release-rate, or microbenchmark result can win by
+itself: the same workload must close action -> mediator -> joint endpoint, with
+realized KV-pool pressure and fair sharing of any two-arm substrate patch.
+
+Alternatives considered:
+
+- implement a general pacing framework before a measured symptom;
+- pace all three stages under one controller;
+- run multiple optimization series in parallel;
+- treat chunking, on-demand Publication, layer-wise restore, event completion,
+  PD transfer, L3, prefetch, or policy as one bundled optimization;
+- infer a performance win from bandwidth or reclamation microbenchmarks.
+
+Evidence:
+
+The fixed G0 patch defines a call to existing demote only after checking a
+committed Host duplicate; it does not establish a new D2H in checked
+reclamation. The accepted evaluation contract already requires
+allocator-visible headroom and a joint-SLO endpoint. The PR5 PD-transfer and
+restore reviews preserve separate-scope and preflight conclusions, but no prior
+accepted decision authorizes general Demote Pacing. All performance claims
+remain `roadmap`.
+
+Consequences:
+
+`ROADMAP.md` keeps the existing conditional diagnosis outside Gate order;
+`engineering/PERFORMANCE_ENGINEERING.md` owns stage attribution and one-series
+admission; `EVALUATION.md` owns fairness, pressure, reachability, and endpoint
+proof. No runtime work is authorized.
+
+Reopen condition:
+
+Reopen only from a reproducible G3/G4 symptom with stage attribution and a
+small discriminating experiment, or after G5 independently admits a selector.
+The reopen record must identify the one selected series, SPEC revision,
+ablation, deletion test, losing workload, and fair arm treatment.
+
+Affected documents and experiments:
+
+`DECISIONS.md`, `ROADMAP.md`, `EVALUATION.md`,
+`engineering/PERFORMANCE_ENGINEERING.md`,
+`../worklog/plans/2026-08-22/bottom-optimization-route-landing.md`, and
+`../worklog/reviews/2026-08-22/bottom-optimization-route-reshape.md`.
+
+## 2026-08-24 — D036: Reopen the CUDA 13 provider-host selection before G1 preflight
 
 Status: accepted
 
@@ -922,11 +1097,11 @@ retained in
 
 Consequences:
 
-D023's provider-host choice is reopened for this new preflight. The created
-subnet, restricted security group, imported public key, and least-privilege
-ECS role are operational preparation only; they authorize neither a billed
-host nor an experimental result. ToolGap remains `roadmap`; no G1 Gate
-decision or runtime result exists.
+D023's provider-host choice is reopened for this preflight. The created subnet,
+restricted security group, imported public key, and least-privilege ECS role
+are operational preparation only. This decision authorizes neither a billed
+host nor, by itself, a G1 Gate decision or runtime result; the project claim
+state remains `roadmap`.
 
 Reopen condition:
 

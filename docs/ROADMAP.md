@@ -256,9 +256,27 @@ result. It does not require dynamic policy.
 
 After G0-G2, a reproducible symptom encountered during G3 or G4 may invoke the
 method in [`engineering/PERFORMANCE_ENGINEERING.md`](engineering/PERFORMANCE_ENGINEERING.md).
-No diagnosis report or optimization patch is required when no symptom exists.
+Classify the symptom before selecting work:
+
+1. **Publication:** the earlier HBM-to-Host D2H and committed Host copy;
+2. **checked reclamation:** after the tool gap, reuse that copy and call the
+   checked demote path to release device value/HBM; do not assume this stage
+   performs D2H;
+3. **Recovery:** Host-to-HBM restore or recompute after resume.
+
+This diagnosis has one conditional optimization slot and may admit at most one
+series. No reproducible bottleneck means no additional optimization patch.
+Candidate admission, rejected defaults, and same-slot constraints are owned by
+[D035](DECISIONS.md#2026-08-22--d035-reject-general-demote-pacing-as-the-default-admit-one-measurement-driven-conditional-optimization-series);
+the stage-specific diagnostic method is owned by
+[`engineering/PERFORMANCE_ENGINEERING.md`](engineering/PERFORMANCE_ENGINEERING.md).
+`ROADMAP.md` does not define a second optimization specification.
+
 A behavior-changing fix requires an updated SPEC revision and new run identity;
-it cannot retroactively turn an earlier result into PASS.
+it cannot retroactively turn an earlier result into PASS. The primary question
+remains whether immediate checked reclamation beats target session-priority
+release plus stock eviction on maximum sustainable arrival rate under the
+joint SLO, not whether a local bandwidth or release microbenchmark improves.
 
 ## G5 — Dynamic Policy Admission
 
@@ -293,3 +311,13 @@ requires a separate review that proves a non-oracle `resume_imminent` signal,
 positive usable slack for the exact transfer segment, an independent executor
 path, and a baseline beyond request-time reactive restore. Failure or success of
 prefetch must not change G0-G4 conclusions.
+
+## Future Project Review — PD KV Transfer Slice (not a Gate)
+
+See [`future/PD_TRANSFER_SLICE.md`](future/PD_TRANSFER_SLICE.md). A narrow
+prefill-to-decode KV transfer lifecycle slice — slicing, coalescing, per-slice
+verification, and atomic destination visibility on a reused transport — is
+admitted only as a separate future review after a real G1 physical-demotion
+PASS, and is expected to live outside the mainline repository. Its failure or
+success must not change G0-G4 conclusions, and it adds no distributed,
+multi-node, RDMA, or PD claim to the mainline.

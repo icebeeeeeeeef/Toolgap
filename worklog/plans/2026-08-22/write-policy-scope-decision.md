@@ -1,43 +1,39 @@
 # Write-policy scope decision
 
-> Status: completed
->
-> Claim state: `roadmap`
->
-> Date: 2026-08-22
+Status: complete
+
+Canonical owners: D034 in `docs/DECISIONS.md` and Required Baselines in
+`docs/EVALUATION.md`.
 
 ## Goal
 
-Persist the reviewed boundary between `write_through` as the smallest
-qualification/reference mode for checked Host-tier demotion and the separate
-question of which HiCache write policy is best for a production workload.
+Separate the first causal comparison from an end-to-end optimization claim on
+the declared single-node testbed: retain `write_through` for committed-copy
+qualification, then require the same workload and joint-SLO challenge against
+tuned stock `write_through_selective` and `write_back`.
 
 ## Scope
 
-- record the decision-changing steelman review in `worklog/reviews/`;
-- add one accepted decision to [`docs/DECISIONS.md`](../../../docs/DECISIONS.md);
-- make the two comparison layers explicit in
-  [`docs/EVALUATION.md`](../../../docs/EVALUATION.md): same-publication causal
-  comparison first, tuned stock-policy challengers before a production
-  optimization claim.
+- keep release-only and checked reclamation on the same committed Host copy and
+  Publication history;
+- set the claim ceiling to a mechanism result when the candidate does not beat
+  the best measured stock policy;
+- leave on-demand Publication blocked until measurement and an independent
+  accepted contract justify it.
 
 ## Non-goals
 
-- do not rewrite frozen G0 specifications or evidence;
-- do not change Gate order or authorize G1 execution;
-- do not implement dynamic policy, ToolGap-triggered publication, L3, or a new
-  physical transfer path;
-- do not claim that any write policy has won a runtime comparison.
+No runtime policy, tuning result, on-demand Publication mechanism, performance
+number, production-readiness claim, or production-scale claim is created by
+this documentation task.
 
 ## Acceptance evidence
 
-- the worklog review links to the canonical decision and evaluation contract;
-- `write_through` remains the G1/G2 and first G3 causal reference mode;
-- `write_through_selective` and `write_back` remain required production-level
-  challengers rather than being rejected globally;
-- repository whitespace and frozen G0 evidence checks still pass.
+D034 and `EVALUATION.md` state both baseline levels, fairness, and the claim
+ceiling without changing Gate order or frozen evidence.
 
-## Result
+## Final status
 
-Completed as a documentation-only decision clarification. No runtime behavior,
-experiment result, or project claim state changed.
+Complete. The canonical decision and evaluation contract passed fresh G0
+evidence verification, whitespace validation, decision-term cross-link review,
+and the owned-path boundary check.

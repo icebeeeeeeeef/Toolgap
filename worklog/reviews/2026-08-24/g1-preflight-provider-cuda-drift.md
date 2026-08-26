@@ -1,6 +1,6 @@
 # G1-PREFLIGHT-001 provider CUDA drift review
 
-> Canonical owner: `docs/DECISIONS.md` D034
+> Canonical owner: `docs/DECISIONS.md` D036
 
 ## Question
 
